@@ -1,0 +1,1 @@
+V39 is source-only for Windows/MSVC + DetourModKit/OpenXR, like previous packages. It was structurally checked in the Linux workspace but cannot be linked against the user's Windows SDK/DetourModKit here.

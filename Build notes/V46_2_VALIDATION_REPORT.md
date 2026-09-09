@@ -1,0 +1,29 @@
+PASS menu_translation_unit 
+PASS menu_links_win32_gdi_only 
+PASS no_second_d3d12_device_in_menu 
+PASS uses_existing_game_device 
+PASS menu_before_xr_blit 
+PASS present_submit_correlation 
+PASS menu_command_list_excluded_from_capture 
+PASS present_to_rt_to_present 
+PASS menu_blends_cpu_panel_texture 
+PASS menu_uses_game_hwnd_subclass 
+PASS f7_toggle 
+PASS matrix_button_same_test 
+PASS matrix_auto_hides_menu 
+PASS safe_mono_button 
+PASS save_settings_button 
+PASS swap_single_final_routing_preserved 
+PASS live_xr_fields_atomic 
+PASS matrix_blocks_menu_edits 
+PASS legacy_hotkeys_blocked_while_menu_open 
+PASS balanced_src_vr_menu.cpp 
+PASS balanced_src_vr_menu.h 
+PASS balanced_src_mod.cpp 
+PASS balanced_src_mod.h 
+PASS balanced_src_device_hook.cpp 
+PASS balanced_src_device_hook.h 
+PASS balanced_src_xr_manager.cpp 
+PASS balanced_src_xr_manager.h 
+
+V46.2 STATIC/LOGIC TESTS: PASS (27/27)
