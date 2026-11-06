@@ -13,7 +13,7 @@ Note: This is an beta version, made by passion-driven solo developer, which I bu
 
 **Features**
 
-- Full 6DOF and full VRIK controls for every weapons, holster system, full bow handling, full weapon handling and blocking, hand reloads for crossbows and bows, working combos and masterstrikes (with optional gore mod with decapitations too) 
+- Full 6DOF and full VRIK controls for every melee weapon, holster system, full bow handling, full weapon handling and blocking, hand reloads for crossbows and bows, working combos and masterstrikes (with optional gore mod with decapitations too) 
 - native Touch controller bindings — movement, camera, combat, interactions, D-pad simulation (right thumb rest + left joystick on oculus) and VR laser (by holding left or right grip in the menus - working as a mouse pointer) or you can choose SteamVR bindings (Inventory is holding X) or ps2vr bindings (no thumb rest option using capacitive touch controls)
 - working 6DOF crafting minigames, smithing with real hammer strokes (optional hold LT for "stabilize the iron on the anvil"), working alchemy
 - Dedicated in-headset VR menu (no need to pull off the headset to change settings) with optional developer access
@@ -52,6 +52,7 @@ Download optional "Gore Mod" from optional files with working decapitations (I a
 
 Put your headset on, for the first launch: launch the game through "Start KCD2VR.cmd" and choose your VR headset, resolution, upscaling, details, controller scheme, if you want the normal or "developer mode" with A LOT of options for finetuning the experience in game or in .ini
 holding grip enables vr laser (left or right) for easier selection in menus, otherwise use joysticks and triggers
+use VR menu to setup VRIK (or reconfigure the base one) or mono/stereo switch. 
 
 **Best practice:** 
 
