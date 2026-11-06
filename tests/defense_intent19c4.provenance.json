@@ -1,7 +1,0 @@
-{
-  "stateSha256": "26515c972d189ea92c1d917512addefbde11e9cf84360703d99f3582547a32eb",
-  "hookSha256": "18044d0c89e1edda9849ab5b65d6905c58b9d00d105c14d8f2427ae506b710da",
-  "substitutions": [
-    "DefenseIntentRead19c4 native memory leaf only"
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "source": "src/vrik/native_door19c4.inl",
-  "source_sha256": "bc115de3f5ce173285deea80c8949c237793abc396e7ae647701e4bb3c853cbe",
-  "excerpt_sha256": "265a0b96cf3aa8d3a2aae5e18bc5bad7844547fb5153022947ceedea625c45e8",
-  "production_decisions_rewritten": false,
-  "covered": "complete native-entry semi-door input capture helper",
-  "not_executed": "retail native calls; source-current leaf substituted in request fixture"
-}

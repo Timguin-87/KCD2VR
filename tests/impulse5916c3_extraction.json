@@ -1,9 +1,0 @@
-{
-  "source": "src/diagnostics/geometry_hit178r27.inl",
-  "sha256": [
-    "8389fba25b9c11bad8af6d946096ff70cad728ccc65af1a58002231fede7a7f3",
-    "ca611f90d32966e31015a328e335d265473440d1a223d667c0b7eb3eae505e85",
-    "68715d93d231b9bd991fd1b081436cc3326ec9090540d92c9d52da4df3f3a997"
-  ],
-  "functions": "Complete native-death receipt cache/admission, Request, OwnerCurrent, Reserve, common entity/parent gate, exact ImpulseBody, Deliver, Receipt, both-fault batch termination, Drain; only native leaves and fingerprint service mocked"
-}

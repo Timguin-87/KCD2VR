@@ -1,8 +1,0 @@
-{
-  "source": "src\\interaction_alignment.cpp",
-  "source_sha256": "b2443c1c89270c1353df4c43b4ed023194574a5398685b79ef685fb2065d27ce",
-  "excerpt_sha256": "439b81d598a3a7f6412f2e76323c23c9870be885f80abd8e0e1a15eed81ef8c9",
-  "production_decisions_rewritten": false,
-  "covered": "actual admitted OnScreen offer call, complete generic publisher, complete getter and current hand-ray gate",
-  "not_executed": "SEH projection and retail candidate enumeration; actual emitted metadata and downstream native selected/hint/Guided adapter ARE executed"
-}

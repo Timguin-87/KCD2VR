@@ -1,5 +1,0 @@
-{
-  "source": "src/vrik/manual_reload_attachment19c4r4.inl",
-  "sha256": "aaa11fbf4deb3095d6816f6d499933fe8bf35360eb96ed60a6537f1136cfca2b",
-  "boundaries": "Complete attachment/body/model/nock readers unchanged; only two native attachment lookup leaves plus safe memory/entity providers doubled"
-}

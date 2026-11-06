@@ -1,4 +1,0 @@
-add_executable(alchemy_gesture_transfer_d59_test subsystems/alchemy/gesture_transfer_d59_test.cpp)
-target_compile_features(alchemy_gesture_transfer_d59_test PRIVATE cxx_std_20)
-target_include_directories(alchemy_gesture_transfer_d59_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/openxr_sdk")
-add_test(NAME alchemy_gesture_transfer_d59 COMMAND alchemy_gesture_transfer_d59_test)

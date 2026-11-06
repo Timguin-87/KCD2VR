@@ -1,2 +1,0 @@
-int HenryInCombat178r31(std::uint64_t now) noexcept {
-    const auto s=g_henry_seen178r31.load(std::memory_order_acquire);if(!s||now<s||now-s>1000)return -1;return g_henry_in_combat178r31.load(std::memory_order_relaxed);}

@@ -1,6 +1,0 @@
-{
-  "geometry_sha256": "5b8a32a9ee900453342eac486df166a26985bd4e6640f90c2fd6e1337cbcdeb8",
-  "native_slot_fixture": "Production native query, flow reader and trigger/manager callbacks; native leaves and live publications mocked only",
-  "outer_fixture": "Decode/result caller/CallOuter bodies verified exact source substrings",
-  "HMD": false
-}

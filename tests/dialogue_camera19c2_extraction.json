@@ -1,7 +1,0 @@
-{
-  "source": "src/camera_hook.cpp",
-  "source_sha256": "20b46864c6e3bf7ff1319db7a67c3b347d695062ef3be7b5b2dcd43a6270ffb3",
-  "start_line": 347,
-  "extracted_sha256": "d373cf08bea2d8fdbd2aefca6773b368a6eb554822b1773b11ca518a41b11af4",
-  "scope": "Actual DialogueEyeBase59c10r2 and its production POD mailboxes; native leaves explicitly mocked; no source camera pipeline replacement"
-}

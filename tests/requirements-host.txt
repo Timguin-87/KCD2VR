@@ -1,2 +1,0 @@
-# Lua 5.1 fixtures; install in a test-only environment.
-lupa==2.8

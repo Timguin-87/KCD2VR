@@ -1,1 +1,0 @@
-#define HAS_NARROW_PHYSICAL_GATE 1

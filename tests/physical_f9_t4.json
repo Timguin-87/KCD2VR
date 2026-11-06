@@ -1,6 +1,0 @@
-{
-  "source": "src/mod.cpp",
-  "source_sha256": "045e1955dfdd1799abe29b60057aba95f1ab3f6e343748ee9c78969ebe5c76c3",
-  "extracted_sha256": "9bb32ddd93049691ba7140cf75cf0d228df1a555a47b2e8cb23d4a400ff327c0",
-  "scope": "Actual F9 control-plane only; no native physics acceptance"
-}

@@ -1,7 +1,0 @@
-{
-  "source": "src/camera_hook.cpp",
-  "commit": "5fe2a3886d6bfaa309e720febb8dd41b0c975c49",
-  "source_sha256_lf": "250ed8f47c072fbef3403e3814b37d6dbe02c8ef4b139ca081ec51b44739248e",
-  "excerpt_sha256": "fd0b4b9d4fc672c2f87d18fbd33cb627576adfa4aee1ebfa71608d090574976f",
-  "purpose": "actual old consumer default-path parity and diagnostic shear regression, not native execution"
-}

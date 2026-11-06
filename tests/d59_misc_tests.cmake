@@ -1,7 +1,0 @@
-foreach(target pet_gesture_d59_test pet_service_d59_test washing_d59_test misc_input_d59_test pet_producer_d59r1_test)
-    add_executable(${target} ${target}.cpp)
-    target_compile_features(${target} PRIVATE cxx_std_20)
-    target_include_directories(${target} PRIVATE ../src openxr_sdk)
-    target_link_libraries(${target} PRIVATE Threads::Threads)
-    add_test(NAME ${target} COMMAND ${target})
-endforeach()

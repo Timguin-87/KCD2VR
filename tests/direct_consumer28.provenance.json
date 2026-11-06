@@ -1,8 +1,0 @@
-{
-  "source_bytes_sha256": "c202ff8fb07ef84edd1d7e05b0a003e7c42750e9ea5a1e7b5a84d106270fa2a5",
-  "normalized_source_sha256": "c202ff8fb07ef84edd1d7e05b0a003e7c42750e9ea5a1e7b5a84d106270fa2a5",
-  "normalization": "UTF-8 text with universal-newline normalization, encoded as UTF-8",
-  "substitutions": [
-    "enclosing loop continue becomes fixture function return true; native leaves supplied by fixture"
-  ]
-}

@@ -1,7 +1,0 @@
-{
-  "source": "src/subsystems/ranged_reload/crossbow_rifle_request_h21.inl",
-  "slice_sha256": "61487e169f85d737a65d9190e8cf35fea4189542e188c3f27d87f4ae3e2df8f5",
-  "types_source": "src/frik_pose_probe.cpp",
-  "types_slice_sha256": "52a212393c37da34808515fa850bc29e076f4d9682e0ad76e353d43d409fc425",
-  "native_execution": false
-}

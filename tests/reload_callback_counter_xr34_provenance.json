@@ -1,8 +1,0 @@
-{
-  "sources": {
-    "src\\subsystems\\ranged_reload\\crossbow_native_xr34.inl": "902c24714dc8a2a77b1826a083a1a17e06ea125cb853d26bc0cb371712fb78d9",
-    "src\\action_time_owner59c11.cpp": "2007ecf32aedb2d05df7b73f55fe03262c0237d6da2d4dffb3ac449066f5771a"
-  },
-  "generatedSHA256": "c4c252781d16086cf274fe4bcdfc0bd6a211bcde933722295ad631241ba0bc4e",
-  "scope": "Exact3nativeentrywrappers and actual owner transaction. Native original/post observers explicit leaves, no WHGame execution."
-}

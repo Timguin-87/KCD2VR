@@ -1,6 +1,0 @@
-{
-  "sha256": "014f7dbb6181180ad0e038c49ade989bbeba2567be6ca442aca20f81a03a8e78",
-  "nativeLeaves": [
-    "TimerStart only; native manager/trigger originals are explicit spies"
-  ]
-}

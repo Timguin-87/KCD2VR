@@ -1,6 +1,0 @@
-{
-  "source": "src/subsystems/ranged_reload/crossbow_native_xr34.inl",
-  "source_sha256": "902c24714dc8a2a77b1826a083a1a17e06ea125cb853d26bc0cb371712fb78d9",
-  "generated_sha256": "5b3cea2e39b1ce33557b1f7d1f7a2317d3bb192858812068a92d8efc19a883c4",
-  "scope": "Exact native entry type/scope/wrapper; only original native call and post-start observer are explicit host leaves"
-}

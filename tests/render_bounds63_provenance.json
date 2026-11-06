@@ -1,8 +1,0 @@
-{
-  "source": "src\\vrik\\render_bounds63.inl",
-  "source_sha256": "5b3578820dbc697e9c07432e967dda7f5c18f244f4fd0fb8144fd1b732c492f7",
-  "extracted_sha256": "1e7da7e6f0b8b2aa482237aafda4bb37a9f7674c9dd444166868bf6a3bb4fc10",
-  "lifecycle_sha256": "57c7d085ca54513cb5801fdac515d28e5a03bea8ad43cd9bead13f696cddc09d",
-  "scope": "Actual production SelectHenryBounds63 and original-first detour. WhBase/clock/return-address/native original and checked memory read are explicit fixture leaves; real mailbox/pure bounds logic.",
-  "native_execution": false
-}

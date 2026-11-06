@@ -1,9 +1,0 @@
-{
-  "source": "src/camera_hook.cpp",
-  "source_sha256": "39d25731bf6a8d5bab035e491b50971ce567e1f253c7d090fe3ba370407e7607",
-  "boundary": "Actual selected camera statements/math; current TrackedFrameCamera55 admission is a test leaf; no native/headset execution",
-  "members": {
-    "generated_bow_basis_math_m2.inc": "f9272ed76828d55632bd307caf6ab27d78b5363092ecd7fb6778dc828d96f922",
-    "generated_bow_basis_consumer_m2.inc": "fcb575543b21e37cbc86182e1663c2d7546b2cb5d0f5a490f3bb2f0e9656b296"
-  }
-}
