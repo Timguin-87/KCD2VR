@@ -1,67 +1,117 @@
-# KCD2VR
+**Description**
+**KCD2VR - Medieval Immersion Simulator ** adds OpenXR virtual reality support to Kingdom Come: Deliverance II. It features full 6DoF head tracking, full VRIK system, full combat system rework, separate options for minigames, comfort options, controller bindings for movement and combat, a dedicated in-headset VR menu. I wanted to make the best game I ever played fully playable in VR, that it feels like a native VR game as much as possible, but with working RPG systems and progression. 
 
-VR support for Kingdom Come: Deliverance II via OpenXR — full 6DoF head tracking, native
-Touch controller bindings for movement and combat, a proper in-headset menu, and a tuned
-camera/FOV pipeline with either Mono or Pseudo-Depth-Stereo presentation.
+Note: This is an beta version, made by passion-driven solo developer, which I build in my free time over the last... god... 12 painful months very slowly, then faster with the help of expensive AI and now ... I need a long vacation. 
 
-This is still an early build, made by one person with a full-time job, in his free time —
-"with a little help of my friends" (and AI).
+**Features**
 
-## Features
+- Full 6DOF and full VRIK controls for every weapons, holster system, full bow handling, full weapon handling and blocking, hand reloads for crossbows and bows, working combos and masterstrikes (with optional gore mod with decapitations too) 
+- native Touch controller bindings — movement, camera, combat, interactions, D-pad simulation (right thumb rest + left joystick on oculus) and VR laser (by holding left or right grip in the menus - working as a mouse pointer) or you can choose SteamVR bindings (Inventory is holding X) or ps2vr bindings (no thumb rest option using capacitive touch controls)
+- working 6DOF crafting minigames, smithing with real hammer strokes (optional hold LT for "stabilize the iron on the anvil"), working alchemy
+- Dedicated in-headset VR menu (no need to pull off the headset to change settings) with optional developer access
+- True native stereo, optional mono options for lower specs (the game is very demanding)
+- Dialogue camera handling tuned for VR (native or forced 1st person with VRIK)
+- "Theater mode" for the inventory, character, cutscenes and cinematic dialogues
+- immersive HUD option (look at your open right palm to show health, or left for compass) and in game VR map parchment (right thumb rest + left joystick up for 0.5s), gesture controls (lower helmet visor with left trigger move near your left temple up and down), point with your index finger at your dog or npc for quick talk, or taunt them during a combat
+virtual holster system (see below)
+- immersive bow and crossbow reloads and handling (pull the arrow from your quiver and put it in your bow and pull the string with your right hand holding grip, then release for shooting, or crossbows - pull the string with your right hand grip and then take out bolt and put it in the crossbow slot, holding LT + tap of RT shoots like in game) 
+- progression system, where the weapon skill and RPG stats decides your weapon speed (more or less "gravity drag")
+- you can pet your dog with your hand! (if the game decides you can)
+- working horse combat and riding
+- Fallbacks if something is not working (F6 for switching theater or native, F7 for VR menu), holding B for 2 seconds for escape (there are many menus, maybe I miss something it this very long game)
 
-- Full positional + rotational head tracking (6DoF)
-- Native Touch controller bindings — movement, camera, combat, interaction (see [Controls](#controls) below). VRIK is in the works.
-- Dedicated in-headset VR menu — no need to pull off the headset to change settings
-- Tuned mono-world presentation: culling fix, FOV correlation, camera dolly (builds on KCD2Tools' shoulders — thank you)
-- Dialogue camera handling tuned for VR (native or forced first-person)
-- VR menu covering all the important settings, optimization, and tuning
-- Pseudo-depth-stereo (sadly not true native stereo) using camera tricks — IPD adjustment and distance-based parallax correction, with extensive customization
+except bugs, but I will work on them slowly over the next months (the game is too long to test every possible quest etc), I can't verify, if it works with other vr systems (maybe you need your own controls mapping through steam vr), some things I missed... except some flicker sometimes, sometimes you need to recenter (T pose is best for it) after some actions or recalibrate the VRIK
+If you want to support the development or just to say thanks, you may "Buy me a coffee" or something, much appreciated.
+                                                             
+                                                            
+**Installation instructions**
 
-## Installation (playing the released build)
+Download the latest version from the Files tab.
+Extract the files into kcd2 Master folder (dinput8.dll, Start KCD2VR.cmd and KCD2VR.ini should be next to WHGame.dll and game's .exe) - you may need to "unblock" the .dlls in your system (right click - properties, unblock .dll), replace the existing dinput8.dll, if you have one (other .asi mods should still work)
+Steam:
+.../KingdomComeDeliverance2/Bin/Win64MasterMasterSteamPGO/
+GOG:
+.../KingdomComeDeliverance2/Bin/Win64MasterMaster/
+use my user.cfg for custom resolution (all you need is add -devmode +exec user.cfg in the shortcut, or in steam - properties launch options), this one goes to the root folder, where system.cfg is, or start the game with .cmd to choose your resolution according to your headset and it will "populate" the user.cfg for you
+unpack the supplied folder with KCD2VR.pak and put it in the "Mods" folder
+Download optional no letter box mod: https://www.nexusmods.com/kingdomcomedeliverance2/mods/34?tab=files and put it in the root kcd2/Mods/ directory.
+Download optional "Gore Mod" from optional files with working decapitations (I am proud if it... but my blender skills are limited) and again, put it in the "Mods"
+Put your headset on, for the first launch: launch the game through "Start KCD2VR.cmd" and choose your VR headset, resolution, upscaling, details, controller scheme, if you want the normal or "developer mode" with A LOT of options for finetuning the experience in game or in .ini
+holding grip enables vr laser (left or right) for easier selection in menus, otherwise use joysticks and triggers
+Best practice: 
+Visual Settings: Turn Motion Blur OFF. Depth of Field (DOF) OFF. Most of the settings are already in user.cfg and in Optimized VR Settings
+choose "non developer" mode in .cmd (easier VR menu) or developer mode (lot of options)
+you can configure most things in the VR menu (hold right thumb rest + left joystick down to open and close it), left and right grip for VR laser pointer
+IMPORTANT WARNING: Do NOT change resolutions or apply changes inside the standard in-game Graphics menu—doing so forces a display mode reset that will crash the VR viewport.
+Controls:  
+Triggers are used for gestures and in clinch/stealth minigames or crossbow (LT+RT)/rifle shooting or stealth actions
+Grips are for holding weapons and interacting with the pickable items (you can still pick them with A (or X on ps2vr), or hold grab them yourself and put them in your "chest pouch", or you can pull dead npc with grip or interact with smaller static objects
+you can open doors with the your hand too 
+holding grip and trigger - fists for hand-to-hand combat, R3 for kicks
+swings and stabs works for the weapons, blocks are holding your weapons or hands in front of your face roughly parallel to it (it is quite easy to figure out, but you can make extensive options for the speed and size of "block box"), you can also block by parrying the incoming enemy blows with your swings (very cool) or dodge with your HMD
+you can pretty much hold any weapon with two hands for enhanced stability and power, holding right trigger activates "power attack" or feints
+left joystick is for movement, right joystick for turning (snap turning is as option in immersive and controls menu)
 
-1. Download the latest release from the [Releases](../../releases) page (or the Files tab on Nexus).
-2. Extract `KCD2VR.asi`, `KCD2VR.ini`, `dinput8.dll`, `openxr.dll`, and `MIS_MENU_BOOK.bmp` so they sit next to `WHGame.dll` and the game's `.exe`:
-   - **Steam:** `.../Kingdom Come Deliverance II/Bin/Win64MasterMasterSteamPGO/`
-   - **GOG:** `.../Kingdom Come Deliverance II/Bin/Win64MasterMaster`
-3. For a custom resolution, use the supplied `user.cfg` — it goes in the game's **root** folder (next to `system.cfg`), and you need to launch with `-devmode +exec user.cfg` added to your shortcut (or Steam → Properties → Launch Options).
-4. Put your headset on, launch the game normally, and control everything with your Touch controllers.
+**virtual holsters **
 
-### Best-practice settings
+grab the weapon with the grip, holding grip is necessary, releasing grip returns the weapon to the holster)
+visible holsters are working (left hip for swords, right hip for axes, maces) for right hand, just grab the handle and pull
+right shoulder for bow/crossbow/rifle if you grab it with the left hand over the right shoulder
+behind your back on the right side (behind your arm) for two handed weapons, grab with the right hand
+left shoulder for shield, grab with the left hand over the left shoulder
+behind left back for the torch (using left hand and left trigger, you can put it back with holding the trigger)
+helmet visor up and down by holding left trigger and moving your left hand up and down near your left temple
+Right thumb rest: modifier for D-pad actions 
+Right thumb rest + Left Stick Up: hold it for 0.5s for immersive parchment map (B closes)
+Right thumb rest + Left Stick Left: select weapons (but you have holsters too)
+Right thumb rest + Left Stick Right: select quick-consumable slot and A to drink it
+Right thumb rest + Left Stick Down: hold it longer for the VR Menu (open, close)
+X: for quick talk (hold X for torch or in steamVR for vrmenu)
+Y: Call horse; hold Y = Call dog (or dog interactions), otherwise you can command your dog with gestures
+B: in menus for interactions or long press for "exit" menu
+A: Use / talk / pick up (or use grip)
+Right Menu/Oculus button: Recenter
+Left Menu button: Inventory and other menus (character, ...) (in steamVR it is holding X)
+R3 kick
+L3 is sprint
+right joystick up Jump, down crouch
+right thumb rest + left menu button - pause menu (or holding B for 2s)
+Emergency controls F6 for switch between theater and immersive mode and F7 (keyboard) for VR menu 
+If you want to use the native non VRIK controls, (emergency option or if tutorials need native inputs for combos or.. whatever)
+NATIVE INPUT CONTROLLS (NON VRIK): are similar to gamepad, right grip is free look, left grip is for D-pad simulation, right trigger for attacks, left trigger for the blocks, in combat right stick is for directions... like in native game.  
 
-- **Resolution:** custom square or nearly-square (or portrait) resolutions look noticeably better in-headset than stretching a 16:9 image onto a near-square VR view — you lose a lot of pixels that way. Best results so far: **1920×1800** on the lower end; try higher if your system can take it. Tested at medium settings on an RTX 4080 with acceptable performance. Turning off motion blur helps; DOF is optional (it still looks fine with it on).
-- **FPS cap:** the game doesn't lock to a true 90 FPS — it tends to hover around 94–96, which causes choppy head-turning. Capping around **84–85** looks great instead, though the right number varies by system. There's also an optional head-motion sync setting that can smooth this further, with some trade-offs — see the VR menu.
+****Requirements
+VR Headset
+optional: https://www.nexusmods.com/kingdomcomedeliverance2/mods/34?tab=files
 
-### ⚠️ Important: don't use the in-game graphics menu to change settings
+**Future**
+throwing daggers and weapons, rifle reload, fully immersive verbatim combos and masterstrikes (need animation artist or learn it myself - now there is still a disconnect feeling between your blade and "paired" animations), working live NPC grabbing and reactions and immersive clinches and a lot of bugfixing and optimization
+KCD1VR mod
+Known issues
+VRIK is not ideal, VRIK combat and weapon handling are nearly there for me, but it is too much for one person to test it all. The plan is to integrate full working verbatim combos to the game (like pommel strike or knee strike as in game) - but you have extensive controls in developer mode - maybe come up with better ones, you can post them as you like - the main reason for the restrictions in actual combat is to not spawn the npc's with 1000 cuts, so to honor the kcd2 rpg systems
+hands can feel sometimes choppy (openxr synchronization, didn't find the best working solution for it, yet), some functions can block the other, the doors are sometimes... not working..., sometimes you need to recalibrate the view to have interaction "ray" central
+HUD is ... not ideal
+dice minigame is also not ideal
+switch between inventory/shop and immersive is not immediate
+collisions are not great
+rifles reload is not finished (but holding LT reloads them and LT+RT shoots... you can point them with your hands)
+See the GitHub README's Known Issues section for the current list — it's kept more up to date there than here, there are extensive documentations and source builds, which will be regularly updated.
 
-Changing **resolution** in the in-game graphics menu will crash the VR view — clicking Apply on *any* setting in that menu forces a resolution reset, which is what actually breaks it. Advanced graphics settings and everything else in that menu are fine to change. Use `user.cfg` for resolution, and the in-headset **VR menu** for things like gamma and brightness instead.
+**Reporting bugs**
+Please post issues on Github rather than the Nexus comments if you can, it's much easier to track. If something crashes or does not work persistently, look in the log file before you post (you need to enable diagnostics or developer mode in the .ini). 
+It will be buggy now, probably, I only tried it on my PC and oculus via virtual desktop, steam and playstation VR... 
+But give me like 1-2 weeks first, I need a break right now from this all. 
+A note on where this project is headed
+I've taken this about as far as I currently can on my own with the help of claude and chatgpt and some friends. What's here works and is genuinely playable. If you can help: the GitHub repo has the history and docs, Come find me, or just fork it, I need every help I can get. 
+I am confident, that porting it to kcd1 would be relative easy, than starting from scratch, but didn't yet tested it. 
+Credits
+A personal note: I'm only a hobby C++ programmer and English isn't my first language — this project only exists because of inspiration from amazing flat2vr modders like praydog and others for initial building blocks, and this community where I took inspirations from some of the mods on this site (central HUD for how to move the HUD elements for initial work, minimap lua mod how to make POI's show for the vrmap), and from PLANCK/HIGGS and FRIK. For the haters, without the AI help, it would take me years to complete or I will need a whole team of people. 
+Thanks to:
+Quang Trinh and his KCD2Tools — modding groundwork this project builds on (the start was the camera)
+libKCD2 on github for lot of static investigation
+Warhorse Studios — for Kingdom Come: Deliverance II itself. Thank you for making the best game I ever played and something worth doing this for.
+And my beautiful wife for her enormous patience with me sinking all of my free time to this mod <3
 
-## Controls
-
-*(Oculus Touch controllers — not tested with any others)*
-
-| Input | Action |
-|---|---|
-| Left Trigger | Block |
-| Left Grip | Modifier (hold for combos below) |
-| Left Grip + Left Stick Up | Torch |
-| Left Grip + Left Stick Down | Helmet visor |
-| Left Grip + Right Stick Left | Select left quick-consumable slot; keep holding → Henry drinks/uses it |
-| Left Grip + Right Stick Right | Select right quick-consumable slot; keep holding → Henry drinks/uses it |
-| X | VR MIS menu |
-| Y (short / hold) | Call horse / Call dog |
-| B (short / long) | Weapon swap / Sheath |
-| A | Use / talk / pick up |
-| Right Trigger | Attack |
-| Right Grip + Right Stick | Theater-view zoom/framing, free look, and bow aiming |
-| Right Menu/Oculus button | Recenter |
-| Left Menu (short / long) | Inventory / Pause menu (or Back) |
-
-**Combat:** holding Right Grip + Right Stick controls sword placement; the stick also controls view, and an extreme flick switches targets. Left Trigger blocks. Movement/strafing is the left stick.
-
-## Requirements
-
-- A VR headset
-- Optional: [Letterbox remover](https://www.nexusmods.com/kingdomcomedeliverance/mods/1632)
 
 ## Building from source
 
@@ -95,22 +145,6 @@ cmake --build build --config RelWithDebInfo
 
 For a debug build with fuller diagnostic logging, use `--config Debug` instead of `--config RelWithDebInfo` in the last step — the release default keeps logging minimal for performance.
 
-## Future
-
-- VRIK and native stereo — see [A note on where this project is headed](#a-note-on-where-this-project-is-headed) below
-- KCD1VR
-
-## Known issues
-
-*(kept more up to date on this repo than on Nexus — check open issues too)*
-
-- Snap-turn / slow-turn on the right stick takes some getting used to.
-- VRIK is only rudimentary right now and doesn't cover all actions — but combined with the game's own animations, it mostly makes sense for the time being.
-- VRIK combat and weapon handling need real work and a lot of debugging — more than one person can realistically get through alone.
-- Herb picking, meal picking, and some other interactions aren't ideal yet.
-- Changing graphics settings from the main menu/in-game will crash the VR view — use `user.cfg` for resolution, and the VR menu for things like brightness/gamma (see the warning under Installation above).
-
-## Reporting bugs
 
 Please post issues on **GitHub** rather than the Nexus comments if you can — it's much easier to track. If something crashes, grab the log files first (see this repo's issue template / Known Issues for exactly which ones) before you post.
 
