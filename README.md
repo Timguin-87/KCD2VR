@@ -5,12 +5,7 @@ Tracked hands, weapons and room movement for Kingdom Come: Deliverance II.
 The game owns combat results, inventory, recipes and interaction legality.
 The VR side supplies tracked movement and the presentation of those actions.
 
-## Current source: R105 — HUD, OpenXR recovery and native spanner grip
-
-R105 continues from the supplied R104 source. It repairs stale controller input,
-OpenXR frame/session recovery, the weapon/potion selector visibility bypass and
-the medium crossbow's animated spanner grip capture. Ordinary HUD content uses a
-farther reading plane with a more central binocular safe area.****KCD2VR - Medieval Immersion Simulator **** 
+****KCD2VR - Medieval Immersion Simulator **** 
 
 adds OpenXR virtual reality support to Kingdom Come: Deliverance II. It features full 6DoF head tracking, full VRIK system, full combat system rework, separate options for minigames, comfort options, controller bindings for movement and combat, a dedicated in-headset VR menu. I wanted to make the best game I ever played fully playable in VR, that it feels like a native VR game as much as possible, but with working RPG systems and progression. 
 
@@ -349,6 +344,13 @@ The source archive contains no newly compiled DLL/ASI, raw recordings or optiona
 gore payload. Its required gameplay donor PAK is a build input, and current
 source overlays produce the main companion during the build. See [building](docs/BUILDING.md) and
 [dependencies](docs/DEPENDENCIES.md) for the normal build requirements.
+
+## Current source: OpenXR recovery and native spanner grip
+
+R105 continues from the supplied R104 source. It repairs stale controller input,
+OpenXR frame/session recovery, the weapon/potion selector visibility bypass and
+the medium crossbow's animated spanner grip capture. Ordinary HUD content uses a
+farther reading plane with a more central binocular safe area
 
 ## Settings and diagnostics
 
