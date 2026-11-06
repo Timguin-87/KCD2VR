@@ -1,3 +1,4 @@
+#include "diagnostics/log_sink_d48.h"
 #include "recursive_view_probe.h"
 #include "debug_trace.h"
 
@@ -96,7 +97,7 @@ bool RecursiveViewProbe::Install()
 {
     const auto wh = WhBase();
     if (!wh) {
-        log().error("V45-RECURSIVE: WHGame.dll unavailable");
+        KCD2VR_DIAG_LOG(Bug,error,"V45-RECURSIVE: WHGame.dll unavailable");
         return false;
     }
 
@@ -123,13 +124,13 @@ bool RecursiveViewProbe::Install()
     };
     auto get_hook = hook::inline_at(std::move(get_req), &RecursiveViewProbe::GetOrCreateRenderViewDetour);
     if (!get_hook) {
-        log().error("V45-RECURSIVE: GetOrCreateRenderView hook install failed");
+        KCD2VR_DIAG_LOG(Bug,error,"V45-RECURSIVE: GetOrCreateRenderView hook install failed");
         return false;
     }
     s_get_or_create_hook = std::move(*get_hook);
     s_get_or_create_original = s_get_or_create_hook->original<GetOrCreateRenderViewFunc>();
     if (!s_get_or_create_hook->enable()) {
-        log().error("V45-RECURSIVE: GetOrCreateRenderView hook enable failed");
+        KCD2VR_DIAG_LOG(Bug,error,"V45-RECURSIVE: GetOrCreateRenderView hook enable failed");
         s_get_or_create_hook.reset();
         s_get_or_create_original = nullptr;
         return false;
@@ -142,7 +143,7 @@ bool RecursiveViewProbe::Install()
     };
     auto pass_hook = hook::inline_at(std::move(pass_req), &RecursiveViewProbe::CreateRecursivePassDetour);
     if (!pass_hook) {
-        log().error("V45-RECURSIVE: recursive pass hook install failed");
+        KCD2VR_DIAG_LOG(Bug,error,"V45-RECURSIVE: recursive pass hook install failed");
         (void)s_get_or_create_hook->disable();
         s_get_or_create_hook.reset();
         s_get_or_create_original = nullptr;
@@ -151,7 +152,7 @@ bool RecursiveViewProbe::Install()
     s_create_recursive_hook = std::move(*pass_hook);
     s_create_recursive_original = s_create_recursive_hook->original<CreateRecursivePassFunc>();
     if (!s_create_recursive_hook->enable()) {
-        log().error("V45-RECURSIVE: recursive pass hook enable failed");
+        KCD2VR_DIAG_LOG(Bug,error,"V45-RECURSIVE: recursive pass hook enable failed");
         s_create_recursive_hook.reset();
         s_create_recursive_original = nullptr;
         (void)s_get_or_create_hook->disable();
@@ -172,10 +173,6 @@ void RecursiveViewProbe::Uninstall()
     s_get_or_create_original = nullptr;
 }
 
-bool RecursiveViewProbe::IsRecursiveView(const void* render_view) noexcept
-{
-    return render_view && SafeReadU32(render_view, 0x14) == 1u;
-}
 
 std::uint64_t RecursiveViewProbe::RecursivePassCount() noexcept
 {

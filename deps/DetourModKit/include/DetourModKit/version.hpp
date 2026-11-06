@@ -1,0 +1,32 @@
+#ifndef DETOURMODKIT_VERSION_HPP
+#define DETOURMODKIT_VERSION_HPP
+
+/**
+ * @file version.hpp
+ * @brief Compile-time version macros for DetourModKit.
+ * @details Generated from version.hpp.in by CMake configure_file().
+ *          Do not edit the generated header directly.
+ */
+
+#define DMK_VERSION_MAJOR 4
+#define DMK_VERSION_MINOR 2
+#define DMK_VERSION_PATCH 0
+
+#define DMK_VERSION_STRING "4.2.0"
+
+/**
+ * @brief Encodes major.minor.patch into a single integer for compile-time comparisons.
+ * @details Example: DMK_VERSION_AT_LEAST(2, 3, 0). The minor and patch fields each
+ *          reserve three decimal digits (0..999), so a two-digit-component scheme can
+ *          never collide a higher minor with a lower one from the next major.
+ */
+#define DMK_MAKE_VERSION(major, minor, patch) \
+    ((major) * 1000000 + (minor) * 1000 + (patch))
+
+#define DMK_VERSION \
+    DMK_MAKE_VERSION(DMK_VERSION_MAJOR, DMK_VERSION_MINOR, DMK_VERSION_PATCH)
+
+#define DMK_VERSION_AT_LEAST(major, minor, patch) \
+    (DMK_VERSION >= DMK_MAKE_VERSION(major, minor, patch))
+
+#endif // DETOURMODKIT_VERSION_HPP

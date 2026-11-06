@@ -1,0 +1,12 @@
+{
+  "source": "src/frik_pose_probe.cpp",
+  "source_sha256": "0737f682bf230bd3d844cbb1ff7c01e88ad4a78a665029af43205ee6af059d45",
+  "excerpt_sha256": "16bd47219026a997b679da784789ba09922f04c0460f5c1dcc54272465fd617a",
+  "source_lines": [
+    8695,
+    8734
+  ],
+  "production_decisions_rewritten": false,
+  "covered": "complete ReadInteractionPalm59c9; optional arguments are declared by actual public header",
+  "not_executed": "native packet and tracking providers; math uses portable production pose kernel"
+}

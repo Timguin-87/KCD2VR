@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<kcd_mod>
+	<info>
+		<name>KCD2VR Gore (decapitation and dismemberment)</name>
+		<modid>kcdvr_gore</modid>
+		<description>Optional adult gore content for the D74 DLL. One kcd2vr_gore.pak contains the exact gore script, head, stump, material and limb resources partitioned from D73. Native lethal-result and full-swing eligibility remain required. This package fixes optional-pack detection, not all visual or dismemberment outcomes. Do not combine with older separate gore PAKs.</description>
+		<author>KCD2VR</author>
+		<version>74.0.1</version>
+		<created_on>2026-11-01</created_on>
+		<modifies_level>false</modifies_level>
+	</info>
+	<supports>
+		<kcd_version>1.*</kcd_version>
+	</supports>
+</kcd_mod>

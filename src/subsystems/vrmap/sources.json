@@ -1,0 +1,5 @@
+[
+  "src/subsystems/vrmap/runtime/held_map_m1.cpp",
+  "src/subsystems/vrmap/runtime/held_map_feed_t2.cpp",
+  "src/subsystems/vrmap/module.cpp"
+]

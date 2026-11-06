@@ -1,0 +1,5 @@
+void SetSynchronized59c10r9(bool on) noexcept {if(nhp134::geom27::g_sync59c10r9.exchange(on,std::memory_order_acq_rel)!=on)nhp134::combo59c17::ClearLineage19();}
+bool Synchronized59c10r9() noexcept {return nhp134::geom27::g_sync59c10r9.load(std::memory_order_acquire);}
+void SetIntent59c16(bool on) noexcept {if(nhp134::geom27::g_intent59c16.exchange(on,std::memory_order_acq_rel)!=on)nhp134::combo59c17::ClearLineage19();}
+bool Intent59c16() noexcept {return nhp134::geom27::g_intent59c16.load(std::memory_order_acquire);}
+void SetRung3Switches59c12(bool syncOverdueAny,bool recoveryOverride,bool noRowFallback) noexcept {nhp134::geom27::g_sync_overdue_any59c12.store(syncOverdueAny,std::memory_order_release);nhp134::geom27::vrstate596::g_recovery_override59c12.store(recoveryOverride,std::memory_order_release);nhp134::geom27::vrstate596::g_accept_recovery59c16.store(recoveryOverride,std::memory_order_release);nhp134::geom27::vrstate596::g_no_row_fallback59c12.store(noRowFallback,std::memory_order_release);}

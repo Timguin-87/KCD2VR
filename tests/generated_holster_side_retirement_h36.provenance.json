@@ -1,0 +1,9 @@
+{
+  "source": "src/vrik/physical_native.inl",
+  "sourceSHA256": "3e2a55108a4422bff20ba2bb47200080a67d4a7d45506865f9bd2ad43f0ba9e7",
+  "prefixSHA256": "f239e45785e46c295ccddae7e30a83cf2e1fa5d5f741c32ca1a83e2c12eca9aa",
+  "lineFirst": 1427,
+  "lineLast": 1501,
+  "generatedSHA256": "fee6c260d7e93239e5a03db04d6d6529d73e2d6b7f0a152715ad1ba7f88e78e0",
+  "limitation": "Fixture stops before native equipment call; no native request, animation or ACK fabricated."
+}

@@ -1,0 +1,5 @@
+{
+  "source": "src/vrik/staged_reload596c2.inl",
+  "sha256": "ead21954c2003f02e3f45ad8df4cb9966fe7718baf2f05877bcc13289ba8d2ac",
+  "native_leaves": "equipment/component/visual lookup mocked; whole read function unchanged"
+}

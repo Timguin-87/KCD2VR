@@ -1,0 +1,13 @@
+{
+  "generated": [
+    {
+      "path": "tests/reload_completed_source_xr34_actual.inc",
+      "sha256": "45176c2101354313d857b8bbca7dee78db38fd5df7d3c6d4663e14d02a2a852d"
+    },
+    {
+      "path": "tests/reload_registration_xr34_actual.inc",
+      "sha256": "294e3e5fa8f434ac9ce9b5fad565cc8cbb679eef0314a52f61f9638c08fd6fb8"
+    }
+  ],
+  "native_execution": false
+}

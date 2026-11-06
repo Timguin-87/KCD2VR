@@ -1,0 +1,29 @@
+#ifndef DETOURMODKIT_MATH_HPP
+#define DETOURMODKIT_MATH_HPP
+
+/**
+ * @file math.hpp
+ * @brief Provides basic mathematical utility functions.
+ */
+#include <numbers>
+
+namespace DetourModKit
+{
+    namespace math
+    {
+        /// Converts an angle from degrees to radians.
+        [[nodiscard]] constexpr float degrees_to_radians(float degrees) noexcept
+        {
+            return degrees * (std::numbers::pi_v<float> / 180.0f);
+        }
+
+        /// Converts an angle from radians to degrees.
+        [[nodiscard]] constexpr float radians_to_degrees(float radians) noexcept
+        {
+            return radians * (180.0f / std::numbers::pi_v<float>);
+        }
+
+    } // namespace math
+} // namespace DetourModKit
+
+#endif // DETOURMODKIT_MATH_HPP

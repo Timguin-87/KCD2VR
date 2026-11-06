@@ -1,0 +1,9 @@
+{
+  "source_files": {
+    "src/mod.cpp": "b76383664256e5310d5feacf54193337d3f21d00d9e3acafb7547525c552a5f5",
+    "src/frik_pose_probe.h": "566492ade709f714c69c5a6fd5d681e22388bd5214a269122919d52b1dca1803",
+    "src/frik_pose_probe.cpp": "0737f682bf230bd3d844cbb1ff7c01e88ad4a78a665029af43205ee6af059d45",
+    "src/vrik/workstation_pose_context19c4r2_publish.inl": "5a932da5092ad46ad71a4c68f1b05be10db5cf0e3f0872ec08ab2c6c80ca9d00"
+  },
+  "extracted_sha256": "0dfada42ddadfe78339a378974a9b687be640db3f8c3e446059072e78cccba3a"
+}

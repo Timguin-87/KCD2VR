@@ -1,0 +1,1263 @@
+// V66.178R59.6 VR STATE DRIVER (Miki: "the NPC needs to dance to our blade"). Exact retail seams, read 2026-10-11 from
+// WHGame 6A350E20: the ordinary attack action announces its phases through NOTIFYING property setters on Henry's
+// C_CombatActor state - D4D34C (enter strike) registers the sweep callbacks and tail-calls 93A0C8(state+0x30, 8); the
+// phase4 observer 911B24 offers a trigger carrying the row-derived defense zone (+150) to the opponent. AFTER native
+// selection/activation, C_CombatTriggerBlock subscribes to phase (908A9C); 9089AC notifies an active trigger at phase8.
+// That notification alone is NOT the NPC's decision to block or a perfect-block award. C5235C's gate 72EFDC(actor,8)
+// reads the same phase. The setters are generic
+// property objects (0x30 bytes, value at +8, signal at +0x18): 93A0C8(prop*,int), 72FA34(prop*,bool),
+// 9E43AC(prop*,float). With VrAttackBackend=vr the BLADE drives those properties: wind-up on VR commit (phase 4, zones,
+// attack type/strength, row-derived defense zone), strike (phase 8) at forward commit/contact, withdraw, idle on recovery.
+// No ordinary native action, no animation, no root motion, no native sweep. The hit itself then goes through the
+// direct native route (BuildAndSubmitMeleeHit apply=1 + D49AB4/90C850/D542E0) with the published zone as context.
+// Everything is logged (VR_STATE ...). This is the first end-to-end no-native-swing slice; the NPC's block decision,
+// stamina and combo bookkeeping are the open contracts ChatGPT's C4/C5 list - this build measures them in the headset.
+#include "../base/combat_entry_contract.inl" // M2_OWNED_SOURCE
+namespace vrstate596 {
+// R59.8 (after ChatGPT's R59.6 review, accepted): (1) attackRequested/isAttacking are NOT written - those notifying
+// properties re-entered the native coordinator (21:33:52: VR_STATE WINDUP -> 9 ms later an ordinary slash clip and a
+// -8.424 preparation stamina effect). Only zone/type/strength and the action PHASE are published; the NPC block trigger
+// subscribes to the phase. (2) One attempt-bound event queue (gesture id + tick + expiry) instead of three loose atomics.
+// (3) Phase 8 opens at the VR COMMIT (pre-contact strike window), not at the contact. (4) Never write over a phase we did
+// not write (native owns Henry), never onto another actor, never while the native body owns Henry (clinch/paired),
+// stop on the first setter fault, and clean up even when the geometry rung is off.
+constexpr std::uintptr_t kSetInt=0x93A0C8ull,kSetBool=0x72FA34ull,kSetFloat=0x9E43ACull;
+// R59.16C10R4A (CLAUDE_REVIEW_C10R4 item A, S31): WHGame sets the PHASE (+0x30) and the blocking hand (+0x600) with 93A0C8
+// (notify 910E9C(sig,&self,old,new)); every zone/type int (+0x120/+0x180/+0x270/+0x210/+0x5D0/+0x240) with 93A2D0 (notify
+// 90F89C(sig,&self,old,new,0)). Static count of the native call sites: zone props 93A2D0 x13, 93A0C8 x0; phase 93A0C8 x7.
+// The two differ only in the dispatcher (`45 3B C1 74` vs `45 3B C1 75 05`): a zone signal dispatched by the phase dispatcher
+// hands its delegates the wrong argument layout. SetInt routes by property; both entries are pinned.
+constexpr std::uintptr_t kSetIntZone59c10=0x93A2D0ull;
+constexpr unsigned char kSetIntEntry[]{0x48,0x83,0xEC,0x38,0x44,0x8B,0x41,0x08,0x44,0x8B,0xCA,0x48,0x8B,0xD1,0x45,0x3B,0xC1,0x74};
+constexpr unsigned char kSetIntZoneEntry59c10[]{0x48,0x83,0xEC,0x38,0x44,0x8B,0x41,0x08,0x44,0x8B,0xCA,0x48,0x8B,0xD1,0x45,0x3B,0xC1,0x75,0x05};
+constexpr unsigned char kSetBoolEntry[]{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x57,0x48,0x83,0xEC,0x30,0x40};
+constexpr unsigned char kSetFloatEntry[]{0x48,0x83,0xEC,0x38,0xF3,0x0F,0x10,0x41,0x08,0x48,0x8B,0xD1,0x0F,0x2E,0xC1};
+// Diagnostic only: 10F10CC constructs +300/+680 as BYTE properties. Their
+// exact vft+8 getter is 1A7DE10 (movzx eax,byte[rcx+8];ret). I() would also
+// read three padding bytes; those bits are neither an integer nor a float flag.
+constexpr std::uintptr_t kDefenseBoolVft=0x3B0A6A0,kDefenseBoolGetter=0x1A7DE10;
+constexpr unsigned char kDefenseBoolGetterEntry[]{0x0F,0xB6,0x41,0x08,0xC3};
+template<class Copy> static const char* TypedDefenseBoolDiagnostic(const void* state,std::uint32_t prop,
+        std::uintptr_t expectedVft,bool exactRetail,Copy copy) noexcept {
+    if(!exactRetail||!state||!expectedVft||(prop!=0x300&&prop!=0x680))return "UNKNOWN";
+    const auto* p=static_cast<const unsigned char*>(state)+prop;
+    std::uintptr_t vft=0;unsigned char value=0;
+    if(!copy(p,&vft,sizeof(vft))||vft!=expectedVft||!copy(p+8,&value,sizeof(value)))return "UNKNOWN";
+    return value?"1":"0";
+}
+static const char* ReadDefenseBoolDiagnostic(const void* state,std::uint32_t prop) noexcept {
+    if(!retail_build112::Ready(g_base))return "UNKNOWN";
+    static int pins=-1;if(pins<0)pins=(EntryIs596(kDefenseBoolGetter,kDefenseBoolGetterEntry,sizeof(kDefenseBoolGetterEntry))&&
+        Rd<std::uintptr_t>(reinterpret_cast<const void*>(g_base+kDefenseBoolVft),8,0)==g_base+kDefenseBoolGetter)?1:0;
+    return TypedDefenseBoolDiagnostic(state,prop,g_base+kDefenseBoolVft,pins==1,
+        [](const void* p,void* out,std::size_t n) noexcept {return SehCopy146(p,out,n);});
+}
+std::atomic<bool> g_consequence{false},g_fault{false},g_reset{false};
+// H21 retires automatic phase4->8 onset notifications. Phase4 offers native
+// defense intent; only the real motion Commit/contact can enter phase8.
+// VrTelegraphStrike remains an optional bounded readiness observation.
+// R59.16C10R16 (rung-4 analysis of the R14B log: 22 of 43 forward offers went to swings the recognizer abandoned, and 8 of 10 NPC
+// parries answered those phantom swings): default OFF - the prepare publishes phase 4 and the COMMIT publishes phase 8. INI VrTelegraphStrike.
+// C4R3 corrects the old inference: FOLLOWUP_C at this edge evaluates a native
+// defensive candidate with apply0. Its predicted flags/damage do not establish
+// an applied hit; it must remain available to native action selection.
+std::atomic<bool> g_telegraph_strike59c10{false}; // H21: readiness observation only, never phase authority.
+// VR DIRECT contact ownership, guard reclaim and bounded late contact policy.
+// Native evaluation is not an application and does not consume this owner.
+std::atomic<bool> g_own_hits18{true};
+std::atomic<std::uint64_t> g_forward_offers18{0},g_followup_suppressed18{0},g_contact_refreshed18{0},
+    g_direct_hits18{0},g_direct_blocked18{0},g_direct_perfect18{0},g_direct_vs128_18{0},g_direct_vs256_18{0};
+// Exact-owned application-only barrier. Retail FOLLOWUP_C passes apply0 and
+// therefore proceeds unchanged; its candidate acceptance is downstream.
+bool SuppressNativeFollowup18(const void* rpg,std::uintptr_t callerRva,const void* request,bool applyNative,int attackType) noexcept; // defined after the attempt snapshot
+
+void NoteDirectHit18(bool ok,bool blocked,bool perfect,int victimPhase) noexcept {
+    if(!ok)return;g_direct_hits18.fetch_add(1,std::memory_order_relaxed);if(blocked)g_direct_blocked18.fetch_add(1,std::memory_order_relaxed);
+    if(perfect)g_direct_perfect18.fetch_add(1,std::memory_order_relaxed);
+    if(victimPhase==128)g_direct_vs128_18.fetch_add(1,std::memory_order_relaxed);else if(victimPhase==256)g_direct_vs256_18.fetch_add(1,std::memory_order_relaxed);
+}
+struct TelegraphOffer {kcd2vr::motion59c4::Key key{};std::uint64_t tick=0;bool pending=false,open=false;};
+static TelegraphOffer g_telegraph_offer;
+std::atomic<int> g_stage{0},g_zone{-1},g_technique{0};std::atomic<std::uint64_t> g_since{0},g_strikes{0},g_windups{0},g_misses{0},g_gesture{0},g_yield{0};
+// R59.16C10R12 (19:43 log): 16 attempts yielded on the tail of our own strike (phase 32), 97 of 152 on DEFENSE_ROW_UNAVAILABLE.
+std::atomic<bool> g_recovery_override59c12{true},g_no_row_fallback59c12{true};std::atomic<std::uint64_t> g_own_strike_end59c12{0};
+// R59.16C10R16 rung 4 (analysis of 7 rung-4 logs): Henry's phase 32 mostly follows a hit he took or his own block (not our strike),
+// so the R12 own-recovery rule missed it - 41 of 106 R14B yields. 32 is now always a start phase; 64 (Henry's hit reaction, no VR
+// body plays it) only after it has lasted g_stagger_ms59c16 and only with VrStrikeDuringStagger. Henry's OWN guard taking the phase
+// back after we published (NATIVE_TOOK_PHASE, 17 of 43 R14B offers) is reclaimed up to 3 times per attempt.
+std::atomic<bool> g_accept_recovery59c16{true},g_accept_stagger59c16{false},g_reclaim_guard59c16{true};std::atomic<unsigned> g_stagger_ms59c16{150};
+std::atomic<std::uint64_t> g_reclaimed59c16{0},g_clock_adopted59c16{0};static int g_reclaims59c16=0;static std::uint64_t g_phase64_since59c16=0;
+static bool g_from_stagger44=false; // C44: the current attempt's first phase write found Henry in 64 (VrDirectStaggerRule 2 halves its hit)
+inline bool FromStagger44() noexcept {return g_from_stagger44;}
+static std::uint64_t g_hit_at5910c1=0;
+static kcd2vr::motion59c4::Key g_key5912{};
+static const void* g_owner_state=nullptr;static int g_written_phase=0,g_base_phase=0; // game thread only
+// C10C1: the native guard resolves +150 from an eligible technique row before
+// publishing phase 4. It is NOT a copy of the controller's origin zone (+F0).
+static int g_base_defense=-1,g_written_defense=-1;
+static bool g_defense_owned=false;
+static const void* g_defense_row=nullptr;
+// C10R2: +450 is the native countdown to the hit event. 914204 uses it to
+// bound an opponent's block offer. Leaving the reset value (-1) creates an
+// already-expired offer. Publish our existing finite attempt lifetime instead;
+// it is an upper bound, NOT a measured time-to-contact or a perfect-block award.
+constexpr std::uint32_t kHitRemaining=0x450;
+constexpr std::uintptr_t kTimingVft=0x3B0A790;
+static float g_base_clock=0.f,g_written_clock=0.f;
+static bool g_clock_owned=false;
+static std::uint64_t g_deadline=0;
+// Game-thread producer, pose-thread guard consumer. All fields are atomic so
+// even a rejected seqlock read is data-race free. This is context-only data;
+// the guard query never dereferences a native actor/state pointer.
+struct AttackSnapshot {
+    std::atomic<std::uint64_t> revision{0},gesture{0},weapon{0},generation{0},body{0},request{0},recovery{0},tick{0},deadline{0};
+    std::atomic<std::uintptr_t> player{0};std::atomic<int> stage{0};
+};
+static AttackSnapshot g_attack_snapshot;
+static void SnapshotAttack(std::uint64_t now,bool clear=false) noexcept {
+    auto& s=g_attack_snapshot;s.revision.fetch_add(1,std::memory_order_acq_rel);
+    const int stage=g_stage.load();const bool live=!clear&&!g_hit_at5910c1&&(stage==4||stage==8);
+    s.gesture.store(g_key5912.gesture,std::memory_order_release);s.weapon.store(g_key5912.weapon,std::memory_order_release);
+    s.generation.store(g_key5912.generation,std::memory_order_release);s.body.store(g_key5912.body,std::memory_order_release);
+    s.request.store(g_key5912.request,std::memory_order_release);s.recovery.store(g_key5912.recovery,std::memory_order_release);
+    s.player.store(g_key5912.player,std::memory_order_release);s.tick.store(now,std::memory_order_release);
+    s.deadline.store(g_deadline,std::memory_order_release);s.stage.store(live?stage:0,std::memory_order_release);
+    s.revision.fetch_add(1,std::memory_order_release);
+}
+kcd2vr::motion59c4::AttackOwnership QueryAttackOwnership(const kcd2vr::motion59c4::Key& context,std::uint64_t now) noexcept {
+    using Ownership=kcd2vr::motion59c4::AttackOwnership;
+    if(!context.player||!context.weapon||!context.generation||!context.body||!context.request||
+       g_reset.load()||g_fault.load()||!g_consequence.load()||!kcd2vr::motion59c4::selected.load())return Ownership::None;
+    const auto& s=g_attack_snapshot;const auto version=s.revision.load(std::memory_order_acquire);if(version&1)return Ownership::Unknown;
+    const int stage=s.stage.load(std::memory_order_acquire);const auto tick=s.tick.load(std::memory_order_acquire);
+    const bool match=(stage==4||stage==8)&&now<s.deadline.load(std::memory_order_acquire)&&
+        context.player==s.player.load(std::memory_order_acquire)&&context.weapon==s.weapon.load(std::memory_order_acquire)&&
+        context.generation==s.generation.load(std::memory_order_acquire)&&context.body==s.body.load(std::memory_order_acquire)&&
+        context.request==s.request.load(std::memory_order_acquire)&&context.recovery==s.recovery.load(std::memory_order_acquire)&&
+        (!context.gesture||context.gesture==s.gesture.load(std::memory_order_acquire));
+    // A publication in progress is not proof that no attack owns the phase.
+    // The guard must defer on Unknown, rather than re-press block for one frame.
+    if(s.revision.load(std::memory_order_acquire)!=version)return Ownership::Unknown;
+    if(!match)return Ownership::None;
+    return now>=tick&&now-tick<=150?Ownership::Owned:Ownership::None;
+}
+// C10R19 (Claude review of BC2): the native parry-in-place runs synchronously INSIDE our own phase write (retail 93A0C8 stores the
+// value, then 910E9C notifies; the NPC's defense choice 1483580 needs Henry's phase == 8 -> C55BB4 -> 173BD74; R14B: all 11 refusals
+// sat inside Publish(8)). The attempt snapshot is refreshed only AFTER that write, so the snapshot test alone forwarded the parry
+// again for every contact that publishes its own strike (contact refresh, late contact, contact-led commit, borrowed-context
+// restore) and for the guard reclaim - the R18 cases. This scope marks exactly our own write: same game thread, same Henry state,
+// the attack type being published. After our blade contact, our still-live phase 8 (CONTACT_DONE follows within 120 ms) is ours too.
+struct OwnPhaseWrite19 {const void* state=nullptr;int attackType=-2;};
+static thread_local OwnPhaseWrite19 t_own_phase_write19{};
+struct OwnPhaseWriteScope19 {
+    OwnPhaseWrite19 saved;
+    OwnPhaseWriteScope19(const void* state,int attackType) noexcept:saved(t_own_phase_write19){t_own_phase_write19={state,attackType};}
+    ~OwnPhaseWriteScope19(){t_own_phase_write19=saved;}
+    OwnPhaseWriteScope19(const OwnPhaseWriteScope19&)=delete;OwnPhaseWriteScope19& operator=(const OwnPhaseWriteScope19&)=delete;
+};
+std::atomic<std::uint64_t> g_followup_in_write19{0},g_followup_after_hit19{0};
+// Only the current ordinary VR announcement owns this refusal. A selected backend alone is not authority
+// over native kicks, paired actions, stale item identities, or another opponent's response.
+bool SuppressNativeFollowup18(const void* rpg,std::uintptr_t callerRva,const void* request,bool applyNative,int attackType) noexcept {
+    // C4R3 retail proof: 173BD74 passes sixth argument0 and evaluates a
+    // defensive candidate; it does not run D568's application dispatch. Never
+    // suppress that evaluation, even inside our synchronous phase write.
+    // Retain the exact ownership barrier only for an application request.
+    if(callerRva!=0x173BF58ull||!applyNative||(attackType!=0&&attackType!=1)||
+       !g_own_hits18.load(std::memory_order_relaxed)||!kcd2vr::motion59c4::selected.load(std::memory_order_acquire)||
+       !g_consequence.load()||g_fault.load()||g_reset.load())return false;
+    const void* attacker=Rd<const void*>(rpg,8,nullptr);const void *entity=nullptr,*state=nullptr;
+    if(!attacker||attacker!=g_henry_actor.load(std::memory_order_relaxed)||
+       !CombatActor(attacker,entity,state,false)||!IsPlayer(entity)||!state||
+       Rd<const void*>(attacker,0x388,nullptr)!=rpg||state!=g_owner_state||
+       !kcd2vr::motion59c4::valid(g_key5912)||g_key5912.recovery!=kcd2vr::contact176::recoveryEpoch55c1.load(std::memory_order_acquire)||
+       reinterpret_cast<std::uintptr_t>(Rd<const void*>(attacker,0x1F8,nullptr))!=g_key5912.player)return false;
+    const int phase=I(state,kActionPhaseProp39);
+    const auto now=std::uint64_t(GetTickCount64());
+    const void* target=Rd<const void*>(request,0x10,nullptr);
+    const auto& own=t_own_phase_write19;
+    const bool writing=own.state&&own.state==state&&(phase==4||phase==8)&&attackType==own.attackType;
+    const bool afterHit=!writing&&phase==8&&g_stage.load()==8&&g_hit_at5910c1&&g_written_phase==8&&
+        now>=g_hit_at5910c1&&now-g_hit_at5910c1<=200;
+    if((phase!=4&&phase!=8)||I(state,kAttackType)!=attackType||
+       (!writing&&!afterHit&&attackType!=(g_technique.load()?0:1))||!target||target==attacker||
+       Rd<const void*>(state,0xCF8,nullptr)!=target||
+       (!writing&&!afterHit&&QueryAttackOwnership(g_key5912,now)!=kcd2vr::motion59c4::AttackOwnership::Owned)||
+       frik_pose_probe::GeometryOwnerStage49()==6||LiveAttackAction178r35(attacker)!=nullptr||
+       !frik_pose_probe::GeometryOwnerValid178r30(g_key5912.weapon,g_key5912.generation,g_key5912.body,g_key5912.request))return false;
+    const auto n=g_followup_suppressed18.fetch_add(1,std::memory_order_relaxed)+1;
+    if(writing)g_followup_in_write19.fetch_add(1,std::memory_order_relaxed);else if(afterHit)g_followup_after_hit19.fetch_add(1,std::memory_order_relaxed);
+    if(n<=20||n%25==0){char m[300]{};std::snprintf(m,sizeof(m),"C4R3 VR_DIRECT FOLLOWUP_C_APPLICATION_REFUSED count=%llu gesture=%llu when=%s (current ordinary Henry VR announcement, same native opponent; real contact decides)",(unsigned long long)n,(unsigned long long)g_key5912.gesture,writing?"OUR_PHASE_WRITE":afterHit?"AFTER_OUR_CONTACT":"LIVE_ANNOUNCEMENT");diagnostic_trace::Write(m);}
+    return true;
+}
+constexpr std::uintptr_t kResolveDefense=0x12EDEF4,kSetDefense=0x90D6D0,kDefenseVft=0x3B0A718;
+constexpr unsigned char kResolveDefenseEntry[]{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x57,0x48,0x83,0xEC,0x30};
+constexpr unsigned char kSetDefenseEntry[]{0x48,0x83,0xEC,0x38,0x44,0x8B,0xCA,0x48,0x8B,0xD1,0x44,0x39,0x49,0x08};
+// R59.9 (22:36 log: 203 YIELDs, zero strikes): Henry's phase is a BIT FLAG and is never 0 in combat - 1 = combat idle/guard,
+// 2 = block held (our posture guard holds it), 4/8/16 = attack wind-up/strike/withdraw, 32..512 = other native owners
+// (preparation 128, reactions, clinch). An attempt may start from 0, 1 or 2; idle restores the phase we found.
+// R59.16C7E-DECAP1: 128 (block preparation) / 256 (free block) are OUR block when the VR posture pressed it; a swing
+// out of our own guard may take the phase (the block input is released by the stroke path first). A foreign 128/256 still yields.
+static bool OwnRecovery59c12(int live) noexcept { // R59.16C10R12: 16/32 within 1.5 s of our own strike's end = the native tail of OUR attempt
+    if(!(live==16||live==32)||!g_recovery_override59c12.load(std::memory_order_relaxed))return false;
+    const auto e=g_own_strike_end59c12.load(std::memory_order_relaxed);const auto now=std::uint64_t(GetTickCount64());return e&&now>=e&&now-e<=1500;}
+static bool StaggerOver59c16(int live) noexcept { // R59.16C10R16
+    if(live!=64||!g_accept_stagger59c16.load(std::memory_order_relaxed)||!g_phase64_since59c16)return false;
+    const auto now=std::uint64_t(GetTickCount64());return now>=g_phase64_since59c16&&now-g_phase64_since59c16>=g_stagger_ms59c16.load(std::memory_order_relaxed);}
+static bool Overwritable(int live,const void* hs=nullptr) noexcept {return live==0||live==1||live==2||((live==128||live==256)&&hs&&frik_pose_probe::GuardOwnedByUs59c7e(hs))||OwnRecovery59c12(live)||
+    (live==32&&g_accept_recovery59c16.load(std::memory_order_relaxed))||StaggerOver59c16(live);}
+#include "../base/combat_property_service.inl" // M2_OWNED_SOURCE
+static bool SetDefense(const void* hs,int value) noexcept {
+    g_last_set={SetReadback::Rejected,kDefenseZone,double(value),0};
+    if(!hs||!retail_build112::Ready(g_base)||Rd<std::uintptr_t>(hs,kDefenseZone,0)!=g_base+kDefenseVft)return false;
+    using Fn=void(__fastcall*)(const void*,int);
+    __try{reinterpret_cast<Fn>(g_base+kSetDefense)(static_cast<const unsigned char*>(hs)+kDefenseZone,value);int actual=0;
+        if(!SehCopy146(static_cast<const unsigned char*>(hs)+kDefenseZone+8,&actual,sizeof(actual))){g_last_set.result=SetReadback::Unreadable;return false;}
+        g_last_set.observed=actual;g_last_set.result=actual==value?SetReadback::Success:SetReadback::ReadableMismatch;return actual==value;}
+    __except(EXCEPTION_EXECUTE_HANDLER){g_setter_exception.store(true);g_last_set.result=SetReadback::Exception;return false;}
+}
+static bool SetClock(const void* hs,float value) noexcept {
+    g_last_set={SetReadback::Rejected,kHitRemaining,double(value),0};
+    return hs&&std::isfinite(value)&&retail_build112::Ready(g_base)&&
+        Rd<std::uintptr_t>(hs,kHitRemaining,0)==g_base+kTimingVft&&SetFloat(hs,kHitRemaining,value);
+}
+static std::uint64_t AttemptDeadline(std::uint64_t tick,std::uint64_t now) noexcept {
+    constexpr auto life=kcd2vr::motion59c4::strikeLifetimeMs5910c1;
+    return tick&&now>=tick&&now-tick<life&&tick<=~std::uint64_t(0)-life?tick+life:0;
+}
+// C19C3: VR_DIRECT has no ordinary attack action to start the native +450
+// clock. 914204 and D4D4FC read it at offer/block start; 9E3B80 follows it each
+// frame. Publish one CONFIGURED contact prediction from the original forward
+// onset, not a constant (moving deadline), stage-reset ETA, or measured arrival.
+// The 600 ms attempt and 160 ms collision leases remain independent.
+std::atomic<float> g_eta_prepare59c10{0.25f},g_eta_strike59c10{0.12f};
+// Retained compatibility inputs; strike ETA/block-speed no longer rewrite this
+// direct-mode prediction. Native-action/comparison clocks live elsewhere.
+std::atomic<float> g_npc_block_speed18{1.0f};
+std::atomic<std::uint64_t> g_native_clock_attempts19{0};
+struct ContactPrediction19c3 {
+    kcd2vr::motion59c4::Key key{};
+    std::uint64_t onset=0,deadline=0;
+};
+static ContactPrediction19c3 g_prediction19c3{};
+// C39 (Miki 17 Oct: "make their blocking 2x to 3x faster according to their skill"). The NPC block raise is natively
+// time-aligned to Henry's announced +450 (C53B30 -> D4D4FC, clamp 0.5..10x). The C37C2 run announced 219-285 ms while
+// the real blade arrived 68-486 ms after the offer: the four accepted blocks still preparing (phase 128) at contact had
+// been told 87-148 ms too much. Shorten ONLY our own announcement, once per attempt, for the reciprocal opponent while he
+// waits/guards; never while his own attack or reaction runs. Native eligibility, RNG, direction and outcome unchanged.
+namespace dt39=kcd2vr::defense_timing39;
+std::atomic<bool> g_block_timing39{true};std::atomic<float> g_block_speed_lo39{2.f},g_block_speed_hi39{3.f};
+struct DefenseTiming39 {kcd2vr::motion59c4::Key key{};const void* target=nullptr;std::uint64_t tick=0;float seed=0.f;dt39::Decision d{};bool contactReported=false;};
+static DefenseTiming39 g_timing39{};
+// Exact reciprocal C_CombatActor pair (the same identities Qualify() requires): Henry +CF8 -> opponent, opponent +CF8 -> Henry.
+static const void* ReciprocalOpponent39(const void* hs,const void*& opponentState,bool& reciprocal) noexcept {
+    opponentState=nullptr;reciprocal=false;
+    const void* actor=hs?Rd<const void*>(hs,0xCE0,nullptr):nullptr;const void* target=hs?Rd<const void*>(hs,0xCF8,nullptr):nullptr;
+    if(!actor||!target||target==actor||Rd<std::uintptr_t>(target,0,0)!=g_base+kCombatActorVft)return nullptr;
+    const void* state=Rd<const void*>(target,0x210,nullptr);
+    if(!state||Rd<const void*>(state,0xCE0,nullptr)!=target)return nullptr;
+    opponentState=state;reciprocal=Rd<const void*>(state,0xCF8,nullptr)==actor;return target;
+}
+// Opponent melee skill: combat actor +1F8 -> C_Human (its +278 links back), C_Human +668 soul (C_Human slot 188 -> 4CB984
+// owns +668 for every human, not only C_Player); ReadSkills26 checks the C_Soul vtable and the pinned getter. -1 = unread.
+static int OpponentSkill39(const void* target) noexcept {
+    const void* human=Rd<const void*>(target,0x1F8,nullptr);
+    if(!human||Rd<const void*>(human,0x278,nullptr)!=target)return -1;
+    const void* soul=Rd<const void*>(human,0x668,nullptr);if(!soul)return -1;
+    int skills[5]{-1,-1,-1,-1,-1};ReadSkills26(soul,skills);return dt39::bestSkill(skills);
+}
+static float DefenseTimingSeed39(float seed,std::uint64_t now) noexcept {
+    const void* hs=g_owner_state;const void* ostate=nullptr;bool reciprocal=false;
+    const void* target=ReciprocalOpponent39(hs,ostate,reciprocal);
+    const bool enabled=g_block_timing39.load(std::memory_order_relaxed);
+    const int phase=ostate?I(ostate,kActionPhaseProp39):-99;
+    const int skill=enabled&&target&&reciprocal&&dt39::waitingPhase(phase)?OpponentSkill39(target):-1;
+    const auto d=dt39::decide(enabled,seed,target!=nullptr,reciprocal,phase,skill,
+        g_block_speed_lo39.load(std::memory_order_relaxed),g_block_speed_hi39.load(std::memory_order_relaxed));
+    g_timing39={g_key5912,target,now,seed,d,false};
+    if(diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now)){char line[360]{};std::snprintf(line,sizeof(line),
+        "C39 DEFENSE_TIMING_REQUEST gesture=%llu target=%p reason=%s npcPhaseAtRequest=%d skill=%d factor=%.2f seedMs=%d announcedMs=%d route=HENRY_450_TO_NATIVE_ALIGNER(D4D4FC) nativeDecision=NATIVE writes=OWN_450_ONLY",
+        (unsigned long long)g_key5912.gesture,target,dt39::name(d.reason),phase,skill,double(d.factor),int(seed*1000.f+.5f),int(d.eta*1000.f+.5f));diagnostic_trace::Write(line);}
+    return d.eta;
+}
+// Edge-only (one line per attempt) join of the request above with the real blade contact. Read-only.
+static void EmitDefenseTimingContact39(unsigned serial,std::uint64_t gesture,const void* target,const void* targetState,int victimPhase,std::uint64_t now) noexcept {
+    auto& t=g_timing39;
+    if(!gesture||!t.tick||t.contactReported||t.key.gesture!=gesture||now<t.tick||!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))return;
+    t.contactReported=true;
+    const auto copy=[](std::uintptr_t a,void* o,std::size_t n){return SehCopy146(reinterpret_cast<const void*>(a),o,n);};
+    const auto npc=kcd2vr::defense37::ReadNpc(copy,g_base,reinterpret_cast<std::uintptr_t>(target),reinterpret_cast<std::uintptr_t>(targetState),
+        reinterpret_cast<std::uintptr_t>(g_henry_actor.load()));
+    char line[420]{};std::snprintf(line,sizeof(line),
+        "C39 DEFENSE_TIMING_CONTACT serial=%u gesture=%llu target=%p sameTarget=%d reason=%s factor=%.2f skill=%d announcedMs=%d requestToContactMs=%llu npcPhaseAtRequest=%d npcPhaseAtContact=%d automation=%s blockReadyAtContact=%d result=SEE_VR_HIT writes=NONE",
+        serial,(unsigned long long)gesture,target,target==t.target?1:0,dt39::name(t.d.reason),double(t.d.factor),t.d.skill,int(t.d.eta*1000.f+.5f),
+        (unsigned long long)(now-t.tick),t.d.phase,victimPhase,kcd2vr::defense37::automationName(npc.automation,npc.automationVft),victimPhase==256?1:0);
+    diagnostic_trace::Write(line);
+}
+// Game-thread only. Keep an old key through Forget and A/B borrowing. A record
+// is reusable only after the maximum allowed seed (600 ms) has elapsed; then
+// even a later first lookup of that old onset can only produce zero remaining.
+static std::array<ContactPrediction19c3,32> g_prediction_history19c3{};
+static bool SelectPrediction19c3(std::uint64_t now,std::uint64_t originalOnset=0) noexcept {
+    using namespace kcd2vr::motion59c4;
+    if(!valid(g_key5912))return false;
+    for(const auto& p:g_prediction_history19c3)if(same(p.key,g_key5912)){
+        if(!p.onset||now<p.onset)return false;
+        g_prediction19c3=p;return true;
+    }
+    if(!originalOnset)originalOnset=attempts.beginForKey(g_key5912,now);
+    g_prediction19c3={g_key5912,0,0};
+    // Missing provenance is explicit zero, never commit-now or contact-now.
+    if(!originalOnset||now<originalOnset||now-originalOnset>3000)return true;
+    ContactPrediction19c3* slot=nullptr;
+    for(auto& p:g_prediction_history19c3)if(!p.onset||(now>=p.onset&&now-p.onset>600)){slot=&p;break;}
+    if(!slot)return false; // bounded history never evicts a live prediction
+    float seed=g_eta_prepare59c10.load(std::memory_order_relaxed);
+    if(!std::isfinite(seed))seed=.25f;
+    seed=seed<.10f?.10f:(seed>.60f?.60f:seed);
+    seed=DefenseTimingSeed39(seed,now); // C39: <= seed, >= 80 ms; unchanged unless the reciprocal opponent waits/guards
+    const auto duration=std::uint64_t(double(seed)*1000.0+.5);
+    if(originalOnset>~std::uint64_t(0)-duration)return false;
+    *slot={g_key5912,originalOnset,originalOnset+duration};g_prediction19c3=*slot;return true;
+}
+static float PredictionRemaining19c3(const ContactPrediction19c3& p,std::uint64_t now) noexcept {
+    if(!p.onset||now<p.onset||now>=p.deadline)return 0.f;
+    return float(p.deadline-now)*.001f;
+}
+// Exact native guard query, 939E02 -> 12EDEF4 -> 90FD50/90FF10. Scratch query
+// allocation is native; no action/AttackRequested/IsAttacking is dispatched.
+// The query reads the current F0/category/opponent and native perk rows.
+static bool ResolveDefense(const void* hs,int committed,const void*& row,int& value) noexcept {
+    row=nullptr;value=-1;
+    if(!hs||!retail_build112::Ready(g_base)||!Verified()||
+       Rd<std::uintptr_t>(hs,kDefenseZone,0)!=g_base+kDefenseVft)return false;
+    const void* actor=Rd<const void*>(hs,0xCE0,nullptr);
+    const void* entity=nullptr;const void* state=nullptr;
+    if(!actor||actor!=g_henry_actor.load()||!CombatActor(actor,entity,state,false)||state!=hs||!IsPlayer(entity)||
+       reinterpret_cast<std::uintptr_t>(Rd<const void*>(actor,0x1F8,nullptr))!=g_key5912.player)return false;
+    const void* manager=Rd<const void*>(actor,0x3A8,nullptr);
+    if(!manager||Rd<const void*>(manager,8,nullptr)!=actor)return false;
+    using Fn=const void*(__fastcall*)(const void*,int);
+    __try{row=reinterpret_cast<Fn>(g_base+kResolveDefense)(actor,committed);}
+    __except(EXCEPTION_EXECUTE_HANDLER){g_setter_exception.store(true);return false;}
+    // Native guard reads this exact payload at 939E21..939E34, including -1.
+    // -1 is a legitimate table result: report it, never invent a direction.
+    const void* prop=Rd<const void*>(row,0x138,nullptr);
+    return prop&&SehCopy146(static_cast<const unsigned char*>(prop)+8,&value,sizeof(value));
+}
+// NR1: the victim reaction of an ALREADY adjudicated, landed hit uses the native zone row of where the
+// blade really hit. same native resolver/setter as Publish (row +0x138, 90D6D0), only around the
+// reaction build call, restored right after. damage, block, costs and our own attempt are untouched.
+static std::atomic<std::uint64_t> g_nr1_applied{0},g_nr1_same{0},g_nr1_refused{0};
+static bool ResolveDefenseNR1(const void* actor,const void* hs,int zone,int& value) noexcept {
+    value=-1;const void* manager=Rd<const void*>(actor,0x3A8,nullptr);
+    if(!manager||Rd<const void*>(manager,8,nullptr)!=actor)return false;
+    using Fn=const void*(__fastcall*)(const void*,int);const void* row=nullptr;
+    __try{row=reinterpret_cast<Fn>(g_base+kResolveDefense)(actor,zone);}
+    __except(EXCEPTION_EXECUTE_HANDLER){g_setter_exception.store(true);return false;}
+    const void* prop=Rd<const void*>(row,0x138,nullptr);
+    return prop&&SehCopy146(static_cast<const unsigned char*>(prop)+8,&value,sizeof(value))&&value>=0&&hs;
+}
+bool ReactionZoneBeginNR1(const void* attacker,int zone,const void*& hsOut,int& restore,int& written,const void* victim) noexcept {
+    hsOut=nullptr;restore=written=-1;
+    if(zone<0||zone>5||!kcd2vr::bodycombo59c7g::npcReactsToBlade.load(std::memory_order_relaxed))return false;
+    const void *entity=nullptr,*hs=nullptr;
+    if(!attacker||!CombatActor(attacker,entity,hs,false)||!IsPlayer(entity)||!retail_build112::Ready(g_base)||!Verified()||
+       g_setter_exception.load()||Rd<std::uintptr_t>(hs,kDefenseZone,0)!=g_base+kDefenseVft)return false;
+    const int before=I(hs,kDefenseZone);int value=-1;
+    if(before==-99||!ResolveDefenseNR1(attacker,hs,zone,value)){
+        g_nr1_refused.fetch_add(1,std::memory_order_relaxed);
+        static std::atomic<bool> told{false};
+        if(!told.exchange(true))(void)kcd2vr::visible_failure::publish("NPC hit reaction stays native: no zone row for blade spot",std::uint64_t(GetTickCount64()));
+        return false;}
+    if(value==before){g_nr1_same.fetch_add(1,std::memory_order_relaxed);
+        if(Allow(4,4)){char m[240]{};std::snprintf(m,sizeof(m),"NR1 REACTION_ZONE bladeZone=%d defense=%d native=%d result=SAME_AS_NATIVE same=%llu staminaOnlyNR2=%llu",
+            zone,value,before,(unsigned long long)g_nr1_same.load(),(unsigned long long)kcd2vr::bodycombo59c7g::nr2Stamina.load());diagnostic_trace::Write(m);}
+        return false;}
+    // R2/R3 (Codex review): D4921C (D49488..9F) also compares this attacker value with the VICTIM's opponent zone
+    // (+0x5D0) for a guard branch. the borrow may never flip that comparison in EITHER direction: keep native.
+    {const void *ventity=nullptr,*vstate=nullptr;
+     if(!victim||!CombatActor(victim,ventity,vstate,false)){g_nr1_refused.fetch_add(1,std::memory_order_relaxed);return false;}
+     const int guard=I(vstate,kOpponentZone);
+     if(!kcd2vr::bodycombo59c7g::guardComparisonKept(guard,before,value)){g_nr1_refused.fetch_add(1,std::memory_order_relaxed);return false;}}
+    if(!SetDefense(hs,value)){if(I(hs,kDefenseZone)!=before)(void)SetDefense(hs,before);g_nr1_refused.fetch_add(1,std::memory_order_relaxed);return false;}
+    hsOut=hs;restore=before;written=value;g_nr1_applied.fetch_add(1,std::memory_order_relaxed);
+    if(Allow(4,4)){char m[260]{};std::snprintf(m,sizeof(m),"NR1 REACTION_ZONE bladeZone=%d defense=%d native=%d applied=%llu same=%llu refused=%llu staminaOnlyNR2=%llu (restored after the reaction build)",
+        zone,value,before,(unsigned long long)g_nr1_applied.load(),(unsigned long long)g_nr1_same.load(),(unsigned long long)g_nr1_refused.load(),(unsigned long long)kcd2vr::bodycombo59c7g::nr2Stamina.load());diagnostic_trace::Write(m);}
+    return true;
+}
+// R1 (Codex review): rejoin the CURRENT attacker -> state chain before restoring. a state replaced
+// during the native call is not ours to write; only our exact still-present value is restored.
+void ReactionZoneEndNR1(const void* attacker,const void* hs,int restore,int written) noexcept {
+    if(!attacker||!hs||written<0)return;
+    const void *entity=nullptr,*current=nullptr;
+    if(!CombatActor(attacker,entity,current,false)||current!=hs||!IsPlayer(entity)||
+       Rd<std::uintptr_t>(hs,kDefenseZone,0)!=g_base+kDefenseVft){g_nr1_refused.fetch_add(1,std::memory_order_relaxed);return;}
+    if(I(hs,kDefenseZone)==written)(void)SetDefense(hs,restore);
+}
+static const char* StageName(int s) noexcept {return s==4?"WINDUP":s==8?"STRIKE":s==16?"WITHDRAW":"IDLE";}
+static void Log(const char* what,int zone,int technique,const char* extra) noexcept {
+    char m[340]{};std::snprintf(m,sizeof(m),"V66.178R59.6 VR_STATE %s gesture=%llu zone=%d technique=%s %s windups=%llu strikes=%llu misses=%llu yields=%llu",what,(unsigned long long)g_gesture.load(),zone,technique?"THRUST":"CUT",extra?extra:"",
+        (unsigned long long)g_windups.load(),(unsigned long long)g_strikes.load(),(unsigned long long)g_misses.load(),(unsigned long long)g_yield.load());diagnostic_trace::Write(m);}
+static void LogYield(const void* hs,int zone,int technique,const char* reason) noexcept {
+    char extra[180]{};std::snprintf(extra,sizeof(extra),"reason=%s livePhase=%d writtenPhase=%d stage=%d sameState=%d",
+        reason,I(hs,kActionPhaseProp39),g_written_phase,g_stage.load(),hs==g_owner_state?1:0);
+    Log("YIELD",zone,technique,extra);
+}
+static unsigned ReadForwardOfferRetirement(const void* hs,int& phase,int& defense,float& clock) noexcept {
+    if(!hs)return 0;const auto* p=static_cast<const unsigned char*>(hs);unsigned readable=0;
+    if(SehCopy146(p+kActionPhaseProp39+8,&phase,sizeof(phase)))readable|=1;
+    if(SehCopy146(p+kDefenseZone+8,&defense,sizeof(defense)))readable|=2;
+    if(SehCopy146(p+kHitRemaining+8,&clock,sizeof(clock))&&std::isfinite(clock))readable|=4;
+    return readable;
+}
+static void LogForwardOfferRetirement(const void* hs,std::uint64_t offered,std::uint64_t now) noexcept {
+    // Called once after clearing pending. No diagnostic native reads outside F3.
+    // This witnesses a refusal; it neither repairs nor overrides native phase4 loss.
+    if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))return;
+    int phase=0,defense=0;float clock=0;const unsigned readable=ReadForwardOfferRetirement(hs,phase,defense,clock);
+    if((readable&1)&&hs==g_owner_state&&phase==g_written_phase)return;
+    char livePhase[32]{},liveDefense[32]{},liveClock[32]{};
+    if(readable&1)std::snprintf(livePhase,sizeof(livePhase),"%d",phase);else std::snprintf(livePhase,sizeof(livePhase),"UNKNOWN");
+    if(readable&2)std::snprintf(liveDefense,sizeof(liveDefense),"%d",defense);else std::snprintf(liveDefense,sizeof(liveDefense),"UNKNOWN");
+    if(readable&4)std::snprintf(liveClock,sizeof(liveClock),"%.4f",clock);else std::snprintf(liveClock,sizeof(liveClock),"UNKNOWN");
+    char m[440]{};std::snprintf(m,sizeof(m),
+        "R59.16C10R4 FORWARD_OFFER_RETIRED gesture=%llu ageMs=%llu livePhase=%s writtenPhase=%d live150=%s written150=%d live450=%s written450=%.4f sameState=%d nativeCandidateActivation=UNPROVEN writes=NONE",
+        (unsigned long long)g_gesture.load(),(unsigned long long)(now>=offered?now-offered:0),livePhase,g_written_phase,liveDefense,g_written_defense,liveClock,g_written_clock,hs==g_owner_state?1:0);
+    diagnostic_trace::Write(m);
+}
+// C7D/C7E: a partial native setter/restore fault remains latched. Time cannot repair it.
+std::atomic<unsigned> g_fault_count{0};
+static void Fault(const char* why) noexcept {
+    g_fault.store(true);const auto n=g_fault_count.fetch_add(1)+1;
+    char m[220]{};std::snprintf(m,sizeof(m),"V66.178R59.6 VR_STATE_FAULT reason=%s count=%u (latched for this session)",why,n);diagnostic_trace::Write(m);
+}
+// Is the phase still the one WE wrote on this very state object? Otherwise the native owns it: do not touch.
+static bool Ours(const void* hs) noexcept {return hs&&hs==g_owner_state&&g_written_phase!=0&&I(hs,kActionPhaseProp39)==g_written_phase;}
+// R59.16C1: native preparation-cost component at deliberate COMMIT, including
+// misses, not every pose or held-windup tick. A synchronous raised/lower pair
+// keeps resource bookkeeping scoped to one attempt. Not the full attack cost.
+std::atomic<bool> g_swing_stamina{true},g_effort_fault{false};
+
+// R59.16C7D: 0 = NOT CALLED (preflight refused, nothing written), 1 = OK, 2 = INDETERMINATE (native call made,
+// then identity/readback failed or an exception: the debit may or may not have happened).
+static int EffortNative5916(const void* hs,bool up,float& before,float& after,bool requireAttemptKey=true) noexcept {
+    if(!hs||!retail_build112::Ready(g_base))return 0;
+    const void* actor=Rd<const void*>(hs,0xCE0,nullptr);
+    const void* player=actor?Rd<const void*>(actor,0x1F8,nullptr):nullptr;
+    void* rpg=actor?Rd<void*>(actor,0x388,nullptr):nullptr;
+    const void* soul=player?Rd<const void*>(player,0x668,nullptr):nullptr;
+    if(!actor||actor!=g_henry_actor.load()||!player||!rpg||!soul||
+       Rd<const void*>(actor,0x210,nullptr)!=hs||Rd<const void*>(rpg,8,nullptr)!=actor||
+       (requireAttemptKey&&reinterpret_cast<std::uintptr_t>(player)!=g_key5912.player)||!SoulPins5912()||
+       Rd<std::uintptr_t>(soul,0,0)!=g_base+0x3F44F28)return 0;
+    constexpr unsigned char pin[]{0x48,0x89,0x5C,0x24,0x10,0x48,0x89,0x6C,0x24,0x18,0x48,0x89,0x74,0x24,0x20,0x57};
+    using Fn=void(__fastcall*)(void*,bool);Fn fn=nullptr;
+    if(EntryIs596(0xC5BA24,pin,sizeof(pin)))fn=reinterpret_cast<Fn>(g_base+0xC5BA24);
+    else if(services59c5::raisedHook&&services59c5::raised)fn=services59c5::raised;
+    if(!fn)return 0; // never accept an arbitrary JMP as our own observer
+    const auto* own=kcd2vr::swing_effort59c14::ownRaise;
+    if(up&&(!own||!kcd2vr::motion59c4::same(own->key,g_key5912)||
+       !own->wuid||own->wuid!=Rd<std::uint64_t>(soul,0x30,0)||
+       own->wuid!=services59c5::henryWuid59c17.load(std::memory_order_relaxed)||
+       !services59c5::staminaScaling59c17.load(std::memory_order_relaxed)||!frik_pose_probe::CombatExperiment175Enabled()||
+       !services59c5::effectHook||!services59c5::effect))return 0;
+    volatile int called=0;
+    __try {
+        before=reinterpret_cast<float(__fastcall*)(const void*,int)>(g_base+0x642B30)(soul,1);
+        if(!std::isfinite(before))return 0;
+        called=1;fn(rpg,up);
+        if(Rd<const void*>(player,0x668,nullptr)!=soul||Rd<const void*>(actor,0x210,nullptr)!=hs)return 2;
+        after=reinterpret_cast<float(__fastcall*)(const void*,int)>(g_base+0x642B30)(soul,1);
+        return (std::isfinite(before)&&std::isfinite(after)&&(!up||own->effectEntered))?1:2;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return called?2:0;}
+}
+// The scope is made outside the SEH adapter, retaining cleanup even if native entry faults.
+static std::uint64_t EffortWuid5919(const void* hs,const kcd2vr::motion59c4::Key& key) noexcept {
+    if(!hs||!kcd2vr::motion59c4::valid(key))return 0;
+    const void* actor=Rd<const void*>(hs,0xCE0,nullptr);
+    const void* player=actor?Rd<const void*>(actor,0x1F8,nullptr):nullptr;
+    if(actor!=g_henry_actor.load()||reinterpret_cast<std::uintptr_t>(player)!=key.player||Rd<const void*>(actor,0x210,nullptr)!=hs)return 0;
+    const void* soul=Rd<const void*>(player,0x668,nullptr);
+    return soul?Rd<std::uint64_t>(soul,0x30,0):0;
+}
+static bool ChargeEffort5916(const void* hs) noexcept {
+    if(!g_swing_stamina.load())return true;
+    if(g_effort_fault.load())return false;
+    namespace se=kcd2vr::swing_effort59c14;namespace mo=kcd2vr::motion59c4;
+    const auto key=g_key5912;se::Record cost{};const auto costClaim=se::ledger.reserve(key,GetTickCount64(),cost);
+    if(costClaim!=se::Claim::Ready&&costClaim!=se::Claim::Complete){
+        if(Allow(4,8)){char m[200]{};std::snprintf(m,sizeof(m),"C10R19C1 SWING_STAMINA attempt=%llu ledger=%u charged=UNKNOWN reason=NO_EXACT_PENDING_COST",(unsigned long long)key.gesture,unsigned(costClaim));diagnostic_trace::Write(m);}return false;}
+    const auto receipt=mo::attempts.claimEffort(key,GetTickCount64());
+    if(receipt==mo::EffortClaim::Duplicate){if(costClaim==se::Claim::Ready)se::ledger.finish(key,se::Status::Refused);return costClaim==se::Claim::Complete;}
+    if(receipt!=mo::EffortClaim::Ready){if(costClaim==se::Claim::Ready)se::ledger.finish(key,se::Status::Refused);return false;}
+    if(costClaim==se::Claim::Complete)return mo::attempts.finishEffort(key,true);
+    const auto wuid=EffortWuid5919(hs,key);
+    float before=0,raised=0,lowerBefore=0,after=0;
+    int up=0;
+    if(wuid){
+        se::OwnRaiseScope own(key,wuid,float(se::ownRaiseMultiplier(cost.factor)));
+        up=EffortNative5916(hs,true,before,raised);
+    }
+    if(up==0){
+        se::ledger.finish(key,se::Status::Refused);mo::attempts.finishEffort(key,false);
+        char m[220]{};std::snprintf(m,sizeof(m),"C10R19C1 SWING_STAMINA attempt=%llu route=OWN_PAIR raised=NOT_CALLED debit=NONE retry=NONE",(unsigned long long)key.gesture);diagnostic_trace::Write(m);return false;}
+    // Once native entry happened, even an exception is terminal; cleanup once is not a retry/rollback.
+    const int down=mo::same(g_key5912,key)?EffortNative5916(hs,false,lowerBefore,after):0;
+    const bool paid=up==1&&down==1;
+    se::ledger.finish(key,paid?se::Status::Complete:se::Status::Indeterminate);
+    if(!paid){g_effort_fault.store(true);diagnostic_trace::Write("C10R19C1 SWING_STAMINA_FAULT outcome=INDETERMINATE nativeEntry=YES retry=NONE attackAdmission=UNCHANGED");}
+    char m[400]{};std::snprintf(m,sizeof(m),
+        "C10R19C1 SWING_STAMINA attempt=%llu weapon=%llu body=%llu request=%llu raised=%d lowered=%d currentBefore=%.3f currentAfter=%.3f deltaObserved=%.3f factor=%.3f route=EXACT_OWN_PAIR nativeAsync=VANILLA_UNCREDITED retry=NONE",
+        (unsigned long long)key.gesture,(unsigned long long)key.weapon,(unsigned long long)key.body,(unsigned long long)key.request,up,down,before,after,after-before,cost.factor);
+    const bool recorded=mo::attempts.finishEffort(key,paid);
+    diagnostic_trace::Write(m);return paid&&recorded;
+}
+// C10R19C1: no 450 ms guessed fallback. Native comparison modes retain vanilla cost;
+// their asynchronous action-to-VR-attempt ancestry has not been proven.
+std::atomic<std::uint64_t> g_stamina_fallbacks59c17{0};
+void StaminaFallback59c17(const void* actor,const void* hs,std::uint64_t now) noexcept {
+    (void)hs;(void)now;
+    const void* player=Rd<const void*>(actor,0x1F8,nullptr);const void* soul=player?Rd<const void*>(player,0x668,nullptr):nullptr;
+    services59c5::henryWuid59c17.store(soul?Rd<std::uint64_t>(soul,0x30,0):0,std::memory_order_relaxed);
+    services59c5::staminaScaling59c17.store(g_swing_stamina.load()&&!g_effort_fault.load(),std::memory_order_relaxed);
+}
+static bool ClockOwnerAlive(const void* hs) noexcept {
+    if(!hs||!retail_build112::Ready(g_base))return false;
+    const void* actor=Rd<const void*>(hs,0xCE0,nullptr);
+    const void* entity=nullptr;const void* state=nullptr;
+    if(!actor||actor!=g_henry_actor.load()||!CombatActor(actor,entity,state,false)||state!=hs||!IsPlayer(entity)||
+       reinterpret_cast<std::uintptr_t>(Rd<const void*>(actor,0x1F8,nullptr))!=g_key5912.player)return false;
+    const void* timing=Rd<const void*>(actor,0x3C0,nullptr);
+    return timing&&Rd<const void*>(timing,8,nullptr)==actor;
+}
+static void ReleaseClock() noexcept {
+    // A phase takeover need not write the countdown. Return only our unchanged
+    // float to its previous owner; never overwrite a new native timing value,
+    // restore a phase, or execute cleanup after an ambiguous setter failure.
+    if(g_clock_owned&&!g_fault.load()&&!g_setter_exception.load()&&ClockOwnerAlive(g_owner_state)&&
+       F(g_owner_state,kHitRemaining)==g_written_clock){
+        if(!SetClock(g_owner_state,g_base_clock)&&
+           !(g_last_set.result==SetReadback::ReadableMismatch&&!g_setter_exception.load()&&ClockOwnerAlive(g_owner_state)))Fault("ATTEMPT_CLOCK_RELEASE");
+    }
+    g_clock_owned=false;
+}
+static void Forget() noexcept {SnapshotAttack(std::uint64_t(GetTickCount64()),true);ReleaseClock();g_key5912={};g_gesture.store(0);g_hit_at5910c1=0;g_owner_state=nullptr;g_written_phase=0;g_base_phase=0;g_stage.store(0);g_from_stagger44=false;
+    g_own_strike_end59c12.store(0,std::memory_order_relaxed); // R59.16C10R12: a native takeover revokes the recovery override (host rule: protected state is never offensive authority)
+    g_telegraph_offer={};
+    g_defense_owned=false;g_base_defense=g_written_defense=-1;g_defense_row=nullptr;
+    g_clock_owned=false;g_base_clock=g_written_clock=0.f;g_deadline=0;
+    g_prediction19c3={};g_reclaims59c16=0;}
+static void SetFailure(const void* hs,const char* reason) noexcept {
+    const auto receipt=g_last_set;
+    if(receipt.result==SetReadback::ReadableMismatch&&!g_setter_exception.load()&&ClockOwnerAlive(hs)){
+        // A successful read of a DIFFERENT native value is a synchronous
+        // takeover, not an unreadable/default value. Invalidate this attempt;
+        // only a later independent gesture may retry. Never force the phase.
+        ++g_yield;char extra[180]{};std::snprintf(extra,sizeof(extra),
+            "reason=%s prop=%X requested=%.3f observed=%.3f livePhase=%d writtenPhase=%d",reason,receipt.prop,
+            receipt.expected,receipt.observed,I(hs,kActionPhaseProp39),g_written_phase);
+        Log("SETTER_NATIVE_TAKEOVER",g_zone.load(),g_technique.load(),extra);
+        const auto now=std::uint64_t(GetTickCount64());
+        (void)kcd2vr::motion59c4::attempts.event(g_key5912,kcd2vr::motion59c4::Event::Cancel,now,now,g_zone.load(),g_technique.load());
+        // Compare-clean the separately leased row only when native left it
+        // untouched. A new row or phase belongs to the native owner.
+        if(g_defense_owned&&I(hs,kDefenseZone)==g_written_defense&&!SetDefense(hs,g_base_defense)&&
+           !(g_last_set.result==SetReadback::ReadableMismatch&&!g_setter_exception.load()&&ClockOwnerAlive(hs)))Fault("TAKEOVER_DEFENSE_RESTORE");
+        g_defense_owned=false;Forget();return;
+    }
+    // Exception, unreadable readback, rejected ABI preflight or lost identity:
+    // ambiguity remains fail-closed; time and a later swing cannot repair it.
+    Fault(reason);
+}
+static void YieldClock19c3(const void* hs,const char* reason) noexcept {
+    ++g_yield;LogYield(hs,g_zone.load(),g_technique.load(),reason);
+    const auto now=std::uint64_t(GetTickCount64());
+    (void)kcd2vr::motion59c4::attempts.event(g_key5912,kcd2vr::motion59c4::Event::Cancel,now,now,g_zone.load(),g_technique.load());
+    // Restore only our unchanged auxiliary row/clock. The new native phase,
+    // timing value and ordinary action are never ours to restore or replace.
+    if(hs==g_owner_state&&ClockOwnerAlive(hs)&&g_defense_owned&&I(hs,kDefenseZone)==g_written_defense&&!SetDefense(hs,g_base_defense)){
+        SetFailure(hs,"CLOCK_TAKEOVER_DEFENSE_RESTORE");return;}
+    g_defense_owned=false;Forget();
+}
+// Snapshot only on a bounded F3 publication event. Never format/write a log before native callbacks run.
+static kcd2vr::defense_publication19::Snapshot ReadPhase4Inputs19(const void* hs,int stage,int oldPhase,std::uint64_t now) noexcept {
+    kcd2vr::defense_publication19::Snapshot out{};
+    if(stage!=4||!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now)||!Allow(4,20))return out;
+    const auto read=[](std::uintptr_t address,void* value,std::size_t size){return SehCopy146(reinterpret_cast<const void*>(address),value,size);};
+    out=kcd2vr::defense_publication19::Copy(read,g_base,reinterpret_cast<std::uintptr_t>(hs),
+        reinterpret_cast<std::uintptr_t>(g_henry_actor.load()),oldPhase);out.gesture=g_key5912.gesture;return out;
+}
+static void EmitPhase4Inputs19(const kcd2vr::defense_publication19::Snapshot& r,bool returned) noexcept {
+    if(!r.captured)return;char line[520]{};std::snprintf(line,sizeof(line),
+        "C10R19C1 PHASE4_INPUT gesture=%llu oldPhase=%d changedEdge=%d setterReturned=%d CE8present=%d CE8kindKnown=%d CE8matchesCF8=%d CE8=0x%llX CF8=0x%llX reach4B0=%d reach4E0=%d victim680=%d modelsPending108=%d unknown=-1 nativeDecision=UNOBSERVED snapshot=BEFORE_PHASE_WRITE emit=AFTER_RETURN",
+        (unsigned long long)r.gesture,r.oldPhase,r.oldPhase==-99?-1:r.oldPhase!=4?1:0,returned?1:0,r.ce8Present,r.ce8Kind,r.ce8MatchesCf8,
+        (unsigned long long)r.ce8,(unsigned long long)r.cf8,r.reach4B0,r.reach4E0,r.victim680,r.modelsPending108);diagnostic_trace::Write(line);
+}
+// C19C4: native ordinary Attack::OnStart sets +5A0 before phase4. Supply
+// that admitted-motion input during this notification only; leave eligibility,
+// reciprocal target selection, RPG timing and final defense decision native.
+namespace di19c4=kcd2vr::defense_intent19c4;
+static std::atomic<bool> g_defense_intent_hooks19c4{false};
+struct DefenseIntentScope19c4 {
+    di19c4::Context c{};bool qualified=false,written=false,offsetAdapted=false,offerObserved=false;
+    float authoredLead=0.f,nativeAllowance=-1.f,offerDuration=0.f;bool allowanceKnown=false;
+    int active=-1,queued=-1,timed=-1;const void* trigger=nullptr;
+    const char* reason="NOT_PHASE4";
+};
+static thread_local DefenseIntentScope19c4* t_defense_intent19c4=nullptr;
+static DefenseIntentScope19c4 g_last_offer19c4{};
+enum class PhasePurpose19c4 { MotionTransition,GuardReclaim,BorrowedContextRestore };
+// A restoration is not a new motion edge. Keep bounded transition receipts
+// across Forget()/A-B contact borrowing, but permit a genuinely different
+// current zone/technique/target within the same full attempt identity.
+struct DefenseTransition19c4 {di19c4::Context c{};int attackType=-2;};
+static std::array<DefenseTransition19c4,32> g_defense_transitions19c4{};
+static bool ReserveDefenseTransition19c4(const di19c4::Context& c,int attackType) noexcept {
+    DefenseTransition19c4* free=nullptr;
+    for(auto& entry:g_defense_transitions19c4){
+        if(kcd2vr::motion59c4::same(entry.c.key,c.key)){
+            if(entry.c.actor==c.actor&&entry.c.state==c.state&&entry.c.target==c.target&&entry.c.targetState==c.targetState&&
+               entry.c.defense==c.defense&&entry.attackType==attackType)return false;
+            entry={c,attackType};return true;
+        }
+        if(!entry.c.onset||(c.now>=entry.c.onset&&c.now-entry.c.onset>600))free=&entry;
+    }
+    if(!free)return false;*free={c,attackType};return true;
+}
+static bool DefenseIntentRead19c4(std::uintptr_t p,void* out,std::size_t n) noexcept {
+    return p&&SehCopy146(reinterpret_cast<const void*>(p),out,n);
+}
+static bool DefenseIntentSet19c4(std::uintptr_t s,unsigned p,bool value) noexcept {
+    return p==0x5A0&&SetBool(reinterpret_cast<const void*>(s),p,value);
+}
+static bool PrepareDefenseIntent19c4(const void* hs,int stage,std::uint64_t now,DefenseIntentScope19c4& scope) noexcept {
+    if(stage!=4)return false;
+    scope.c.key=g_key5912;
+    if(!g_defense_intent_hooks19c4.load(std::memory_order_acquire)){scope.reason="HOOK_CAPABILITY_UNAVAILABLE";return false;}
+    scope.reason="CONTEXT_REFUSED";
+    if(!g_consequence.load()||g_fault.load()||g_reset.load()||
+       !kcd2vr::motion59c4::selected.load()||hs!=g_owner_state||!g_defense_owned||
+       !g_clock_owned||!kcd2vr::motion59c4::same(g_prediction19c3.key,g_key5912)||
+       g_key5912.recovery!=kcd2vr::contact176::recoveryEpoch55c1.load()||frik_pose_probe::GeometryOwnerStage49()==6||
+       !frik_pose_probe::GeometryOwnerValid178r30(g_key5912.weapon,g_key5912.generation,g_key5912.body,g_key5912.request))return false;
+    const void* actor=Rd<const void*>(hs,0xCE0,nullptr);const void* entity=nullptr,*state=nullptr;
+    if(!actor||actor!=g_henry_actor.load()||!CombatActor(actor,entity,state,false)||state!=hs||!IsPlayer(entity)||
+       LiveAttackAction178r35(actor)||I(hs,kDefenseZone)!=g_written_defense||F(hs,kHitRemaining)!=g_written_clock)return false;
+    auto& c=scope.c;c.key=g_key5912;c.actor=reinterpret_cast<std::uintptr_t>(actor);c.state=reinterpret_cast<std::uintptr_t>(hs);
+    c.now=now;c.onset=kcd2vr::motion59c4::attempts.beginForKey(c.key,now);c.deadline=g_prediction19c3.deadline;
+    c.oldPhase=I(hs,kActionPhaseProp39);c.defense=g_written_defense;c.remaining=g_written_clock;
+    if(!c.onset){scope.reason="ATTEMPT_UNAVAILABLE";return false;}
+    if(c.deadline<=now){scope.reason="PREDICTION_EXPIRED";return false;}
+    if(!di19c4::Qualify(DefenseIntentRead19c4,g_base,c)){scope.reason="NATIVE_THREAT_REFUSED";return false;}
+    if(!ReserveDefenseTransition19c4(c,I(hs,kAttackType))){scope.reason="TRANSITION_ALREADY_OFFERED_OR_CAPACITY";return false;}
+    scope.qualified=di19c4::Begin(DefenseIntentRead19c4,DefenseIntentSet19c4,g_base,c,scope.written);
+    // The boolean setter notifies native listeners synchronously. Revalidate
+    // before publishing phase4; a native action or context takeover wins.
+    if(scope.qualified)scope.qualified=!g_fault.load()&&!g_reset.load()&&kcd2vr::motion59c4::selected.load()&&
+        kcd2vr::motion59c4::same(c.key,g_key5912)&&c.key.recovery==kcd2vr::contact176::recoveryEpoch55c1.load()&&
+        !LiveAttackAction178r35(actor)&&frik_pose_probe::GeometryOwnerStage49()!=6&&
+        frik_pose_probe::GeometryOwnerValid178r30(c.key.weapon,c.key.generation,c.key.body,c.key.request)&&
+        hs==g_owner_state&&I(hs,kActionPhaseProp39)==c.oldPhase&&I(hs,kDefenseZone)==c.defense&&F(hs,kHitRemaining)==c.remaining;
+    scope.reason=scope.qualified?"QUALIFIED":"NATIVE_CHANGED_DURING_INTENT";return scope.qualified;
+}
+// A missing authored animation row is not a missing VR motion direction. The
+// retail schema B0BF1 maps attack_zone_id to raw+D4; 932641 resolves that ID
+// into row+138, the very payload 939E21 publishes to +150. Use only the current
+// deliberate attempt's explicit legal zone, never a remembered prior stroke.
+static bool FallbackDefense19c4(const void* hs,int explicitZone,int technique,std::uint64_t now,int& defense) noexcept {
+    if(!g_defense_intent_hooks19c4.load()||!g_consequence.load()||!kcd2vr::motion59c4::selected.load()||g_fault.load()||g_reset.load()||
+       (explicitZone!=0&&explicitZone!=1&&explicitZone!=2&&explicitZone!=5)||technique<0||technique>1||
+       !kcd2vr::motion59c4::same(g_prediction19c3.key,g_key5912)||hs!=g_owner_state||
+       frik_pose_probe::GeometryOwnerStage49()==6||g_key5912.recovery!=kcd2vr::contact176::recoveryEpoch55c1.load()||
+       !frik_pose_probe::GeometryOwnerValid178r30(g_key5912.weapon,g_key5912.generation,g_key5912.body,g_key5912.request))return false;
+    const void* actor=Rd<const void*>(hs,0xCE0,nullptr);const void* entity=nullptr,*state=nullptr;
+    if(actor!=g_henry_actor.load()||!CombatActor(actor,entity,state,false)||state!=hs||!IsPlayer(entity)||LiveAttackAction178r35(actor)||
+       I(hs,kAttackType)!=(technique?0:1)||I(hs,kAttackZone)!=explicitZone||I(hs,kCommittedZone)!=explicitZone)return false;
+    di19c4::Context c{};c.key=g_key5912;c.actor=reinterpret_cast<std::uintptr_t>(actor);c.state=reinterpret_cast<std::uintptr_t>(hs);
+    c.now=now;c.onset=kcd2vr::motion59c4::attempts.beginForKey(c.key,now);c.deadline=g_prediction19c3.deadline;
+    c.remaining=PredictionRemaining19c3(g_prediction19c3,now);c.defense=explicitZone;
+    // This is a read-only eligibility check, also usable for a same-key feint;
+    // Publish already checked that the current phase is our exact owned phase.
+    if(!di19c4::Qualify(DefenseIntentRead19c4,g_base,c))return false;
+    defense=explicitZone;return true;
+}
+static bool ActiveOffer19c4(const void* hs,const kcd2vr::motion59c4::Key& key,std::uint64_t now) noexcept {
+    const auto& s=g_last_offer19c4;const auto& c=s.c;
+    if(!s.qualified||!s.offerObserved||s.active!=1||!s.trigger||!g_defense_intent_hooks19c4.load()||
+       !kcd2vr::motion59c4::selected.load()||g_fault.load()||g_reset.load()||!g_telegraph_strike59c10.load()||
+       !kcd2vr::motion59c4::same(c.key,key)||!kcd2vr::motion59c4::same(key,g_key5912)||
+       !kcd2vr::motion59c4::same(key,g_prediction19c3.key)||c.key.recovery!=kcd2vr::contact176::recoveryEpoch55c1.load()||
+       hs!=g_owner_state||reinterpret_cast<std::uintptr_t>(hs)!=c.state||now<c.now||now>=c.deadline||
+       !kcd2vr::motion59c4::attempts.beginForKey(key,now)||LiveAttackAction178r35(reinterpret_cast<const void*>(c.actor))||
+       frik_pose_probe::GeometryOwnerStage49()==6||!frik_pose_probe::GeometryOwnerValid178r30(key.weapon,key.generation,key.body,key.request)||
+       I(hs,kActionPhaseProp39)!=4||I(hs,kDefenseZone)!=c.defense||F(hs,kHitRemaining)!=c.remaining||
+       !di19c4::SameThreat(DefenseIntentRead19c4,g_base,c))return false;
+    // Actual native activation, not our prediction of whether the AI should
+    // defend. Readbacks are bounded to this one newly-created offer receipt.
+    return Rd<std::uintptr_t>(s.trigger,0,0)==g_base+0x3B813F8&&
+        Rd<const void*>(s.trigger,0x38,nullptr)==reinterpret_cast<const void*>(c.actor)&&
+        Rd<const void*>(s.trigger,8,nullptr)==reinterpret_cast<const void*>(c.target)&&Rd<std::uint8_t>(s.trigger,0x19,0)==1;
+}
+static void EmitDefenseIntent19c4(const DefenseIntentScope19c4& s,bool setterReturned,bool restored,std::uint64_t now) noexcept {
+    if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now)||!s.c.key.gesture)return;
+    char line[640]{};std::snprintf(line,sizeof(line),
+        "C19C4 DEFENSE_OFFER gesture=%llu target=%p reason=%s intentQualified=%d intentWrite=%d original5A0=%d phaseReturned=%d restored=%d authoredLead=%.4f leadAdapted=%d nativeAllowance=%.4f allowanceKnown=%d trigger=%p observed=%d active=%d queued=%d timed=%d duration=%.4f npcBlockAward=NONE",
+        (unsigned long long)s.c.key.gesture,reinterpret_cast<const void*>(s.c.target),s.reason,s.qualified?1:0,s.written?1:0,s.c.original,setterReturned?1:0,restored?1:0,
+        s.authoredLead,s.offsetAdapted?1:0,s.nativeAllowance,s.allowanceKnown?1:0,s.trigger,s.offerObserved?1:0,s.active,s.queued,s.timed,s.offerDuration);
+    diagnostic_trace::Write(line);
+}
+static bool PublishPhase19c4(const void* hs,int phase,int attackType,PhasePurpose19c4 purpose=PhasePurpose19c4::MotionTransition) noexcept {
+    const auto now=std::uint64_t(GetTickCount64());DefenseIntentScope19c4 scope{};
+    if(purpose==PhasePurpose19c4::MotionTransition){
+        if(phase==4)g_last_offer19c4={};
+        (void)PrepareDefenseIntent19c4(hs,phase,now,scope);
+    }else if(phase==4){scope.c.key=g_key5912;scope.reason=purpose==PhasePurpose19c4::GuardReclaim?"GUARD_RECLAIM_NO_INTENT":"CONTACT_RESTORE_NO_INTENT";}
+    if(scope.written&&!scope.qualified){
+        const auto failure=g_last_set;
+        const bool restored=di19c4::Finish(DefenseIntentRead19c4,DefenseIntentSet19c4,g_base,scope.c,scope.written,
+            LiveAttackAction178r35(reinterpret_cast<const void*>(scope.c.actor))!=nullptr);
+        EmitDefenseIntent19c4(scope,false,restored,now);g_last_set=failure;
+        if(!restored)Fault("DEFENSE_INTENT_RESTORE");return false;
+    }
+    const auto prior=t_defense_intent19c4;t_defense_intent19c4=scope.qualified?&scope:nullptr;
+    bool result=false;{OwnPhaseWriteScope19 own19(hs,attackType);result=SetInt(hs,kActionPhaseProp39,phase);}
+    t_defense_intent19c4=prior;const auto phaseReceipt=g_last_set;
+    const bool restored=di19c4::Finish(DefenseIntentRead19c4,DefenseIntentSet19c4,g_base,scope.c,scope.written,
+        scope.c.actor&&LiveAttackAction178r35(reinterpret_cast<const void*>(scope.c.actor))!=nullptr);
+    EmitDefenseIntent19c4(scope,result,restored,now);
+    if(!restored){Fault("DEFENSE_INTENT_RESTORE");return false;}
+    if(phase==4&&result&&scope.qualified)g_last_offer19c4=scope;
+    g_last_set=phaseReceipt;return result;
+}
+// stage: 4 wind-up, 8 strike window, 16 withdraw, 0 idle. Game thread only; stops at the first failed write.
+static bool Publish(const void* hs,int stage,int zone,int technique,std::uint64_t attemptDeadline=0,bool contact59c16=false,bool sameStageZone62=false) noexcept {
+    if(!hs||g_fault.load())return false;
+    if(!Verified()){Fault("SETTER_OR_DEFENSE_QUERY_PROLOGUE_MISMATCH");return false;}
+    const int z=zone<0?(technique?5:1):zone;
+    const auto now=std::uint64_t(GetTickCount64());
+    if(sameStageZone62&&((stage!=4&&stage!=8)||g_stage.load()!=stage||!Ours(hs)||
+       !g_defense_owned||!g_defense_row))return false;
+    const auto deadline=attemptDeadline?attemptDeadline:g_deadline;
+    if(stage==4||stage==8){
+        // Only the action-independent direct route owns this prediction. An
+        // admitted ordinary action retains its native timing service.
+        if(!kcd2vr::motion59c4::selected.load()||LiveAttackAction178r35(Rd<const void*>(hs,0xCE0,nullptr))){
+            YieldClock19c3(hs,"NATIVE_ACTION_OWNS_CLOCK");return false;}
+        if(!deadline||deadline<=now||deadline-now>kcd2vr::motion59c4::strikeLifetimeMs5910c1){
+            ++g_yield;Log("LIFETIME_EXPIRED",z,technique,"(no phase or clock published)");return false;}
+        if(frik_pose_probe::GeometryOwnerStage49()==6){++g_yield;LogYield(hs,z,technique,"NATIVE_BODY_PAIRED_CLINCH_REACTION");return false;}
+        if(g_stage.load()==0){ // first write of an attempt: only from a native idle phase
+            const int live=I(hs,kActionPhaseProp39);if(!Overwritable(live,hs)){++g_yield;LogYield(hs,z,technique,"NATIVE_PHASE_PROTECTED");return false;}
+            if(OwnRecovery59c12(live)){char m[160]{};std::snprintf(m,sizeof(m),"R59.16C10R12 VR_STATE RECOVERY_OVERRIDDEN livePhase=%d (tail of our own strike; new attempt starts from it)",live);diagnostic_trace::Write(m);}
+            g_owner_state=hs;g_base_phase=(live==2||live==128||live==256||live==32||live==64||OwnRecovery59c12(live))?1:live;g_reclaims59c16=0;g_from_stagger44=live==64; // R16: never restore a recovery/stagger; C44: remember a start out of 64
+            g_hit_at5910c1=0;
+            g_base_defense=I(hs,kDefenseZone);g_defense_owned=false;g_defense_row=nullptr;
+            g_base_clock=F(hs,kHitRemaining);g_clock_owned=false;
+            // R59.16C10R4D: I()/F() answer -99 for an unreadable property; never carry that sentinel into a later restore
+            if(g_base_defense==-99){++g_yield;LogYield(hs,z,technique,"BASE_DEFENSE_UNREADABLE");Forget();return false;}
+            if(!std::isfinite(g_base_clock)||g_base_clock==-99.f){
+                ++g_yield;LogYield(hs,z,technique,"BASE_CLOCK_UNREADABLE_NO_WRITE");
+                (void)kcd2vr::motion59c4::attempts.event(g_key5912,kcd2vr::motion59c4::Event::Cancel,now,now,z,technique);
+                Forget();return false;}} // never restore a block (ours or not); combat idle instead
+        else if(hs!=g_owner_state||!Ours(hs)){++g_yield;LogYield(hs,z,technique,"NATIVE_CONTEXT_CHANGED");Forget();return false;}
+        else if(g_defense_owned&&I(hs,kDefenseZone)!=g_written_defense){++g_yield;LogYield(hs,z,technique,"NATIVE_DEFENSE_ROW_CHANGED");Forget();return false;}
+        else if(g_clock_owned&&F(hs,kHitRemaining)!=g_written_clock){
+            YieldClock19c3(hs,"NATIVE_CLOCK_CHANGED");return false;}
+    }else if(!Ours(hs)){Forget();return false;} // withdraw/idle only over our own phase
+    if(stage==4||stage==8){
+        if(!SelectPrediction19c3(now)){++g_yield;Log("PREDICTION_UNAVAILABLE",z,technique,"(no timing publication)");Forget();return false;}
+        constexpr std::array<unsigned,5> context{kAttackType,kPendingZone,kAttackZone,kCommittedZone,kInputClass}; // D85 zone: +0x270 = input class
+        std::array<int,5> before{};for(unsigned i=0;i<context.size();++i)before[i]=I(hs,context[i]);
+        const int phaseBefore=I(hs,kActionPhaseProp39),defenseBefore=I(hs,kDefenseZone);const float strengthBefore=F(hs,kAttackStrength),clockBefore=F(hs,kHitRemaining);
+        // Every rollback value must have been observed before ANY context write.
+        bool baselineValid=phaseBefore!=-99&&defenseBefore!=-99&&std::isfinite(strengthBefore)&&strengthBefore!=-99.f&&
+            std::isfinite(clockBefore)&&clockBefore!=-99.f;
+        for(const int v:before)baselineValid=baselineValid&&v!=-99;
+        if(!baselineValid){++g_yield;LogYield(hs,z,technique,"CONTEXT_BASELINE_UNREADABLE_NO_WRITE");Forget();return false;}
+        if(sameStageZone62&&before[0]!=(technique?0:1))return false;
+        // D85 zone: +0x270 is the native input class (0x938FD0); a zone is never written there, it keeps its value.
+        const std::array<int,5> expected{technique?0:1,z,z,z,before[4]};
+        if(!::kcd2vr::zone_d85::writeAttackContext([&](unsigned prop,int v){return SetInt(hs,prop,v);},[&](unsigned prop,float v){return SetFloat(hs,prop,v);},
+           sameStageZone62,technique!=0,z,kAttackType,kAttackStrength,kPendingZone,kAttackZone,kCommittedZone)){SetFailure(hs,"CONTEXT_SETTER_OR_READBACK");return false;}
+        const void* row=nullptr;int defense=-1;
+        const bool resolved=ResolveDefense(hs,z,row,defense);
+        bool vrZone=false;
+        const float expectedStrength62=sameStageZone62?strengthBefore:1.f;
+        bool stillOwned=I(hs,kActionPhaseProp39)==phaseBefore&&I(hs,kDefenseZone)==defenseBefore&&F(hs,kAttackStrength)==expectedStrength62&&F(hs,kHitRemaining)==clockBefore;
+        for(unsigned i=0;i<context.size();++i)stillOwned=stillOwned&&I(hs,context[i])==expected[i];
+        if(!stillOwned){++g_yield;LogYield(hs,z,technique,"NATIVE_CHANGED_DURING_DEFENSE_QUERY");Forget();return false;}
+        if(!resolved&&!sameStageZone62&&(g_no_row_fallback59c12.load(std::memory_order_relaxed)||contact59c16)&&!g_setter_exception.load()){ // R16: a real contact is never dropped for a missing row
+            // R59.16C10R12: no eligible row for this zone right now (19:43 log: 97 of 152 attempts) - publish the attempt without owning
+            // Henry's defense zone (R3B behaviour); the victim's own defense row still adjudicates block/perfect block.
+            vrZone=!row&&FallbackDefense19c4(hs,zone,technique,now,defense);
+            g_defense_owned=false;g_defense_row=nullptr;
+            Log(vrZone?"VR_ATTACK_ZONE_FALLBACK":"DEFENSE_ROW_UNAVAILABLE_CONTINUED",z,technique,
+                vrZone?"current attempt attack_zone_id; native outcome unchanged":"no qualified current reciprocal/reachable VR zone; no150 write");
+        }else if(!resolved){
+            if(g_setter_exception.load()){Fault("DEFENSE_QUERY_EXCEPTION");return false;}
+            // No eligible native row: do not announce an invented defense zone
+            // or leave partially installed context. A native takeover wins.
+            for(unsigned i=0;i<context.size();++i){
+                if(I(hs,kActionPhaseProp39)!=phaseBefore||I(hs,context[i])!=expected[i]){Forget();return false;}
+                if(sameStageZone62&&(i==0||(i==4&&stage!=8)))continue;
+                if(!SetInt(hs,context[i],before[i])){SetFailure(hs,"DEFENSE_QUERY_ROLLBACK");return false;}
+            }
+            if(I(hs,kActionPhaseProp39)!=phaseBefore||F(hs,kAttackStrength)!=expectedStrength62){Forget();return false;}
+            if(!sameStageZone62&&!SetFloat(hs,kAttackStrength,strengthBefore)){SetFailure(hs,"DEFENSE_QUERY_ROLLBACK");return false;}
+            ++g_yield;Log("DEFENSE_ROW_UNAVAILABLE",z,technique,"(phase not published; context restored)");
+            if(g_stage.load()==0)Forget();return false;
+        }
+        if(resolved||vrZone){
+            if(!SetDefense(hs,defense)){SetFailure(hs,"DEFENSE_ZONE_SETTER_OR_READBACK");return false;}
+            g_written_defense=defense;g_defense_owned=true;g_defense_row=row;}
+        if(sameStageZone62){
+            if(!resolved||!row||I(hs,kActionPhaseProp39)!=phaseBefore||F(hs,kHitRemaining)!=clockBefore||
+               F(hs,kAttackStrength)!=strengthBefore)return false;
+            g_zone.store(z);g_technique.store(technique);SnapshotAttack(now);
+            if(diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))
+                Log("CUT_FEINT_ZONE_ACK",z,technique,"native row ACK; phase/clock/strength/onset unchanged");return true;
+        }
+        const float remaining=PredictionRemaining19c3(g_prediction19c3,now);
+        if(I(hs,kActionPhaseProp39)!=phaseBefore||F(hs,kHitRemaining)!=clockBefore){
+            ++g_yield;LogYield(hs,z,technique,"NATIVE_CHANGED_BEFORE_CLOCK");Forget();return false;}
+        if(!SetClock(hs,remaining)){SetFailure(hs,"ATTEMPT_CLOCK_SETTER_OR_READBACK");return false;}
+        g_written_clock=remaining;g_clock_owned=true;
+        g_deadline=deadline;
+        // 911B24 snapshots +150, and 914204 samples +450 at phase4. Context AND
+        // contact prediction must precede that notification; native RPG limits still win.
+        const auto phase4Inputs19=ReadPhase4Inputs19(hs,stage,phaseBefore,now);
+        if(!PublishPhase19c4(hs,stage,technique?0:1)){EmitPhase4Inputs19(phase4Inputs19,false);SetFailure(hs,"PHASE_SETTER_OR_READBACK");return false;}
+        EmitPhase4Inputs19(phase4Inputs19,true);
+        if(stage==4)++g_windups;else{g_hit_at5910c1=0;++g_strikes;}
+        char receipt[340]{};std::snprintf(receipt,sizeof(receipt),"row=%p nativeDefense150=%d originF0=%d remaining450=%.3f deadline=%llu predictionOnset=%llu predictionDeadline=%llu clock=CONFIGURED_PREDICTION measured=0 ordinaryAction=NONE",row,defense,z,remaining,(unsigned long long)deadline,(unsigned long long)g_prediction19c3.onset,(unsigned long long)g_prediction19c3.deadline);
+        Log("DEFENSE_ROW",z,technique,receipt);
+    }else if(stage==16){
+        if(g_clock_owned&&F(hs,kHitRemaining)==g_written_clock){
+            if(!SetClock(hs,0.f)){SetFailure(hs,"ATTEMPT_CLOCK_WITHDRAW");return false;}g_written_clock=0.f;}
+        if(!SetInt(hs,kActionPhaseProp39,16)){SetFailure(hs,"WITHDRAW_SETTER_OR_READBACK");return false;}
+    }else{
+        if(g_defense_owned&&I(hs,kDefenseZone)==g_written_defense&&!SetDefense(hs,g_base_defense)){SetFailure(hs,"DEFENSE_ZONE_RESTORE");return false;}
+        g_defense_owned=false;g_defense_row=nullptr;
+        if(g_clock_owned&&F(hs,kHitRemaining)==g_written_clock&&!SetClock(hs,g_base_clock)){SetFailure(hs,"ATTEMPT_CLOCK_RESTORE");return false;}
+        g_clock_owned=false;g_deadline=0;
+        if(!SetInt(hs,kActionPhaseProp39,g_base_phase)||!SetInt(hs,kAttackType,-1)||!SetFloat(hs,kAttackStrength,0.f)||!SetInt(hs,kPendingZone,-1)){SetFailure(hs,"IDLE_SETTER_OR_READBACK");return false;}
+    }
+    if(stage==0&&(g_written_phase==8||g_written_phase==16))g_own_strike_end59c12.store(std::uint64_t(GetTickCount64()),std::memory_order_relaxed); // R59.16C10R12
+    g_written_phase=stage;if(stage==0){g_owner_state=nullptr;g_telegraph_offer={};}
+    g_stage.store(stage);g_zone.store(z);g_technique.store(technique);g_since.store(std::uint64_t(GetTickCount64()));
+    SnapshotAttack(std::uint64_t(GetTickCount64()));
+    Log(StageName(stage),z,technique,nullptr);return true;
+}
+// H21: native defense readiness is an observation, not Henry's strike onset.
+// Keep phase4 until real motion Commit/contact publishes8. The legacy flag
+// enables only this bounded receipt, never a same-update or next-Tick phase edge.
+static bool ObserveActiveOfferH21(const void* hs,const kcd2vr::motion59c4::Key& key,std::uint64_t tick,int zone,int technique,std::uint64_t now) noexcept {
+    if(g_stage.load()!=4||!g_telegraph_offer.pending||!kcd2vr::motion59c4::same(g_telegraph_offer.key,key)||
+       !kcd2vr::motion59c4::attempts.publicationAllowed(key,kcd2vr::motion59c4::Event::Prepare,tick,now)||
+       !ActiveOffer19c4(hs,key,now))return false;
+    g_telegraph_offer.pending=false;
+    g_forward_offers18.fetch_add(1,std::memory_order_relaxed);
+    Log("FORWARD_OFFER_ACTIVE",zone,technique,"actual native trigger active; phase4 retained; phase8 requires motion Commit/contact");return true;
+}
+// One attempt-bound event queue. Producer: physical_native (pose thread). Consumer: Henry's update (game thread).
+struct Ev {kcd2vr::motion59c4::Key key{};std::uint64_t tick=0;int kind=0,zone=-1,technique=0;};
+std::mutex g_ev_mutex;std::array<Ev,8> g_ev{};unsigned g_ev_count=0;
+std::atomic<std::uint64_t> g_event_drops5912{0};
+bool Event(const kcd2vr::motion59c4::Key& key,std::uint64_t tick,int kind,int zone,int technique) noexcept {
+    if(!kcd2vr::motion59c4::valid(key)||kind<1||(kind>4&&kind!=6)||technique<0||technique>1||
+       (kind==6&&technique!=0))return false; // C35 rear kind5 stays retired; C62 kind6 = qualified cut-to-cut only
+    std::lock_guard<std::mutex> l(g_ev_mutex);
+    if(g_ev_count>=g_ev.size()){++g_event_drops5912;return false;} // never silently replace a cancellation
+    g_ev[g_ev_count++]={key,tick,kind,zone,technique};return true;
+}
+void Reset() noexcept {{std::lock_guard<std::mutex> l(g_ev_mutex);g_ev_count=0;}g_reset.store(true);}
+static void ObserveNpcDefense(const void* hs,std::uint64_t now) noexcept {
+    // Recorder-only reads. No opponent polling cost after the F3 capture lease.
+    if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))return;
+    static const void* lastTarget=nullptr;static int lastPhase=-2,lastZone=-2;
+    static std::uint64_t until=0;
+    const int stage=g_stage.load();if(stage)until=now+1000;
+    if(now>=until){lastTarget=nullptr;lastPhase=lastZone=-2;return;}
+    const void* target=Rd<const void*>(hs,0xCF8,nullptr);const void* entity=nullptr;const void* state=nullptr;
+    if(!target||!CombatActor(target,entity,state,false))return;
+    const int phase=I(state,kActionPhaseProp39),zone=I(state,kOpponentZone);
+    if(target==lastTarget&&phase==lastPhase&&zone==lastZone)return;
+    lastTarget=target;lastPhase=phase;lastZone=zone;if(!Allow(4,20))return;
+    char m[420]{};std::snprintf(m,sizeof(m),
+        "R59.16C10C1 NPC_PHASE target=%p phase=%d targetsHenry=%d blockZone5D0=%d ourStage=%d originF0=%d ourDefense150=%d row=%p victimBool300=%s victimBool680=%s writes=NONE",
+        target,phase,Rd<const void*>(state,0xCF8,nullptr)==Rd<const void*>(hs,0xCE0,nullptr)?1:0,zone,stage,I(hs,kAttackZone),I(hs,kDefenseZone),g_defense_row,
+        ReadDefenseBoolDiagnostic(state,0x300),ReadDefenseBoolDiagnostic(state,0x680));
+    diagnostic_trace::Write(m);
+}
+// R59.16C10R16: Henry's OWN posture guard (or its wind-down) wrote 1/2/128/256 over our published 4/8. That is not a native owner
+// taking the attack - put our phase back (notifying setter, the NPC sees the attack again), at most 3 times per attempt, never
+// during a paired/clinch body action. Returns true when our phase is live again.
+static bool ReclaimOwnGuard59c16(const void* hs) noexcept {
+    const int stage=g_stage.load();
+    if(!hs||hs!=g_owner_state||(stage!=4&&stage!=8)||!g_reclaim_guard59c16.load(std::memory_order_relaxed)||g_reclaims59c16>=3||
+       g_fault.load()||frik_pose_probe::GeometryOwnerStage49()==6||LiveAttackAction178r35(Rd<const void*>(hs,0xCE0,nullptr)))return false;
+    const int live=I(hs,kActionPhaseProp39);
+    // Only while OUR posture guard holds the block input (or its 250 ms wind-down): any other writer of 1/2/128/256 is native and wins.
+    if(!((live==1||live==2||live==128||live==256)&&frik_pose_probe::GuardOwnedByUs59c7e(hs)))return false;
+    if(!PublishPhase19c4(hs,g_written_phase,I(hs,kAttackType),PhasePurpose19c4::GuardReclaim)){if(g_setter_exception.load())Fault("RECLAIM_SETTER_EXCEPTION");return false;}
+    ++g_reclaims59c16;g_reclaimed59c16.fetch_add(1,std::memory_order_relaxed);
+    char extra[120]{};std::snprintf(extra,sizeof(extra),"livePhase=%d writtenPhase=%d reclaims=%d (own guard, not a native owner)",live,g_written_phase,g_reclaims59c16);
+    Log("RECLAIMED",g_zone.load(),g_technique.load(),extra);return true;
+}
+// C39 DIRBLOCK (Miki 17 Oct: "if he is waiting, make him block our approaching blade from the correct sector"). Static
+// proof and rules in src/vrik/dirblock39.h. One plan per DIRECT attempt against a waiting reciprocal opponent: only the F0
+// zone is chosen here (the committed blade's predicted approach sector); the native row query 12EDEF4 still turns it into
+// Henry's +150, and the NPC's eligibility, RNG, block start (+5D0 from its own block row) and the block result stay native.
+namespace db39=kcd2vr::dirblock39;
+struct DirBlock39 {kcd2vr::motion59c4::Key key{};const void* target=nullptr;db39::Plan plan{};db39::Sample sample{};
+    db39::Choice why=db39::Choice::Disabled;int npcPhase=-99,npc5D0=-99;};
+static DirBlock39 g_dirblock39{};
+// Exact combat actor (vtable + state backlink): its phase, +5D0 and whether it answers Henry. -99 = unread.
+static bool NpcDefense39(const void* target,int& phase,int& zone,bool& henry) noexcept {
+    phase=zone=-99;henry=false;
+    if(!target||Rd<std::uintptr_t>(target,0,0)!=g_base+kCombatActorVft)return false;
+    const void* st=Rd<const void*>(target,0x210,nullptr);if(!st||Rd<const void*>(st,0xCE0,nullptr)!=target)return false;
+    phase=I(st,kActionPhaseProp39);zone=I(st,kOpponentZone);henry=Rd<const void*>(st,0xCF8,nullptr)==g_henry_actor.load(std::memory_order_relaxed);
+    return phase!=-99&&zone!=-99;
+}
+// The NPC block helper already took a row (C53B30 wrote +5D0) while answering Henry.
+static bool NpcBlockStarted39(const DirBlock39& d) noexcept {
+    int phase=0,zone=0;bool henry=false;
+    return NpcDefense39(d.target,phase,zone,henry)&&henry&&zone>=0&&(phase==128||phase==256);
+}
+static void EmitDirBlockUpdate39(const char* reason,int from,int to,int proposed,int technique,bool published,const void* hs,std::uint64_t now) noexcept {
+    const auto& d=g_dirblock39;if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))return;
+    int phase=-99,zone=-99;bool henry=false;(void)NpcDefense39(d.target,phase,zone,henry);
+    char line[420]{};std::snprintf(line,sizeof(line),
+        "C39 DIRBLOCK_UPDATE gesture=%llu target=%p reason=%s fromZone=%d toZone=%d proposedZone=%d technique=%s updates=%u/%u published=%d henry150=%d npcPhase=%d npc5D0=%d ageMs=%llu route=SAME_STAGE_PUBLISH(F0->12EDEF4->90D6D0) phaseEdge=NONE",
+        (unsigned long long)d.key.gesture,d.target,reason,from,to,proposed,technique?"THRUST":"CUT",d.plan.updates,db39::kMaxUpdates,published?1:0,
+        hs?I(hs,kDefenseZone):-99,phase,zone,(unsigned long long)(now>=d.plan.requestTick?now-d.plan.requestTick:0));diagnostic_trace::Write(line);
+}
+// Game thread, a DIRECT Prepare (or a commit without one) just before Publish(4): the F0 zone to announce.
+static int DirBlockRequestZone39(const void* hs,const kcd2vr::motion59c4::Key& key,int zone,int technique,std::uint64_t now) noexcept {
+    auto& d=g_dirblock39;d=DirBlock39{};
+    if(!db39::enabled.load(std::memory_order_relaxed))return zone; // the only cost while switched off
+    const void* ostate=nullptr;bool reciprocal=false,henry=false;
+    const void* target=ReciprocalOpponent39(hs,ostate,reciprocal);
+    const bool waiting=target&&reciprocal&&NpcDefense39(target,d.npcPhase,d.npc5D0,henry)&&henry&&dt39::waitingPhase(d.npcPhase);
+    d.key=key;d.target=target;
+    d.sample=db39::unpack(db39::mailbox.load(std::memory_order_acquire),key.gesture,now,db39::kFreshMs);
+    const int chosen=db39::chooseInitial(true,waiting,technique,zone,d.sample,d.why);
+    if(waiting)d.plan.begin(chosen,zone,technique,now);
+    return chosen;
+}
+static void EmitDirBlockRequest39(const void* hs,int origin,int technique,bool published,bool retried,std::uint64_t now) noexcept {
+    const auto& d=g_dirblock39;
+    if(!d.key.gesture||!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))return;
+    char line[520]{};std::snprintf(line,sizeof(line),
+        "C39 DIRBLOCK_REQUEST gesture=%llu target=%p npcPhase=%d npc5D0=%d technique=%s originZone=%d predictedSector=%d angle=%d near=%d sampleAgeMs=%llu chosenZone=%d reason=%s planned=%d published=%d originRetry=%d henry150=%d route=F0->12EDEF4(ResolveDefense)->90D6D0(+150) nativeChoice=NATIVE",
+        (unsigned long long)d.key.gesture,d.target,d.npcPhase,d.npc5D0,technique?"THRUST":"CUT",origin,d.sample.valid?d.sample.zone:-1,d.sample.valid?d.sample.angle:-1,
+        d.sample.nearBoundary?1:0,(unsigned long long)d.sample.ageMs,d.plan.active?d.plan.zone:origin,db39::name(d.why),d.plan.active?1:0,published?1:0,retried?1:0,hs?I(hs,kDefenseZone):-99);
+    diagnostic_trace::Write(line);
+}
+// A later publish of the SAME attempt (commit, feint, contact): keep our requested row; a technique change after the NPC
+// block started keeps the row the NPC took (C37C2 serial 76: 150 2->5 after the block start, 5D0 stayed 2, not blocked).
+static int DirBlockKeep39(const kcd2vr::motion59c4::Key& key,int technique,int proposed,const void* hs,std::uint64_t now) noexcept {
+    auto& d=g_dirblock39;
+    if(!d.plan.active||!kcd2vr::motion59c4::same(d.key,key)||!db39::enabled.load(std::memory_order_relaxed))return proposed;
+    const int before=d.plan.zone,beforeTechnique=d.plan.technique;bool kept=false;
+    const int z=d.plan.keep(technique,proposed,technique!=beforeTechnique&&NpcBlockStarted39(d),kept);
+    if(technique!=beforeTechnique&&!d.plan.frozenReported){d.plan.frozenReported=true;
+        EmitDirBlockUpdate39(kept?"TECHNIQUE_CHANGED_NPC_ROW_KEPT":"TECHNIQUE_CHANGED_BEFORE_NPC_BLOCK",before,z,proposed,technique,true,hs,now);}
+    return z;
+}
+// C62: refine OUR uncommitted cut sector only. No NPC row/phase is written,
+// no new offer is started, and a committed NPC defense is never redirected.
+static bool DirectCutFeint62(const Ev& e,const void* hs,std::uint64_t now) noexcept {
+    auto& d=g_dirblock39;auto& p=d.plan;
+    const auto onset=kcd2vr::motion59c4::attempts.beginForKey(e.key,now);
+    const int stage=g_stage.load();const void* st=nullptr;bool reciprocal=false,henry=false;int phase=-99,zone=-99;
+    if(!onset||e.tick<onset||e.tick-onset>100||now<onset||now-onset>100||e.technique!=0||
+       !kcd2vr::motion59c4::same(e.key,g_key5912)||!kcd2vr::motion59c4::same(d.key,e.key)||!Ours(hs)||
+       !db39::enabled.load()||!p.canRefineCut62(e.zone,now)||g_hit_at5910c1||g_telegraph_offer.pending||
+       !(stage==4||(stage==8&&g_telegraph_offer.open))||
+       ReciprocalOpponent39(hs,st,reciprocal)!=d.target||!reciprocal||
+       !NpcDefense39(d.target,phase,zone,henry)||!henry||!dt39::waitingPhase(phase)||
+       (zone>=0&&(phase==128||phase==256)))return false;
+    if(!Publish(hs,stage,e.zone,0,0,false,true))return false;
+    p.refinedCut62(e.zone,now);
+    EmitDirBlockUpdate39("DELIBERATE_CUT_FEINT_NATIVE_ROW_ACK",p.origin,p.zone,e.zone,0,true,hs,now);
+    return true;
+}
+// Game thread, every Henry update while a plan is open (an idle plan costs one bool). At most kMaxUpdates same-stage
+// re-announcements per approach, only before the NPC block helper started; never a phase edge, offer restart or 5D0 write.
+static void DirBlockUpdate39(const void* hs,std::uint64_t now) noexcept {
+    auto& d=g_dirblock39;auto& pl=d.plan;
+    if(!pl.active||(pl.frozen&&pl.frozenReported)||(pl.updates>=db39::kMaxUpdates&&pl.budgetReported))return;
+    const int stage=g_stage.load();
+    if(!db39::enabled.load(std::memory_order_relaxed)||!kcd2vr::motion59c4::same(d.key,g_key5912)||(stage!=4&&stage!=8)||!Ours(hs)||g_hit_at5910c1||
+       g_fault.load()||now<pl.requestTick||now-pl.requestTick>kcd2vr::motion59c4::strikeLifetimeMs5910c1)return;
+    const void* ostate=nullptr;bool reciprocal=false,henry=false;int phase=0,zone=0;
+    if(ReciprocalOpponent39(hs,ostate,reciprocal)!=d.target||!reciprocal||!NpcDefense39(d.target,phase,zone,henry)||!henry){
+        pl.frozen=pl.frozenReported=true;EmitDirBlockUpdate39("OPPONENT_CHANGED_PLAN_CLOSED",pl.zone,pl.zone,-1,pl.technique,false,hs,now);return;}
+    const auto s=db39::unpack(db39::mailbox.load(std::memory_order_acquire),d.key.gesture,now,db39::kFreshMs);
+    const auto step=pl.consider(s,zone>=0&&(phase==128||phase==256),now);
+    if(step==db39::Step::Frozen){if(!pl.frozenReported){pl.frozenReported=true;EmitDirBlockUpdate39(db39::name(step),pl.zone,pl.zone,s.valid?s.zone:-1,pl.technique,false,hs,now);}return;}
+    if(step==db39::Step::Budget){if(!pl.budgetReported){pl.budgetReported=true;EmitDirBlockUpdate39(db39::name(step),pl.zone,pl.zone,s.zone,pl.technique,false,hs,now);}return;}
+    if(step!=db39::Step::Update||(stage==4&&g_telegraph_offer.pending))return; // a pending native offer is never disturbed
+    const int from=pl.zone;const bool ok=Publish(hs,stage,s.zone,pl.technique);
+    if(ok)pl.committed(s.zone,now);else pl.frozen=pl.frozenReported=true; // fail closed: no retry this approach
+    EmitDirBlockUpdate39(ok?"SECTOR_CHANGED_BEFORE_NPC_BLOCK":"PUBLISH_REFUSED_PLAN_CLOSED",from,ok?s.zone:from,s.zone,pl.technique,ok,hs,now);
+}
+// Edge-only (one line per DIRECT contact, F3): announced row vs the NPC's block row vs the blade's sector at contact.
+static void EmitDirBlockContact39(unsigned serial,std::uint64_t gesture,const void* target,int victimPhase,int victim5D0,int henry150,bool blocked,std::uint64_t now) noexcept {
+    const auto& d=g_dirblock39;
+    if(!gesture||!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))return;
+    const bool mine=d.key.gesture==gesture;
+    const auto s=db39::unpack(db39::mailbox.load(std::memory_order_acquire),gesture,now,db39::kContactFreshMs);
+    char line[560]{};std::snprintf(line,sizeof(line),
+        "C39 DIRBLOCK_CONTACT serial=%u gesture=%llu target=%p sameTarget=%d planned=%d reason=%s originZone=%d announcedZone=%d updates=%u henry150=%d victim5D0=%d rowMatch=%d physicalSector=%d sectorAngle=%d sectorAgeMs=%lld sectorMatchesAnnounced=%d npcPhaseAtRequest=%d npcPhaseAtContact=%d blocked=%d writes=NONE",
+        serial,(unsigned long long)gesture,target,mine&&target==d.target?1:0,mine&&d.plan.active?1:0,mine?db39::name(d.why):"NO_REQUEST",mine?d.plan.origin:-1,mine&&d.plan.active?d.plan.zone:-1,
+        mine?d.plan.updates:0u,henry150,victim5D0,victim5D0>=0&&victim5D0==henry150?1:0,s.valid?s.zone:-1,s.valid?s.angle:-1,s.valid?(long long)s.ageMs:-1ll,
+        s.valid&&mine&&d.plan.active?(s.zone==d.plan.zone?1:0):-1,mine?d.npcPhase:-99,victimPhase,blocked?1:0);
+    diagnostic_trace::Write(line);
+}
+// Game thread, Henry's C_CombatActor::Update. Runs even when the geometry rung is off (cleanup only).
+void Tick(const void* hs,std::uint64_t now) noexcept {
+    if(!hs)return;
+    const bool active=kcd2vr::motion59c4::selected.load(std::memory_order_acquire)&&g_consequence.load()&&!g_fault.load();
+    if(!active||g_reset.exchange(false)){std::lock_guard<std::mutex> l(g_ev_mutex);g_ev_count=0;
+        if(g_stage.load()!=0){if(Ours(hs))Publish(hs,0,-1,0);else Forget();}
+        if(!active)return;}
+    {const int live=I(hs,kActionPhaseProp39);if(live!=64)g_phase64_since59c16=0;else if(!g_phase64_since59c16)g_phase64_since59c16=now;} // R59.16C10R16
+    // At most one following Tick can observe the same native offer. This never
+    // substitutes a timer for the real forward-motion Commit.
+    const auto deferred=g_telegraph_offer;
+    std::array<Ev,8> batch{};unsigned n=0;{std::lock_guard<std::mutex> l(g_ev_mutex);batch=g_ev;n=g_ev_count;g_ev_count=0;}
+    {   // R59.16C10R16: reclaim BEFORE this batch, so a commit of the same attempt is not lost to our own guard; never for a cancelled one
+        bool cancelled=false;for(unsigned i=0;i<n;++i)cancelled=cancelled||(batch[i].kind==4&&kcd2vr::motion59c4::same(batch[i].key,g_key5912));
+        if(!cancelled&&g_stage.load()!=0&&!Ours(hs))(void)ReclaimOwnGuard59c16(hs);}
+    for(unsigned i=0;i<n;++i){const Ev& e=batch[i];if(now<e.tick||now-e.tick>150)continue; // stale gesture events never act
+        if(e.kind!=4){
+            const auto kind=e.kind==1?kcd2vr::motion59c4::Event::Prepare:e.kind==2?kcd2vr::motion59c4::Event::Commit:kcd2vr::motion59c4::Event::Feint;
+            if(!kcd2vr::motion59c4::attempts.publicationAllowed(e.key,kind,e.tick,now))continue;
+        }
+        const void* actor=Rd<const void*>(hs,0xCE0,nullptr);
+        if(!actor||reinterpret_cast<std::uintptr_t>(Rd<const void*>(actor,0x1F8,nullptr))!=e.key.player||
+           e.key.recovery!=kcd2vr::contact176::recoveryEpoch55c1.load()||
+           !frik_pose_probe::GeometryOwnerValid178r30(e.key.weapon,e.key.generation,e.key.body,e.key.request))continue;
+        const auto gesture=e.key.gesture;
+        const int stage=g_stage.load();
+        if(e.kind==1){ // prepare: a new forward attempt (abandons an unfinished one we own)
+            if(stage!=0&&gesture!=g_gesture.load()){if(Ours(hs))Publish(hs,0,-1,0);else Forget();}
+            if(g_stage.load()==0){g_key5912=e.key;g_gesture.store(gesture);
+                const int zone39=DirBlockRequestZone39(hs,e.key,e.zone,e.technique,now); // C39 DIRBLOCK: predicted sector for a waiting opponent
+                bool published39=Publish(hs,4,zone39,e.technique,AttemptDeadline(e.tick,now)),retried39=false;
+                if(!published39&&zone39!=e.zone&&!g_fault.load()&&g_stage.load()==0){ // no row for the predicted zone: today's origin, once
+                    retried39=true;g_dirblock39.plan.zone=e.zone;g_key5912=e.key;g_gesture.store(gesture);
+                    published39=Publish(hs,4,e.zone,e.technique,AttemptDeadline(e.tick,now));}
+                EmitDirBlockRequest39(hs,e.zone,e.technique,published39,retried39,now);
+                if(published39){
+                    g_telegraph_offer={e.key,e.tick,g_telegraph_strike59c10.load(),false};
+                    (void)ObserveActiveOfferH21(hs,e.key,e.tick,DirBlockKeep39(e.key,e.technique,e.zone,hs,now),e.technique,now);}}}
+        else if(e.kind==2){ // commit: the strike window opens now, BEFORE the blade arrives
+            // A withdrawn same-key attempt is not a new onset. Never renew its
+            // native phase/deadline while retaining an expired prediction.
+            if(g_stage.load()==0){g_key5912=e.key;g_gesture.store(gesture);const int zone39=DirBlockRequestZone39(hs,e.key,e.zone,e.technique,now); // C39
+                const bool published39=Publish(hs,4,zone39,e.technique,AttemptDeadline(e.tick,now));EmitDirBlockRequest39(hs,e.zone,e.technique,published39,false,now);if(!published39)continue;}
+            if(kcd2vr::motion59c4::same(e.key,g_key5912)){
+                const int zone8=DirBlockKeep39(e.key,e.technique,e.zone,hs,now); // C39: the commit keeps the requested row of this attempt
+                // H21: a real Commit spends this prepared offer's existing
+                // controller lease; it cannot renew its original deadline.
+                bool opened=g_stage.load()==4&&Publish(hs,8,zone8,e.technique);
+                if(!opened&&zone8!=e.zone&&g_stage.load()==4&&!g_fault.load())opened=Publish(hs,8,e.zone,e.technique); // C39: no row for the kept zone
+                const bool early=g_stage.load()==8&&g_telegraph_offer.open&&Ours(hs);
+                if(opened||(early&&((g_zone.load()==zone8&&g_technique.load()==e.technique)||Publish(hs,8,zone8,e.technique)||(zone8!=e.zone&&!g_fault.load()&&Publish(hs,8,e.zone,e.technique))))){
+                    g_telegraph_offer={};(void)ChargeEffort5916(hs);}
+            }} // C7D admission preserved; preparation-cost failure is recorded separately.
+        else if(e.kind==6){
+            if(!DirectCutFeint62(e,hs,now)){
+                (void)kcd2vr::motion59c4::attempts.event(e.key,kcd2vr::motion59c4::Event::Cancel,e.tick,now,e.zone,0,false);
+                if(kcd2vr::motion59c4::same(e.key,g_key5912)){if(Ours(hs))Publish(hs,0,-1,0);else Forget();}
+                if(diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now))
+                    Log("CUT_FEINT_REFUSED",e.zone,0,"exact attempt cancelled; no stale-sector commit/contact");
+            }
+        }
+        else if(e.kind==3){if(kcd2vr::motion59c4::same(e.key,g_key5912)&&Ours(hs)&&
+            (g_stage.load()==4||(g_stage.load()==8&&g_telegraph_offer.open))&&Publish(hs,g_stage.load(),DirBlockKeep39(e.key,e.technique,e.zone,hs,now),e.technique))
+                Log("FEINT",e.zone,g_technique.load(),"same attempt; original offer deadline retained");}
+        else if(e.kind==4){if(kcd2vr::motion59c4::same(e.key,g_key5912)&&g_stage.load()!=0){if(Ours(hs))Publish(hs,0,-1,0);else Forget();}} // R16: a cancelled attempt is never reclaimed
+    }
+    if(deferred.pending&&g_telegraph_offer.pending&&kcd2vr::motion59c4::same(deferred.key,g_telegraph_offer.key)&&
+       kcd2vr::motion59c4::same(deferred.key,g_key5912)&&g_stage.load()==4&&now>deferred.tick){
+        if(g_telegraph_strike59c10.load()){
+            const bool owner=deferred.key.recovery==kcd2vr::contact176::recoveryEpoch55c1.load()&&
+                frik_pose_probe::GeometryOwnerValid178r30(deferred.key.weapon,deferred.key.generation,deferred.key.body,deferred.key.request);
+            if(!owner||!kcd2vr::motion59c4::attempts.publicationAllowed(deferred.key,kcd2vr::motion59c4::Event::Prepare,deferred.tick,now)){
+                (void)kcd2vr::motion59c4::attempts.event(deferred.key,kcd2vr::motion59c4::Event::Cancel,now,now,g_zone.load(),g_technique.load());
+                if(Ours(hs))Publish(hs,0,-1,0);else Forget();
+            }else{
+                LogForwardOfferRetirement(hs,deferred.tick,now);
+                (void)ObserveActiveOfferH21(hs,deferred.key,deferred.tick,g_zone.load(),g_technique.load(),now);
+            }
+        }
+    }
+    // No retry lease or phase8 fallback survives the one deferred observation.
+    if(deferred.pending&&now>deferred.tick&&kcd2vr::motion59c4::same(deferred.key,g_telegraph_offer.key))g_telegraph_offer.pending=false;
+    DirBlockUpdate39(hs,now); // C39 DIRBLOCK: bounded same-stage sector update before the NPC block starts (idle: one bool)
+    ObserveNpcDefense(hs,now);
+    const int stage=g_stage.load();const auto since=g_since.load();if(!stage)return;
+    if(!Ours(hs)&&!ReclaimOwnGuard59c16(hs)){ // R59.16C10R16: our own guard is not a native owner (see ReclaimOwnGuard59c16)
+        if(g_fault.load())return;
+        ++g_yield;LogYield(hs,g_zone.load(),g_technique.load(),"NATIVE_TOOK_PHASE");Forget();return;}
+    if(g_clock_owned){
+        if(LiveAttackAction178r35(Rd<const void*>(hs,0xCE0,nullptr))){
+            YieldClock19c3(hs,"NATIVE_ACTION_OWNS_CLOCK");return;}
+        if(F(hs,kHitRemaining)!=g_written_clock){
+            YieldClock19c3(hs,"NATIVE_CLOCK_CHANGED");return;}
+        const float remaining=stage==16?0.f:PredictionRemaining19c3(g_prediction19c3,now);
+        if(remaining!=g_written_clock){
+            if(!SetClock(hs,remaining)){SetFailure(hs,"ATTEMPT_CLOCK_TICK");return;}g_written_clock=remaining;}
+    }
+    if(stage==4&&now>=g_deadline)Publish(hs,0,-1,0); // feints/held pose cannot renew the offer indefinitely
+    else if(stage==8&&g_hit_at5910c1&&now>=g_hit_at5910c1+120){Log("CONTACT_DONE",g_zone.load(),g_technique.load(),nullptr);Publish(hs,16,g_zone.load(),g_technique.load());}
+    else if(stage==8&&!g_hit_at5910c1&&now>=g_deadline){++g_misses;Log("MISS",g_zone.load(),g_technique.load(),"(strike window closed without contact)");Publish(hs,16,g_zone.load(),g_technique.load());}
+    else if(stage==16&&now>since+200)Publish(hs,0,-1,0);
+    SnapshotAttack(now);
+}
+// R59.13b: OUR per-target cooldown for direct VR hits. The native 1.5 s repeat-target timeout
+// (wh_cs_RepeatHitTimeout, enforced inside ProcessCollisionHit) does NOT apply here, because the VR
+// route calls BuildAndSubmitMeleeHit directly. A VR fight needs a shorter spacing than 1.5 s, so the
+// mod keeps its own (INI VrTargetRepeatMs, default 350 ms); native combo/attack windows are untouched.
+inline std::atomic<unsigned> g_target_repeat_ms{150}; // R59.16C7A: one hit per swing is already enforced; this only separates two swings
+inline std::atomic<bool> g_hostile_only{false};
+// R59.16C4: VrHitHostileOnly=1 is now OPTIONAL ACCIDENTAL-CONTACT PROTECTION, not a ban on first hits: only a
+// qualified contact whose energy proxy is below this (0..1; 0.10 ~ 2.2 model J) is ignored on a neutral NPC.
+// Every contact reaching this point already belongs to a claimed motion attempt.
+inline std::atomic<float> g_neutral_min_energy{.10f};
+struct TargetClock {std::atomic<std::uint32_t> entity{0};std::atomic<std::uint64_t> tick{0};};
+inline std::array<TargetClock,8> g_target_clock{};
+inline bool TargetReady(std::uint32_t entity,std::uint64_t now,std::uint64_t& ageOut) noexcept {
+    const auto window=g_target_repeat_ms.load(std::memory_order_relaxed);ageOut=0;
+    for(auto& c:g_target_clock)if(c.entity.load()==entity){const auto t=c.tick.load();
+        if(t&&now>=t){ageOut=now-t;if(ageOut<window)return false;}break;}
+    return true;
+}
+void TargetStamp(std::uint32_t entity,std::uint64_t now) noexcept {
+    for(auto& c:g_target_clock)if(c.entity.load()==entity){c.tick.store(now);return;}
+    std::uint64_t oldest=~0ull;TargetClock* slot=&g_target_clock[0];
+    for(auto& c:g_target_clock){const auto t=c.tick.load();if(!c.entity.load()){slot=&c;break;}if(t<oldest){oldest=t;slot=&c;}}
+    slot->entity.store(entity);slot->tick.store(now);
+}
+// Game-thread contact transaction. The ledger's key and technique are carried
+// through native evaluation and completion. A delayed A contact may temporarily
+// install A's context while B is announced, but cannot mark B hit or renew B's
+// timers. All restoration is compare-before-write; a native reaction/paired
+// takeover wins. No ordinary attack action is created here.
+struct ContactScope5912 {
+    const void* hs=nullptr;
+    kcd2vr::motion59c4::Key active{},savedKey{};
+    int savedStage=0,savedZone=-1,savedTechnique=0,savedWritten=0,savedBase=0;
+    int savedBaseDefense=-1,savedWrittenDefense=-1;
+    bool savedDefenseOwned=false;const void* savedDefenseRow=nullptr;
+    float savedBaseClock=0.f,savedClock=0.f,expectedClock=0.f;
+    bool savedClockOwned=false;std::uint64_t savedDeadline=0;
+    ContactPrediction19c3 savedPrediction{};
+    TelegraphOffer savedOffer{};
+    std::uint64_t savedSince=0,savedHit=0;
+    const void* savedOwner=nullptr;
+    std::array<int,8> saved{},expected{};
+    float savedStrength=0,expectedStrength=0;
+    bool entered=false,borrowed=false;
+    static constexpr std::array<unsigned,8> props{kAttackType,kPendingZone,kAttackZone,kCommittedZone,kInputClass,kActionPhaseProp39,kAttackingHand,kDefenseZone};
+    bool begin(const void* state,const kcd2vr::motion59c4::Attempt& a) noexcept {
+        if(!state||!kcd2vr::motion59c4::valid(a.key)||g_fault.load()||g_reset.load()||
+           !g_consequence.load()||!kcd2vr::motion59c4::selected.load())return false;
+        const auto contactDeadline=AttemptDeadline(a.commit,std::uint64_t(GetTickCount64()));
+        const auto deadline=contactDeadline&&g_deadline&&(g_stage.load()==4||g_stage.load()==8)&&
+            kcd2vr::motion59c4::same(g_key5912,a.key)?std::min(g_deadline,contactDeadline):contactDeadline;
+        if(!deadline)return false; // no fresh lease may revive an expired contact
+        const void* actor=Rd<const void*>(state,0xCE0,nullptr);
+        if(!actor||reinterpret_cast<std::uintptr_t>(Rd<const void*>(actor,0x1F8,nullptr))!=a.key.player)return false;
+        if(g_stage.load()!=0&&!Ours(state)&&!ReclaimOwnGuard59c16(state)){ // R16: own guard reclaimed first
+            // C10R18: the published attempt lost its phase (R14B: 15 of 22 skips were CONTEXT_NOT_OWNED phase=2 - Henry's guard - and
+            // phase=1). The blade IS at the enemy: retire the stale publication and let this contact publish its own strike from the
+            // live phase. Publish still refuses every protected owner (hit reaction, clinch, a foreign block/attack).
+            // Review: give Henry's defense zone back first when it is still the value WE wrote (compare-clean, as SetFailure does).
+            if(g_own_hits18.load(std::memory_order_relaxed)&&g_defense_owned&&I(state,kDefenseZone)==g_written_defense&&!SetDefense(state,g_base_defense)&&
+               !(g_last_set.result==SetReadback::ReadableMismatch&&!g_setter_exception.load())){Fault("CONTACT_REFRESH_DEFENSE_RESTORE");return false;}
+            Forget();if(!g_own_hits18.load(std::memory_order_relaxed))return false;
+            g_contact_refreshed18.fetch_add(1,std::memory_order_relaxed);}
+        hs=state;active=a.key;savedKey=g_key5912;savedStage=g_stage.load();savedZone=g_zone.load();
+        savedTechnique=g_technique.load();savedSince=g_since.load();savedHit=g_hit_at5910c1;
+        savedOwner=g_owner_state;savedWritten=g_written_phase;savedBase=g_base_phase;
+        savedBaseDefense=g_base_defense;savedWrittenDefense=g_written_defense;savedDefenseOwned=g_defense_owned;savedDefenseRow=g_defense_row;
+        savedBaseClock=g_base_clock;savedClockOwned=g_clock_owned;savedDeadline=g_deadline;savedOffer=g_telegraph_offer;
+        savedPrediction=g_prediction19c3;
+        savedClock=F(hs,kHitRemaining);
+        for(unsigned i=0;i<props.size();++i)saved[i]=I(hs,props[i]);
+        savedStrength=F(hs,kAttackStrength);
+        // A borrowed context can be restored only from a complete readable snapshot.
+        if(!std::isfinite(savedStrength)||savedStrength==-99.f||!std::isfinite(savedClock)||savedClock==-99.f)return false;
+        for(const int v:saved)if(v==-99)return false;
+        if(savedClockOwned&&!kcd2vr::motion59c4::same(savedPrediction.key,savedKey))return false;
+        borrowed=savedStage!=0&&!kcd2vr::motion59c4::same(savedKey,active);
+        g_key5912=active;g_gesture.store(active.gesture);
+        if(!SelectPrediction19c3(std::uint64_t(GetTickCount64()),a.begin)){g_key5912=savedKey;g_gesture.store(savedKey.gesture);g_prediction19c3=savedPrediction;return false;}
+        const int zone=DirBlockKeep39(a.key,a.technique,a.technique==1?5:a.origin,state,std::uint64_t(GetTickCount64())); // C39: same row as announced
+        if(zone<0||!Publish(hs,8,zone,a.technique,deadline,true)){ // R59.16C10R16: contact=true
+            // A partial setter fault is terminal; don't perform speculative
+            // restoration or call damage under unverified native state.
+            if(!g_fault.load()){g_key5912=savedKey;g_gesture.store(savedKey.gesture);g_prediction19c3=savedPrediction;}
+            return false;
+        }
+        g_telegraph_offer={}; // a real claimed contact supersedes A's early offer
+        for(unsigned i=0;i<props.size();++i)expected[i]=I(hs,props[i]);
+        expectedStrength=F(hs,kAttackStrength);expectedClock=F(hs,kHitRemaining);entered=true;
+        (void)ChargeEffort5916(hs);return true; // Native hit admission remains independently qualified; never invent cost success.
+    }
+    bool current() const noexcept {
+        if(!entered||!kcd2vr::motion59c4::same(g_key5912,active)||!Ours(hs))return false;
+        for(unsigned i=0;i<props.size();++i)if(I(hs,props[i])!=expected[i])return false;
+        return F(hs,kAttackStrength)==expectedStrength&&F(hs,kHitRemaining)==expectedClock;
+    }
+    bool setStrength(float value) noexcept {
+        if(!std::isfinite(value)||value<0.f||!current())return false;
+        if(!SetFloat(hs,kAttackStrength,value)){SetFailure(hs,"CONTACT_STRENGTH_SETTER_OR_READBACK");return false;}
+        // This is OUR planned context change, not a native takeover. Without
+        // updating the receipt, non-unit power invalidated afterHit/restore.
+        expectedStrength=value;return current();
+    }
+    void afterHit() noexcept {
+        if(current()){g_hit_at5910c1=std::uint64_t(GetTickCount64());SnapshotAttack(g_hit_at5910c1,true);}
+    }
+    ~ContactScope5912() {
+        if(!entered||!borrowed)return;
+        if(!current()||g_reset.load()||g_fault.load()||!kcd2vr::motion59c4::selected.load()){
+            // A native change is not ours to roll back.
+            if(kcd2vr::motion59c4::same(g_key5912,active))Forget();
+            return;
+        }
+        // Preserve B's original age: no delayed contact extends its lifetime.
+        g_key5912=savedKey;g_gesture.store(savedKey.gesture);
+        for(unsigned i=0;i<props.size();++i){
+            if(i==5)continue; // restore the phase after its context
+            if(!(props[i]==kDefenseZone?SetDefense(hs,saved[i]):SetInt(hs,props[i],saved[i]))){SetFailure(hs,"CONTACT_CONTEXT_RESTORE");Forget();return;}
+        }
+        // B keeps its original deadline; elapsed time inside A's native call
+        // is not returned to B by restoring an old remaining-duration float.
+        const auto restoreNow=std::uint64_t(GetTickCount64());
+        const float restoredClock=savedClockOwned?
+            (savedStage==4||savedStage==8?PredictionRemaining19c3(savedPrediction,restoreNow):0.f):savedClock;
+        bool restored=SetClock(hs,restoredClock)&&SetFloat(hs,kAttackStrength,savedStrength);
+        if(restored)restored=PublishPhase19c4(hs,saved[5],(savedStage==4||savedStage==8)?saved[0]:-2,PhasePurpose19c4::BorrowedContextRestore);
+        if(!restored){
+            SetFailure(hs,"CONTACT_CONTEXT_RESTORE");Forget();return;
+        }
+        g_owner_state=savedOwner;g_written_phase=savedWritten;g_base_phase=savedBase;
+        g_base_defense=savedBaseDefense;g_written_defense=savedWrittenDefense;g_defense_owned=savedDefenseOwned;g_defense_row=savedDefenseRow;
+        g_base_clock=savedBaseClock;g_written_clock=restoredClock;g_clock_owned=savedClockOwned;g_deadline=savedDeadline;g_telegraph_offer=savedOffer;
+        g_prediction19c3=savedPrediction;
+        g_stage.store(savedStage);g_zone.store(savedZone);g_technique.store(savedTechnique);
+        g_since.store(savedSince);g_hit_at5910c1=savedHit;
+        SnapshotAttack(std::uint64_t(GetTickCount64()));
+    }
+};
+
+}

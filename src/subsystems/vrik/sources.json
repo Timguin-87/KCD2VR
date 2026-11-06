@@ -1,0 +1,5 @@
+[
+  "src/vrik_bridge.cpp",
+  "src/subsystems/vrik/module.cpp",
+  "src/subsystems/roomscale/native_roomscale_d76.cpp"
+]

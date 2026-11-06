@@ -207,10 +207,6 @@ void DepthProbe::SetEnabled(bool enabled) noexcept {
 }
 
 bool DepthProbe::Enabled() noexcept { return s_enabled.load(std::memory_order_acquire); }
-std::uint64_t DepthProbe::StageCalls() noexcept { return s_stage_calls.load(std::memory_order_acquire); }
-std::uint64_t DepthProbe::MrtCalls() noexcept { return s_mrt_calls.load(std::memory_order_acquire); }
-std::uint64_t DepthProbe::ResourceCandidates() noexcept { return s_resource_candidates.load(std::memory_order_acquire); }
-std::uint64_t DepthProbe::DepthResourceHits() noexcept { return s_depth_resource_hits.load(std::memory_order_acquire); }
 
 void DepthProbe::Uninstall() {
     s_enabled.store(false, std::memory_order_release);

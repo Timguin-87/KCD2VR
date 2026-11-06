@@ -1,0 +1,5 @@
+{
+  "source": "src/frik_pose_probe.cpp",
+  "sha256": "3b8d1b8e485120a4665fb8b81943458d1ef850e49b8e63fad99891a70e00b042",
+  "native_leaves": "None called; immutable frame mailbox and existing mode/epoch/ready atomics substituted"
+}

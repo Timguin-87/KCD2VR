@@ -1,0 +1,994 @@
+{
+  "version": 63,
+  "candidate": "GAMEPLAY_SEED",
+  "door_protocol": 1966,
+  "door_revision": 66,
+  "pak_sha256": "478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c",
+  "members": 114,
+  "installed": false,
+  "explicit_source_replacements": [
+    {
+      "member": "Scripts/Startup/zzkcd2vr_map.lua",
+      "before": "7e1a80e4ba1fb8267a1551f9a86e1eb97d8ae49576b983192ec98e88b893482b",
+      "after": "49d5ed28f79a74ecf54534236d06eca5885d6a408ea095bd2f4ce4bb7a5c3db5"
+    },
+    {
+      "member": "Scripts/Startup/zzkcd2vr_doors.lua",
+      "before": "64e0529c94352de4898ac11fd0027c876460d28a694c4f4e41f5ce33ce9de7d4",
+      "after": "c4099612eaa5b5722a641c525cc6c41c1568ce62f776292713314fe29a23fea6"
+    },
+    {
+      "member": "Scripts/KCD2VR/native_supply_t2.lua",
+      "before": "30630654647470e310ddcd9bdbc2beb942dff272c65dea9b9d71ea7baf0f3255",
+      "after": "162dcda1a32dd4a80d6ff6c75f48efbfd29c37d837c4e88314cc61a19196c9a4"
+    },
+    {
+      "member": "Scripts/Startup/zzkcd2vr_throwing_assets1.lua",
+      "before": "afae1ed5b2acf0816203aac668bd74ec8bd631f6d36794824dca02b3c8729de0",
+      "after": "b2e873de4ecaa7eea9c7c5c348b23e28e80061fdd84d6e36be78b0bbba4dc634"
+    },
+    {
+      "member": "Scripts/Startup/zzkcd2vr_hand_only_doors_h40.lua",
+      "before": "6a20e82a0d5a58bdc646f2fef33b6d6386123ec1abdddcabe475134302914aa6",
+      "after": "350529475a22bfb439c73d550d972a6972faec9bb7bce2d7d49d93d18c389bb5"
+    },
+    {
+      "member": "Scripts/Startup/zzkcd2vr_hand_only_doors_h40.lua",
+      "before": "350529475a22bfb439c73d550d972a6972faec9bb7bce2d7d49d93d18c389bb5",
+      "after": "5fd273d49c447b1779a5ce77ccda7b056dfb46469d438064a7701d07edb56074"
+    },
+    {
+      "member": "Scripts/Startup/zzkcd2vr_hand_only_doors_h40.lua",
+      "before": "5fd273d49c447b1779a5ce77ccda7b056dfb46469d438064a7701d07edb56074",
+      "after": "b8cd1c3ac598856be0a9e09c883b3119a719cd743e30d6d519c079c488210e4e"
+    }
+  ],
+  "throwing_starter": "NATIVE_INVENTORY_ONCE_5_DAGGERS_3_AXES_INDEPENDENT_RIGHT_HIP",
+  "rejected_donor": "Older standalone KCD2VRMap has conflicting startup/item definitions",
+  "gated_lab_included": true,
+  "native_tables": [
+    {
+      "member": "Libs/Tables/combat/combat_action_attack.xml",
+      "rows": 233
+    },
+    {
+      "member": "Libs/Tables/combat/combat_zone_distance__kcdvr.xml",
+      "rows": 5
+    },
+    {
+      "member": "Libs/Tables/combat/combat_attack_config__kcdvr.xml",
+      "rows": 7
+    },
+    {
+      "member": "Libs/Tables/combat/combat_action_perfect_block.xml",
+      "rows": 232
+    },
+    {
+      "member": "Libs/Tables/combat/combat_action_sync_perfect_block_hit.xml",
+      "rows": 277
+    },
+    {
+      "member": "Libs/Tables/action/hit_reaction_type__kcdvr.xml",
+      "rows": 5
+    },
+    {
+      "member": "Libs/Tables/item/item__kcdvr_map.xml",
+      "rows": 1
+    },
+    {
+      "member": "Libs/Tables/item/InventoryPreset__kcd2vr_throwing_assets1.xml",
+      "rows": 3
+    },
+    {
+      "member": "Libs/Tables/item/item__kcd2vr_throwing_assets1.xml",
+      "rows": 4
+    },
+    {
+      "member": "Libs/Tables/minigame/BlacksmithRecipes__kcd2vr_throwing_assets1.xml",
+      "rows": 2
+    },
+    {
+      "member": "Libs/Tables/rpg/perk__kcd2vr_throwing_assets1.xml",
+      "rows": 4
+    },
+    {
+      "member": "Libs/Tables/rpg/perk_script__kcd2vr_throwing_assets1.xml",
+      "rows": 4
+    }
+  ],
+  "members_provenance": [
+    {
+      "path": "AI/speech/dialoginitiator_inner.xml",
+      "sha256": "a3a06baa30be5047d36ce6cc5df6bb57d678a97cb75d0804332787be3ad35d11",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "AI/speech/getparametersfrompreset.xml",
+      "sha256": "1561bdfbe6ee420bc8de7f0331c1900ef5174a11cc0e1d040e321920faa6c140",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Animations/Mannequin/ADB/kcd_dialog_cameras.adb",
+      "sha256": "b1417cfbd5bc5108a563c199046358e24de2c4d4a87febe5e9919b5ea64ca7df",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Animations/Mannequin/ADB/kcd_male_combat_generated.adb",
+      "sha256": "b0e2d9d519045327a752c57a75677fc064d660e12480cae5104a01881c721e75",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Animations/Mannequin/ADB/kcd_male_database.adb",
+      "sha256": "6ee5204cb3c0983a440b4873b05e1cb34bae9112ef22753d4a04d0989c619d78",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Animations/Mannequin/ADB/wh_female_dialog_cameras.adb",
+      "sha256": "06de059aa591225d4dc45e142f2e5a840f4dbcba820bcc88311c91a4c6bda32e",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Config/defaultProfile.xml",
+      "sha256": "1db264c8b3fa8f2c2ea7082eb61d600cc01044aa19784f4fd23a689e7c30dc72",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/MaterialEffects/FXLibs/collisions.xml",
+      "sha256": "918e68f454dc8ee48b77985de72a4dca17813895ea60bfcfc2f9001da8d23b0a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Particles/collisions.xml",
+      "sha256": "8897977a79e4910040d1a8e092200d1e9f6c5188e89239d93cc455203f0764a0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/action/hit_reaction_type__kcdvr.xml",
+      "sha256": "4e0f35814bc92145aa372d9d4cd6613e4bfeccfa83e31c9c236ced3a331a5f16",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/combat/combat_action_attack.xml",
+      "sha256": "0f44db2ce71b8e4e560aa328ba8d146d7938343c81591e0533a664d976978818",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/combat/combat_action_perfect_block.xml",
+      "sha256": "31ae9e6e80975f24a85563d2810a4277e0a8a2760097b6d036d1378a9d9e9ad0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/combat/combat_action_sync_perfect_block_hit.xml",
+      "sha256": "ea9f71b8e150ca9c9d8cebd56296bae7d7289a033fc1126094af4a733ab61f63",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/combat/combat_attack_config__kcdvr.xml",
+      "sha256": "89a4c251497d07ca9c2701abcfe8521905a3081b72052c732e12af40eff54fda",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/combat/combat_zone_distance__kcdvr.xml",
+      "sha256": "f53ee77d98c499fcef6d59d230dd603d446a4c2c81f41ba8ee7e383205e658b9",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/item/InventoryPreset__kcd2vr_throwing_assets1.xml",
+      "sha256": "605eda226e3e2721b16c0734b266ca6fc3768d2d8ab3ca6170eede7437bba6eb",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/item/item__kcd2vr_native_ammo_t18.xml",
+      "sha256": "377f4cd5c9da7ce3788bceceb2c9de0db448c3f844c40795bbb65c831e1afb56",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/item/item__kcd2vr_throwing_assets1.xml",
+      "sha256": "88fd48ad4a878fba2442e8592ddd25f5cfa0a77c3efe80f9b94b4afc02d2135e",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/item/item__kcdvr_map.xml",
+      "sha256": "76c68003960499e61253de4040a803cb039cbad5313682c9924ebe01a23aba84",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/minigame/BlacksmithRecipes__kcd2vr_throwing_assets1.xml",
+      "sha256": "b9057c49590e060cc48d2d225d16229e01c000a5073427e99fd96a950969fe1a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/rpg/perk__kcd2vr_throwing_assets1.xml",
+      "sha256": "db9bfbe913ba2e5ae7997281e21dcdc3b1a997be7dea276ec03ba9c428ee9e7b",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/Tables/rpg/perk_script__kcd2vr_throwing_assets1.xml",
+      "sha256": "0331c27fb8b978fd261d8c816f4b7a0e84e4021fa12c3e8f4410d3200bf42ee3",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/GeneralBook.gfx",
+      "sha256": "b146910e18d74bf8b13a0d3d77ff9f52a7fecbdcc7e7854266a5b2a4ab950948",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/KCD2VRMapT2.gfx",
+      "sha256": "92477e4d330f1d6cea577e0eb170f6e0c355f244bd18de5d898acce5e4f28b08",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/Books/Maps/kcd2vr_map_kuttenberg_ui.dds",
+      "sha256": "69a918736230f56b5a2496fbd90037bd2685b8f74fac275429800d7930c3bd60",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/Books/Maps/kcd2vr_map_trosky_ui.dds",
+      "sha256": "64229e7009b9d0e9f0e6abbc06d548b728bd0f150394d4ef267a8b9e2e0b000a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_1.dds",
+      "sha256": "2bbb7f291458804c0fd615549cf0e6490b846fea57964c05e7f02014054f85d1",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_10.dds",
+      "sha256": "c3edf0fc59ffc367527adaa12c649a6a6cd1fff562dc5e45ef71b074725f0bc9",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_11.dds",
+      "sha256": "5c720e045bfabb912b18abfe262ea6f1be01549c86c7665fdb710dc4d50e49b2",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_12.dds",
+      "sha256": "c83fcd31fcb69d291995a59412b1debbee1c2e1558e9b71aa5f11384fef6c5c0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_13.dds",
+      "sha256": "99ff731ae666f5283e03c8f5d5dbaa8190810efe2e024ae919bfa64af9bc5b23",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_14.dds",
+      "sha256": "beaabd90221d5d067820384faab91fc31fc7be354a5ddb8cd3acf2663c8492f8",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_15.dds",
+      "sha256": "18a1e2c04e7e495ba5d4ef23239db24913e1707a0d0eeca94be7d036e077321c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_16.dds",
+      "sha256": "34c7098643a3a2502c9909386a3395d7d27b441546de868040d526e038cd7c62",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_17.dds",
+      "sha256": "1efc749c23d7749b3083d5fbd8de3f549b9a48597a677baa06202df985c065f0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_18.dds",
+      "sha256": "cea81913b52a0379730a1d1331ce7878c18cfcb2e7d70b24b4499818d9e1fe1b",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_19.dds",
+      "sha256": "e39511148d82f67d3d1bf62da14b3c56140de0625d1151d05c4ab4a894e446e7",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_2.dds",
+      "sha256": "d53c42f94cb71c931fcb3b278d5fad099b350b4c978d6742879b3b64797af8ec",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_20.dds",
+      "sha256": "46e9a1390de419a927e40e1fb9cb90d645158de254293b8eec1ce733987391fd",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_21.dds",
+      "sha256": "5834e3835ba917163caceb380d73ed1dc9fc35176049967db15febb04d84b96c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_22.dds",
+      "sha256": "c71a7ce1948862de74b3ad7633d185170848d68cffedf24f7648ca45d6bbccca",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_23.dds",
+      "sha256": "dfc106667b5f7b4b7b699e0ba466d310ba80a2c1a23be5762d3ad73a4e7ef2d6",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_24.dds",
+      "sha256": "145531710785b67c11de352f44cef2f68031d3d2c33e9b09d2f1a7a42239093d",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_25.dds",
+      "sha256": "211dbf28ca968efe0bfbe316bd24e880dd2f967c1fda49a016f0efda6a1271dc",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_26.dds",
+      "sha256": "5300ebb9a81fa67ace4879c7b61cfb42039f5bfe17b1f89d82f7e100c616243a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_27.dds",
+      "sha256": "40efa73261c13a836a8c63317356ea22284c52e9df37b80845b1c8be30336e16",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_28.dds",
+      "sha256": "041e40028ef09aea889e1e3c60151dd31f336da9efd737dd9819af2db2f4f6cb",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_29.dds",
+      "sha256": "90430bf51f62dbae4eafd891dfeabc893dbec53b105d9689ed8e6149657df02b",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_3.dds",
+      "sha256": "933a21b2eb43ac60fc7b8da2b91434dc3be22373de2076fe0fb4b4ea006b662c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_30.dds",
+      "sha256": "e9d23f981db39aa112f62ae7f07d674ad0aab2f9e857862f7e9e7570c57903d1",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_4.dds",
+      "sha256": "7ef63f33d02de3e6c0010de7cb7e99903f323ec92149207c018d583508f80aa3",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_5.dds",
+      "sha256": "4ec5ddd03397e4c05e9dc2815b95f384c6389403ffd1244042fc32ce4b6dfc84",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_6.dds",
+      "sha256": "e2bd00deb0225a7ad3b88cece0130cc152cd25b23ba11d79bd476e8bb657e5ae",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_7.dds",
+      "sha256": "dbdee121cc200c81cb00f8a8f00ae136d6f00b9af7cde9c5c8747377060d3fd0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_8.dds",
+      "sha256": "9c4797ac55f140afb8a2cf50b9adfbb9c0f455620978fb0310e28ef15035260f",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/kuttenberg_9.dds",
+      "sha256": "12e7d87e0cd576c0849e6082efc0f192f31fbcb10b16a6bfbb68fc2799337bda",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_apolena.dds",
+      "sha256": "689f178b1a3643a87a0e1949c610fb531a95eed21f770a00a0e828e89a4e0168",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_bohounovice.dds",
+      "sha256": "663e9a160a93b00218d2bd2ac3ffaa871dc06ffc145bc53c91387071b1bce04a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_bylany.dds",
+      "sha256": "a9c2506c2bd50ee31afa04ac3e07980ee50b7c50506568cb123118d82d27563c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_certovka.dds",
+      "sha256": "f743b6c3669d46b6ec10848d0d34f361651db2e44f76920b924ab17d502f2786",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_grunta.dds",
+      "sha256": "c77d311023e912608ed7c92c1611af3b387b0857e67a821101f45d2f63fdc2ed",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_horany.dds",
+      "sha256": "d7cdb1cf30e2254453181baacfd3d934e39cedea5a49932f404c2380351f6b23",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_klaster.dds",
+      "sha256": "e07350d9c6efa666d28d81fa9e50909d79adcc21b6146f37c3f4502b395efcf1",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_klaster_interior.dds",
+      "sha256": "7522fb9de7d51dfc0ba4cc3d2bbfacbd32302332924dad5fc06e343f49795dd6",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_kutna_hora.dds",
+      "sha256": "06ba841db4b6ef185161674bebb580a5c35f284736646747df7869b02f5e95d8",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_malesov.dds",
+      "sha256": "805ae3946b0dec390cbd996fab28c713d07ded94058d1e71013dae83ec5f1fae",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_miskovice.dds",
+      "sha256": "b9a3b466b9f6f77b3ef92477390b1518dfc47275304798e07b484436e96a0e2a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_nebakov.dds",
+      "sha256": "9374fe056bb0c08a792558a9705998518333523de05a0a118cb6c8fa8a02efa0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_nomad_camp.dds",
+      "sha256": "2ed0fcb93eea9a119afe175f62e4456c41ee9dd144ba316ad472ab800f322f6d",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_opatovice.dds",
+      "sha256": "be447dbbe04c439e5b5232c3c2a8fb75fa5e1c2f527161e9fb46ad036e2ca8b8",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_pritoky.dds",
+      "sha256": "b0bd0a91701193b8a779a9e6dd0a9a43add580fd133524e24a1010e1f3631eb5",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_ratbor.dds",
+      "sha256": "d35a939f9f877cad6210ea6e906d3bb1ca22ec626af293f5235b53cc8631bcbf",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_semin.dds",
+      "sha256": "8d5fd8110aecf0e6ca96ce80388a7beb166859a9a54f9ff9fdbe9c77cf691c27",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_stara_kutna.dds",
+      "sha256": "4079e0b89fe195e41e4f2f661792d88d259bf83fe0f96a103a9481f3ec0042ec",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_suchdol.dds",
+      "sha256": "37fb32a884a848bd2c5cd49508d18b3d47492ec5329072374e24fa779fafa49b",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_tachov.dds",
+      "sha256": "2a91e642b02710377ccd92372101ca7aba10cd80846479ae84106795f34340f5",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_troskovice.dds",
+      "sha256": "d023f2013fda57927aa20e94a401b3807bc75a3b0b0130627444a621e8f21fab",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_trosky.dds",
+      "sha256": "023bd1edf6545b10f8328669797c960f139ef4569c4deb7b5e6be4e3d7d92039",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_vysoka.dds",
+      "sha256": "73088fa6fc8d104c182d1dde445f8be6ffbe69c77792957a527b01989cc92f1b",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/local_zelejov.dds",
+      "sha256": "6f0730eac82a5a09106def85c4bea8a3089521af62316337655641e87ae267ad",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_1.dds",
+      "sha256": "31ca11ac01e626fb3a312bef4cb33db8aa63bce34b13fe606c2b4c0d5a785cf6",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_2.dds",
+      "sha256": "71047ef5d95967d8aa665a0cee49c01318700f2c803e2bbe453f7b9aeea1df19",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_3.dds",
+      "sha256": "76dd2fd4a4ced33df6a00f3fcebb142d6c8e81d3aa1256f5fb0fd69ec21271db",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_4.dds",
+      "sha256": "27a830578b992cb8e2691217aaee7bafbc2e5a3ab72e722df7d8d2df16dbf5d5",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_5.dds",
+      "sha256": "a120598f925cb1fb1f6ce2675d5e4a2348fc02b1670ba1c34c30f618ddc5c670",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_6.dds",
+      "sha256": "f5b5f24646250dd094f8019cbd04b10e35b3c54fc88db9864e4d49e8400d2867",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_7.dds",
+      "sha256": "50bba3d8ed4b044aaa8b6a22a680fd384e5fa76d8bd3346b53cc3dcb5629abf7",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_8.dds",
+      "sha256": "c5e6e77855ea298e31022c9de195f8d276c6d2a1cfd6a0c0ab652c83eba37485",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/Textures/KCD2VRMapT2/trosky_9.dds",
+      "sha256": "bb1db6f9ebb82f1e3cf8c7071dbb5a4604f18d31e40dd8ad0afb7d56532bf096",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/UIElements/GeneralBook.xml",
+      "sha256": "25b535c90a19e8e8d39f869038aa1f0738a9ebb8b0f6b1ae9380f0181432a7c0",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Libs/UI/UIElements/KCD2VRMapT2.xml",
+      "sha256": "dc2729ad0b0707a0c3c35a869bf31f8ec1575e5bfe7a378902e9a37b0597e22e",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Objects/kcd2vr/map32/kuttenberg.cdf",
+      "sha256": "9ec1afece769b2a66e55aab95368249bdd522de22f6adbcbea8bc49a099eeecd",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Objects/kcd2vr/map32/kuttenberg.dds",
+      "sha256": "274695c830dd56960e74a777fb30851f717dcc2ccdda7790d19c67014af2479c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Objects/kcd2vr/map32/kuttenberg.mtl",
+      "sha256": "dff9515ccd44b38237ac72bb8d0850be22b538df5a2ab070759133f73c1d6a36",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Objects/kcd2vr/map32/trosky.cdf",
+      "sha256": "22a62498d63d1a4f3f82267cf990455cdd7b977d86a475036f26e76380095ea9",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Objects/kcd2vr/map32/trosky.dds",
+      "sha256": "d4e2042c8589120a651be6f2157a7746b5a4970cd61576093a8dffafbbacea97",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Objects/kcd2vr/map32/trosky.mtl",
+      "sha256": "dff9515ccd44b38237ac72bb8d0850be22b538df5a2ab070759133f73c1d6a36",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Entities/AI/Dog.lua",
+      "sha256": "a1f56bb3dd31047bb4bea9e4004c72be6098e08fcf5f0342a33ed8e5a7f453cb",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Entities/AI/Shared/BasicAIActions.lua",
+      "sha256": "50e4c74229cd147d5d87136f3c795591c75fb103fbdba1b844a0d88a2d4f193c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/map_catalog_m39.lua",
+      "sha256": "c1fbfe6771a05d46a375c8d98a819c9690a3d0590fe62a294561dc7ce6f60b6f",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/map_native_live_h28.lua",
+      "sha256": "bdf4989962bc4bb716fd0305a2d78f0e680578ce1224919ba57ccc2257606f18",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/map_native_read_h25.lua",
+      "sha256": "cf6d138fd8c62d575e0292cd34e19a309609ac7f6640c7f2246d5e3601f51bfb",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/map_navigation_t2.lua",
+      "sha256": "768a3c1adf5091b87b1e8dbd547e53ae8269964e615125e61fa5951d0fa3701a",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/map_presentation_m31.lua",
+      "sha256": "9fee076a43c02c48814885c898ad8d74196eb89213703506c66d8c8dc7370d26",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/native_supply_t2.lua",
+      "sha256": "c797a0e9ecb7212473c8e062ffdabc7e2e33a6e38684dc7cfd75da3b8abc788c",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/KCD2VR/native_throw_reservation_t20.lua",
+      "sha256": "cc703228aea7328a9340bb01a0ac39b978e3a98c2c8c9f76b8455daed1e3d0af",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_doors.lua",
+      "sha256": "c4099612eaa5b5722a641c525cc6c41c1568ce62f776292713314fe29a23fea6",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_grip_stow_cb1.lua",
+      "sha256": "7cc39616370b6f180b7b4df55269e2fc6a0390eb623e26f8206c03356ea6c2ac",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_hand_only_doors_h40.lua",
+      "sha256": "b8cd1c3ac598856be0a9e09c883b3119a719cd743e30d6d519c079c488210e4e",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_lab.lua",
+      "sha256": "6c99d40a3aa8c6ac9eaab297d31298c4b4201aff85510a0a9f06d3264f5703df",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_map.lua",
+      "sha256": "1bcd836ea4f24fb41daa7583516de2958e691947f6a89aabedcc94b1269ce476",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_phys.lua",
+      "sha256": "cbac45b4e8fc18f29921c89cf705e84e14fff835c2223ea2c23a625db3b30f95",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_supply_t15.lua",
+      "sha256": "1541dfbc7cb64d6cfb40c19ee61b056dc8e99573e47389f78fb86fbc010405d1",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "Scripts/Startup/zzkcd2vr_throwing_assets1.lua",
+      "sha256": "47830cdb2c040529b40a8df6c28d18bd87f4bce985aefee5fd86a9a8388ed428",
+      "source": "KCD2VR.pak#478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    }
+  ],
+  "distribution_files": {
+    "mod.manifest": "9456bbd697a5a356ba16edeaa81d3300421b4c59ba821114b4f074e0b4813e95",
+    "Localization/Chineses_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Chineset_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Czech_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/English_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/French_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/German_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Italian_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Japanese_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Korean_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Polish_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Portuguese_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Russian_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Spanish_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Turkish_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Ukrainian_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836",
+    "Localization/Vietnamese_xml.pak": "50a170acac2058426bf8048110249d61c1cd802f9eeec56db53e109c1446f836"
+  },
+  "t6_parent": {
+    "pak_sha256": "29e16e8c5df3643d61427452fae8cc38ef15684d1a9cd2ef256a7bd466800f19",
+    "members": 77,
+    "input": "E:\\backup\\KCD2VR\\proposed build fixes\\T13_THROW_FLIGHT_2026-10-20\\source\\companion\\C63_UNIFIED"
+  },
+  "t6_replacements": [
+    {
+      "member": "Scripts/KCD2VR/native_supply_t2.lua",
+      "before": "30630654647470e310ddcd9bdbc2beb942dff272c65dea9b9d71ea7baf0f3255",
+      "after": "529a65504e975c7cb44495bffb962e72782d9914c733db646d08875b4f19102a",
+      "source": "E:\\backup\\KCD2VR\\proposed build fixes\\T13_THROW_FLIGHT_2026-10-20\\source\\src\\vrik\\native_supply_t2.lua"
+    }
+  ],
+  "b1_parent_pak_sha256": "758c1f905c39f01c52067a18bbb10a5274e05a50b92a3d2f1888a7eecd93b8ba",
+  "b1_g2_source_commit": "073038a",
+  "b1_changed_members": [
+    "Scripts/Startup/zzkcd2vr_doors.lua"
+  ],
+  "m4_map_patch": {
+    "base_pak_sha256": "1d50b0d9d64d536e4b892b1a0f2b50f69f0b527aae33cd1f8f1003aa8feefc2b",
+    "changed_members": [
+      {
+        "path": "Libs/UI/KCD2VRMapT2.gfx",
+        "before": "390d8ce7fb1d6abdca903da546b02fee7f99ab6dcfdd587c7f1364c42500fab6",
+        "after": "d0a3bb0211096413c60e890fc5623e544317af15e44fc1ef653c29f893b1983a"
+      },
+      {
+        "path": "Objects/kcd2vr/map32/kuttenberg.mtl",
+        "before": "f656d554d11d59cb8732880a1b44776b6e353fc71757fcbcbc619f97767ca8d1",
+        "after": "dff9515ccd44b38237ac72bb8d0850be22b538df5a2ab070759133f73c1d6a36"
+      },
+      {
+        "path": "Objects/kcd2vr/map32/trosky.mtl",
+        "before": "f656d554d11d59cb8732880a1b44776b6e353fc71757fcbcbc619f97767ca8d1",
+        "after": "dff9515ccd44b38237ac72bb8d0850be22b538df5a2ab070759133f73c1d6a36"
+      },
+      {
+        "path": "Scripts/Startup/zzkcd2vr_map.lua",
+        "before": "49d5ed28f79a74ecf54534236d06eca5885d6a408ea095bd2f4ce4bb7a5c3db5",
+        "after": "fa31b089e2c25fba96158242d0889bd850f02e5419a01af684708223f1cbdcdb"
+      }
+    ],
+    "native_code_freeze": "e543e38240f89e0af726489a481b0e0c990e24ff",
+    "installed": false
+  },
+  "throwing_t8": {
+    "changed_members": [
+      "Libs/Tables/rpg/perk__kcd2vr_throwing_assets1.xml",
+      "Libs/Tables/rpg/perk_script__kcd2vr_throwing_assets1.xml",
+      "Scripts/Startup/zzkcd2vr_throwing_assets1.lua"
+    ],
+    "preserved_members": 74,
+    "native_damage_adapter": false,
+    "recovery": "explicit once per saved soul, old receipts preserved"
+  },
+  "h19_quick_talk_prompt": {
+    "base_sha256": "50050e145d40cfce02d1112a91aa9ef3c695e40305b9d08093a6576c20c62c4f",
+    "pak_sha256": "8f71fa52621ada919087540d062f2d291a58f3bc229acaf996dd314b192fadb9",
+    "member": "Scripts/Entities/AI/Shared/BasicAIActions.lua",
+    "before_member_sha256": "8faba8d08f3d1019c9a71c7bf198aaa5a16bf15ab2df82936d3aec8c5daaec0d",
+    "after_member_sha256": "6bed9a0fb429728dc01f7b296ddb53ed002a6fd2d15cf69e1b7bbc27436f669b",
+    "unchanged_members": 76,
+    "installed": false
+  },
+  "map_integration": {
+    "base_sha256": "8f71fa52621ada919087540d062f2d291a58f3bc229acaf996dd314b192fadb9",
+    "pak_sha256": "5098c0e7908f838222b2ed336f47e647dfa3514922e13394e241b4e0c6d0890f",
+    "changed_existing": [
+      "Libs/Tables/item/item__kcdvr_map.xml",
+      "Scripts/KCD2VR/map_navigation_t2.lua",
+      "Scripts/Startup/zzkcd2vr_map.lua"
+    ],
+    "added": [
+      "Libs/UI/GeneralBook.gfx",
+      "Libs/UI/Textures/Books/Maps/kcd2vr_map_kuttenberg_ui.dds",
+      "Libs/UI/Textures/Books/Maps/kcd2vr_map_trosky_ui.dds",
+      "Libs/UI/UIElements/GeneralBook.xml",
+      "Scripts/KCD2VR/map_native_live_h28.lua",
+      "Scripts/KCD2VR/map_native_read_h25.lua"
+    ],
+    "preserved": 74,
+    "members": 83,
+    "headset": "NOT_RUN"
+  },
+  "throwing_supply_t15": {
+    "base_sha256": "5098c0e7908f838222b2ed336f47e647dfa3514922e13394e241b4e0c6d0890f",
+    "output_sha256": "de3daadf3b5fd73c57ac5e352e5b9267efcbf78e5c2defe5a9090e4184696d13",
+    "changed": [
+      "Scripts/KCD2VR/native_supply_t2.lua",
+      "Scripts/Startup/zzkcd2vr_supply_t15.lua"
+    ],
+    "unchanged_members": 82,
+    "members": 84,
+    "headset": "NOT_RUN",
+    "source": "real inventory; no attachments/slots/timers/clones"
+  },
+  "repair3_baseline_package_recovery": {
+    "frozen_runtime_source": "D:\\KCD2VR-review-builds\\deliveries\\H29R3_HEADHELD_COMBAT_REPAIR3_20261022_222157_HOST\\runtime\\Mods\\KCD2VR",
+    "source_only_archive_omitted_binary_paks": true,
+    "stale_marker_before": "de3daadf3b5fd73c57ac5e352e5b9267efcbf78e5c2defe5a9090e4184696d13",
+    "actual_frozen_pak": "1d822454a40c7e7fc08fb4be43f46c6f3172e56db4b13061b31d6fe8bfc76a0c",
+    "only_removed_member": [
+      "Libs/Tables/rpg/rpg_param__kcdvr.xml"
+    ],
+    "remaining_member_hashes_unchanged": 83,
+    "reason": "Reflect actual previously reviewed Repair2/Repair3 removal of C8 harder-AI overrides; no new game data modifications."
+  },
+  "map_m33_reviewed_overlay": {
+    "base_sha256": "1d822454a40c7e7fc08fb4be43f46c6f3172e56db4b13061b31d6fe8bfc76a0c",
+    "pak_sha256": "f31c1ed5c1e9c608de4e8a04a95121a0e5b0171bd6ddab13115bb0b002af8216",
+    "changed": [
+      "Libs/UI/KCD2VRMapT2.gfx",
+      "Scripts/KCD2VR/map_navigation_t2.lua",
+      "Scripts/KCD2VR/map_presentation_m31.lua",
+      "Scripts/Startup/zzkcd2vr_map.lua"
+    ],
+    "preserved_members": 80,
+    "members": 84,
+    "inventory_or_menu_asset_changes": false,
+    "native_chr_caf_mtl_changes": false,
+    "native_game_or_headset": "NOT_RUN",
+    "source_patch_sha256": "8fbb160cb7821475966d1c38206440652dcd11299c6509d9abcc4456ebe637ff",
+    "headset": "NOT_RUN",
+    "all_unowned_byte_preserved": true,
+    "idempotent": true
+  },
+  "map_m34r2_reviewed_overlay": {
+    "prior_sha256": "f31c1ed5c1e9c608de4e8a04a95121a0e5b0171bd6ddab13115bb0b002af8216",
+    "changed": [
+      "Scripts/KCD2VR/map_presentation_m31.lua"
+    ],
+    "all_83_unowned_byte_preserved": true,
+    "idempotent": true,
+    "independent_approval_sha256": "b3020a5d764aeba4c6d8fb499dcad1003de6a51e5565f5e4607765d0efc0f170",
+    "headset": "NOT_RUN"
+  },
+  "quicktalk_h38_overlay": {
+    "parent_pak_sha256": "713fbfae85e999c95f4e71c6f0355aa7a19002d3e89a07d633312e1386af67bc",
+    "new_pak_sha256": "61902d4ec41461f3100947d8390cbc16fb6331e21ebed7c2ce61b92233454a37",
+    "changed": [
+      "Libs/Config/defaultProfile.xml",
+      "Scripts/Entities/AI/Shared/BasicAIActions.lua"
+    ],
+    "all_82_other_members_byte_and_metadata_preserved": true,
+    "source_patch_sha256": "959aa56c10294cf79d6e5a3d19bbafecf0b2484e95a5261f8455dfeb3a89918b",
+    "root_review_sha256": "40551fa225bc15f260f6b4150d49b02f548a68e3676c193170141554a4b344a6",
+    "headset": "NOT_RUN",
+    "game_installed": false
+  },
+  "hand_only_doors_h40": {
+    "source": "mods/KCD2VRDoors/hand_only_h40.lua",
+    "protocol": "H40R1",
+    "release": "Partial original native operation may remain paused without retaining hand claim; same-door Grip rejoins actual phase without replaying OnUsed/DoPlay/cost. Joined native-A operations use original handback.",
+    "rest_capacity": 2,
+    "headset": "NOT_RUN"
+  },
+  "headset": "NOT_RUN",
+  "step6_door_correction": {
+    "parent_sha256": "b290d46ad601b5198e11585ec7b9b6ff939537cfca452c4ff61dc1244884ae05",
+    "pak_sha256": "6f579d8b2f7136c15156f9f06f10869f3c33e74267d7f2148f738cb46abb9e6e",
+    "changed": {
+      "Scripts/Startup/zzkcd2vr_hand_only_doors_h40.lua": {
+        "before": "b73461d461df90a4382a06db37e72d401cf4aee1155696fe76e957dd2eb57f06",
+        "after": "dfab58d9e1234a086e2878d2e27918500c53fd29f6565a7a90045ed6482b2bc0"
+      }
+    },
+    "preserved": 88,
+    "added": [],
+    "removed": [],
+    "installed": false,
+    "headset": "NOT_RUN"
+  },
+  "step9_relative_acquisition": {
+    "parent_sha256": "6f579d8b2f7136c15156f9f06f10869f3c33e74267d7f2148f738cb46abb9e6e",
+    "pak_sha256": "7079c2ffaa9e94b41111e42dc58e3b485445a19b2c80005bec3aee798a0c0b29",
+    "changed": {
+      "Scripts/Startup/zzkcd2vr_hand_only_doors_h40.lua": {
+        "before": "dfab58d9e1234a086e2878d2e27918500c53fd29f6565a7a90045ed6482b2bc0",
+        "after": "6a20e82a0d5a58bdc646f2fef33b6d6386123ec1abdddcabe475134302914aa6"
+      }
+    },
+    "preserved": 88,
+    "added": [],
+    "removed": [],
+    "installed": false,
+    "headset": "NOT_RUN"
+  },
+  "map_m39_reviewed": {
+    "original_packet_sha256": "f09c070f1e05391e85c5a916a5fc7e258620b8a817391a6b9dd8667944a5a6ec",
+    "required_r1_sha256": "719ac89c1501566fa83765a165a077b4eb20f53f802dbe5cab50d2031afaeaf4",
+    "independent_review_sha256": "b5276cfdd303a6c1e1ecf06619b697dacf1465730a5978a0785423294c89f9b8",
+    "base_pak_sha256": "d773376d53d1c350b50bcafb6df63ba2803998ee2c44455896c9b6940fb0696a",
+    "changed": [
+      "Libs/UI/KCD2VRMapT2.gfx",
+      "Libs/UI/UIElements/KCD2VRMapT2.xml",
+      "Scripts/Startup/zzkcd2vr_map.lua",
+      "Scripts/KCD2VR/map_navigation_t2.lua",
+      "Scripts/KCD2VR/map_presentation_m31.lua"
+    ],
+    "added": [
+      "Libs/UI/Textures/KCD2VRMapT2/local_kutna_hora.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_bylany.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_opatovice.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_nomad_camp.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_certovka.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_bohounovice.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_nebakov.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_suchdol.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_vysoka.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_ratbor.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_troskovice.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_horany.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_klaster.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_zelejov.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_klaster_interior.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_apolena.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_grunta.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_trosky.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_miskovice.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_semin.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_stara_kutna.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_malesov.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_tachov.dds",
+      "Libs/UI/Textures/KCD2VRMapT2/local_pritoky.dds",
+      "Scripts/KCD2VR/map_catalog_m39.lua"
+    ],
+    "preserved_unowned": 84,
+    "native_grip": "Sampled native slt_1 inverse; matrix residual<4.11e-5; inverse curve approximation2.933mm",
+    "host": "Source/native-asset/resource/AVM1/Lua51 tests and SDK objects; not native renderer or headset acceptance",
+    "headset": "NOT_RUN"
+  },
+  "historical_c63_preserved_main_members": 67,
+  "current_map_overlay_preserved_members": 84,
+  "explicit_source_replacements_scope": "Historical C63 assembly records; current member hashes are authoritative in members_provenance.",
+  "hands_reference_capture": {
+    "chord": "Shift+F10",
+    "period_ms": 100,
+    "lease_ms": 180000,
+    "default": "OFF",
+    "endpoint_changes": false,
+    "native_mode_selection": "Unchanged; recorder does not force native or VR modes",
+    "scope": "Native-before-VR versus actually completed VR hand and current item placement; asynchronous native FIFO clip association; not atomic renderer proof"
+  },
+  "f9_contact_experiment": {
+    "default_ladder": "OFF",
+    "armed_rung": 3,
+    "living_touch_subswitch_default": true,
+    "corpse_input": "Current left squeeze claims existing native-death-qualified corpse drag; A unchanged",
+    "living_contact": "Bounded native capsule or current mapped-joint submission",
+    "direct_secondary_pendulum_binding": "NOT_IMPLEMENTED",
+    "headset": "NOT_RUN"
+  },
+  "bundled_gore_inputs_d73": [
+    {
+      "path": "E:\\kcd2vr-build\\D73_COMBINED_REVIEW_20261031\\source\\companion\\C63_UNIFIED\\Mods\\KCD2VR\\Data\\KCD2VR.pak",
+      "sha256": "478b9f1bcf67e442425fff3e856d17493667d1c6b7f57e2025650fcff2d6c37c"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore.pak",
+      "sha256": "ac161b08a5d03ebba3c10c9c60b6c3488540b0cd61213f64fc7c9bbc1b83c2d4"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_limbs41_1.pak",
+      "sha256": "263ffacc85cec76aa0e2b57f2e362da8b680ca23408db2df83b511e53b3ebe20"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_limbs41_2.pak",
+      "sha256": "d5a8061430432e87d1dea512a93d9cda6615bbb188a6f4ada7526b33143021d1"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_limbs41_3.pak",
+      "sha256": "8a99253c1f53f0e67c70c6795edeec8f767e3521e913a7bfe45208145e55a13e"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_limbs41_4.pak",
+      "sha256": "e08f12b31f491272a9f7ae8073854ee4d5c4e280506c858ffe18503e6b19785d"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_heads_1.pak",
+      "sha256": "3521cd199fad6673d96dd9b8d5bb33bb7249da57995f680591d01ed8ac8189f4"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_heads_2.pak",
+      "sha256": "52a5eba0122651eb32d19c5049e053561f810c01bc85c9d5c2333bc301f93481"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_heads_3.pak",
+      "sha256": "4b0fe397197fa06886f9dbdd440edbd0add825458cbe3a9f8581830bc02329db"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_heads_4.pak",
+      "sha256": "023d29b7588a0f882fc72585917fa2e3918dc09fba6ad3befc7ab8e152163f28"
+    },
+    {
+      "path": "C:\\Steam\\steamapps\\common\\KingdomComeDeliverance2\\Mods\\kcd2vr_gore\\Data\\kcd2vr_gore_heads_5.pak",
+      "sha256": "a9a160d930dcce56812c45e4e678876b8cf8af6d9f111048c5a6535e8c46aa15"
+    }
+  ],
+  "same_content_duplicates_d73": [],
+  "partition_provenance": {
+    "combined_parent_sha256": "231ee78238f38124c8bdb74ecd0b2d443c1be72755c2cd4a34e0fc71f47759f3",
+    "optional_adult_members_excluded": 13602,
+    "all_preserved_main_members_hash_verified": true
+  }
+}

@@ -1,0 +1,321 @@
+{
+  "pins": [
+    [
+      2227588,
+      "488d15ed83d403",
+      "gamepad X action name"
+    ],
+    [
+      2227595,
+      "488d0dd62e1105",
+      "gamepad X action key"
+    ],
+    [
+      2227636,
+      "488d15a583d403",
+      "gamepad Y action name"
+    ],
+    [
+      2227643,
+      "488d0dae2e1105",
+      "gamepad Y action key"
+    ],
+    [
+      11109277,
+      "488b15c4a88904",
+      "listener compares gamepad X key"
+    ],
+    [
+      11109300,
+      "488b15b5a88904",
+      "listener compares gamepad Y key"
+    ],
+    [
+      36108722,
+      "f30f11732c",
+      "persistent gamepad X storage"
+    ],
+    [
+      36108727,
+      "c7432001000000",
+      "gamepad input mode"
+    ],
+    [
+      36108739,
+      "f30f117330",
+      "persistent gamepad Y storage"
+    ],
+    [
+      35968284,
+      "e8f7e7c000",
+      "native update dispatches gamepad worker"
+    ],
+    [
+      48610709,
+      "e856d89ffd",
+      "gamepad anvil worker dispatches motion integrator"
+    ],
+    [
+      8754743,
+      "f3450f5900",
+      "X rate times native sensitivity"
+    ],
+    [
+      8754757,
+      "f3450f594804",
+      "Y rate times native sensitivity"
+    ],
+    [
+      8754763,
+      "f3440f59c1",
+      "X rate times native deltaTime"
+    ],
+    [
+      8754768,
+      "f3440f59c9",
+      "Y rate times native deltaTime"
+    ],
+    [
+      8754945,
+      "488b542420",
+      "packed Vec2 native action argument"
+    ],
+    [
+      8754977,
+      "48ff6028",
+      "native movement action dispatch"
+    ],
+    [
+      8754984,
+      "488b4948",
+      "movement thunk resolves stroke state"
+    ],
+    [
+      8754988,
+      "41b001",
+      "movement marks user input"
+    ],
+    [
+      8754991,
+      "e980f0ffff",
+      "movement thunk calls bounded mover"
+    ],
+    [
+      8751113,
+      "f30f5944885c",
+      "workpiece start minimum"
+    ],
+    [
+      8751139,
+      "f30f59448264",
+      "workpiece end minimum"
+    ],
+    [
+      8751195,
+      "f30f5944826c",
+      "workpiece start maximum"
+    ],
+    [
+      8751221,
+      "f30f59448274",
+      "workpiece end maximum"
+    ],
+    [
+      8751289,
+      "488d8898010000",
+      "read native current normalized workpiece position"
+    ],
+    [
+      8751318,
+      "f30f58440567",
+      "add requested delta to existing position"
+    ],
+    [
+      8751389,
+      "f30f5f9583000000",
+      "native lower Y clamp"
+    ],
+    [
+      8751397,
+      "f30f5fd9",
+      "native lower X clamp"
+    ],
+    [
+      8751418,
+      "f30f5de1",
+      "native upper Y clamp"
+    ],
+    [
+      8751422,
+      "f30f5d45d7",
+      "native upper X clamp"
+    ],
+    [
+      8751462,
+      "e8490c0000",
+      "native model property update"
+    ],
+    [
+      22253285,
+      "0f2fc6",
+      "forge Y positive threshold"
+    ],
+    [
+      22253313,
+      "03c8",
+      "forge negative direction changes index"
+    ],
+    [
+      22253323,
+      "e860811fff",
+      "forge index repeat timer gate"
+    ],
+    [
+      22253350,
+      "ff5048",
+      "forge current-owner index action"
+    ],
+    [
+      11109361,
+      "83ff01",
+      "native stroke press mode"
+    ],
+    [
+      11109366,
+      "83ff02",
+      "native stroke release mode"
+    ],
+    [
+      11109453,
+      "ff5038",
+      "press StartStroke virtual slot"
+    ],
+    [
+      11109378,
+      "ff5040",
+      "release FinishStroke virtual slot"
+    ],
+    [
+      8755647,
+      "3c0b",
+      "start requires AnvilIdle"
+    ],
+    [
+      23027520,
+      "ff9038020000",
+      "native RPG stroke admission"
+    ],
+    [
+      23027543,
+      "b20e",
+      "native accepted StrokeStart phase"
+    ],
+    [
+      11109603,
+      "3c0e",
+      "finish requires StrokeStart"
+    ],
+    [
+      11109691,
+      "b210",
+      "native release enters StrokeFinish"
+    ],
+    [
+      8746746,
+      "c6030a",
+      "StrokeHit event number"
+    ],
+    [
+      8746772,
+      "c6030f",
+      "FullStrokeCharge event number"
+    ],
+    [
+      8752111,
+      "c6400e01",
+      "full charge sets existing native flag"
+    ],
+    [
+      8752190,
+      "e8950d0000",
+      "StrokeHit dispatches native evaluator"
+    ],
+    [
+      8755803,
+      "ff5008",
+      "read existing stroke intensity"
+    ],
+    [
+      8755825,
+      "e8ea753f00",
+      "derive current native strike point"
+    ],
+    [
+      8755836,
+      "e8cf32e000",
+      "workpiece coverage evaluation"
+    ],
+    [
+      8755990,
+      "e891f5da00",
+      "native zone from normalized point"
+    ],
+    [
+      8756078,
+      "ff9040020000",
+      "native RPG stroke evaluation"
+    ],
+    [
+      8756086,
+      "0f84d5010000",
+      "refused native evaluation skips outcome updates"
+    ],
+    [
+      12914850,
+      "41b815000000",
+      "native joint selector 0x15"
+    ],
+    [
+      12914859,
+      "e8f4080000",
+      "native joint transform helper"
+    ],
+    [
+      12915319,
+      "f30f107008",
+      "strike point Z comes from current workpiece"
+    ]
+  ],
+  "slots": [
+    [
+      66484360,
+      11109168,
+      "native smith OnAction listener"
+    ],
+    [
+      61252424,
+      8754984,
+      "native move-workpiece action"
+    ],
+    [
+      61252440,
+      11109544,
+      "native StartStroke action"
+    ],
+    [
+      61252448,
+      11109532,
+      "native FinishStroke action"
+    ],
+    [
+      61252480,
+      7527712,
+      "current model getter"
+    ],
+    [
+      61252648,
+      8748432,
+      "native minigame update"
+    ]
+  ]
+}

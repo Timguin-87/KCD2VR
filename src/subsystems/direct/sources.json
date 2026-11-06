@@ -1,0 +1,5 @@
+[
+  "src/subsystems/direct/module.cpp",
+  "src/subsystems/direct/npc_tuning.cpp",
+  "src/subsystems/direct/npc_defense.cpp"
+]

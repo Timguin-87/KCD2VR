@@ -1,0 +1,82 @@
+[
+  {
+    "guid": "10ca068e-59cd-5131-8b72-7aa2e115609c",
+    "diagnostic_recipe": {
+      "name": "Longsword_C06",
+      "last_step": [
+        "Knee",
+        "Tip",
+        "Thrust"
+      ]
+    },
+    "precontact_filter": {
+      "name": "Longsword_C06",
+      "last_step": [
+        "Knee",
+        "Blade",
+        "Cut"
+      ]
+    },
+    "status": "DISAGREEMENT_NOT_RUNTIME_REPAIRED; exact native variant/text join required"
+  },
+  {
+    "guid": "88c26d2f-c490-42f4-a963-6d9b93b47988",
+    "diagnostic_recipe": {
+      "name": "Blunt_C15",
+      "last_step": [
+        "Knee",
+        "WeaponHead",
+        "Strike"
+      ]
+    },
+    "precontact_filter": {
+      "name": "Blunt_C15",
+      "last_step": [
+        "Knee",
+        "WeaponHead",
+        "Thrust"
+      ]
+    },
+    "status": "DISAGREEMENT_NOT_RUNTIME_REPAIRED; exact native variant/text join required"
+  },
+  {
+    "guid": "c6f74191-e046-48bb-9b4c-e1b7e467524b",
+    "diagnostic_recipe": {
+      "name": "BluntShield_C15",
+      "last_step": [
+        "Knee",
+        "WeaponHead",
+        "Strike"
+      ]
+    },
+    "precontact_filter": {
+      "name": "BluntShield_C15",
+      "last_step": [
+        "Knee",
+        "WeaponHead",
+        "Thrust"
+      ]
+    },
+    "status": "DISAGREEMENT_NOT_RUNTIME_REPAIRED; exact native variant/text join required"
+  },
+  {
+    "guid": "cbeb4988-405f-48ce-9f1b-fc30d752e6c9",
+    "diagnostic_recipe": {
+      "name": "Halberd_C05",
+      "last_step": [
+        "Abdomen",
+        "WeaponHead",
+        "Thrust"
+      ]
+    },
+    "precontact_filter": {
+      "name": "Halberd_C05",
+      "last_step": [
+        "Abdomen",
+        "Tip",
+        "Thrust"
+      ]
+    },
+    "status": "DISAGREEMENT_NOT_RUNTIME_REPAIRED; exact native variant/text join required"
+  }
+]

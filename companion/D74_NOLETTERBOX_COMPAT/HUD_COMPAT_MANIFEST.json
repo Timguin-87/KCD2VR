@@ -1,0 +1,123 @@
+{
+  "input_sha256": "a82d2f71c88d9fabcaea68cfbd77359a3ac601008fd0fa4fec55dbd78f99544f",
+  "main_hud_sha256": "92957cc4e93556dbfdc7e78abbb1373f37cf6da9adbd0eda3e7c1937a893e440",
+  "output_sha256": "bc8379d78a673b5309492c061f48b6e89ac261e2cd98c834537a5cee3478d530",
+  "changes": {
+    "cccursor.infoText": {
+      "before": [
+        65536,
+        0,
+        0,
+        65536,
+        0,
+        2300
+      ],
+      "after": [
+        32768,
+        0,
+        0,
+        32768,
+        0,
+        2300
+      ]
+    },
+    "bc.skillCheck": {
+      "before": [
+        65536,
+        0,
+        0,
+        65536,
+        0,
+        -5400
+      ],
+      "after": [
+        32768,
+        0,
+        0,
+        32768,
+        0,
+        -5400
+      ]
+    },
+    "tc.fancyEvent": {
+      "before": [
+        65536,
+        0,
+        0,
+        65536,
+        0,
+        3300
+      ],
+      "after": [
+        32768,
+        0,
+        0,
+        32768,
+        0,
+        3300
+      ]
+    },
+    "tr.gameLog": {
+      "before": [
+        65536,
+        0,
+        0,
+        65536,
+        -8000,
+        2278
+      ],
+      "after": [
+        32768,
+        0,
+        0,
+        32768,
+        -8000,
+        2278
+      ]
+    },
+    "tr.commonEvent": {
+      "before": [
+        65536,
+        0,
+        0,
+        65536,
+        -500,
+        500
+      ],
+      "after": [
+        32768,
+        0,
+        0,
+        32768,
+        -500,
+        500
+      ]
+    },
+    "bl.itemTransfer": {
+      "before": [
+        65536,
+        0,
+        0,
+        65536,
+        500,
+        -5800
+      ],
+      "after": [
+        32768,
+        0,
+        0,
+        32768,
+        500,
+        -5800
+      ]
+    }
+  },
+  "unchanged_leaf_tags": 31392,
+  "preserved_script_blocks": 319,
+  "added_callback_sha256": [
+    "94e7281d1567f41f6c69ed83223a833ab0f00365c75f9063ac1dc5fd71cced53",
+    "e701bda2c71efa44d700f8066cbe58d55b79897cf8ccaf6d9f9293b8564f512b"
+  ],
+  "native_or_headset_execution": false,
+  "pak_sha256": "0e561d6ff9618ed1acd3ea39975627761631563829914208528403cb551ce16b"
+}

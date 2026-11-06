@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="barbora" xsi:noNamespaceSchemaLocation="item.xsd">
+	<ItemClasses version="8">
+		<!-- KCD2VR held map (Claude, 14 Oct): own additive Document row, the game's own parchment model; no third-party assets -->
+		<Document Type="4" IconId="map_book" UIInfo="ui_in_kcd2vr_map" UIName="ui_nm_kcd2vr_map" IsQuestItem="true" Model="characters/assets/parchment_folded/parchment_folded.cdf" EntityScript="Book" Weight="0.1" Price="0" FadeCoef="1.3333" VisibilityCoef="0.707106769" Id="5f3c2a71-8e4d-4b6a-9c1e-2d7f0b9a4e63" Name="kcd2vr_map">
+            <DocumentContent>
+                <Image Page="0" Image="kcd2vr_map_trosky" />
+                <Image Page="1" Image="kcd2vr_map_kuttenberg" />
+            </DocumentContent>
+        </Document>
+	</ItemClasses>
+</database>

@@ -1,0 +1,7 @@
+{
+  "source": "src/mod.cpp",
+  "sourceSha256": "cf1e0370a861c17e342b1923f13232b7a77d135889082a3d84bc8f0b60d8ad07",
+  "generated": "tests/subsystems/alchemy/generated_acquisition_public_h5.inc",
+  "generatedSha256": "46d98cd8db54a169c0deccdd4bbf603d4882fcf8bad2381509e2869a0e532c16",
+  "scope": "Exact public mode/gesture/head fallback selection and Context derivation statements; native activity availability and current copied world source remain explicit leaves. No native ABI/state/action substitute."
+}

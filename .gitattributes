@@ -1,2 +1,23 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Preserve exact resource bytes used by deterministic companion builds.
+companion/source/** -text
+data/VRBodyCombos.xml -text whitespace=cr-at-eol
+mods/KCD2VRDoors/door_runtime.lua -text whitespace=cr-at-eol
+tools/install_unified_companion63.ps1 whitespace=-blank-at-eol
+mods/KCD2VRMap/map_runtime.lua -text whitespace=cr-at-eol,-blank-at-eol
+mods/KCD2VRMap/map_navigation_t2.lua -text whitespace=cr-at-eol,-blank-at-eol
+src/vrik/native_supply_t2.lua -text whitespace=cr-at-eol,-blank-at-eol
+mods/KCD2VRThrowingAssets/startup63.lua -text whitespace=cr-at-eol,-blank-at-eol
+companion/Mods/kcd2vr_lab/Scripts/Startup/zzkcd2vr_lab.lua -text whitespace=cr-at-eol,-blank-at-eol
+tools/install_unified_companion63.ps1 -text whitespace=cr-at-eol,-blank-at-eol
+src/subsystems/throw_drop/resources/startup_supply_t15.lua -text whitespace=cr-at-eol,-blank-at-eol
+mods/KCD2VRDoors/hand_only_h40.lua -text whitespace=cr-at-eol,-blank-at-eol
+mods/kcd2vr_tests/zzkcd2vr_phys.lua -text whitespace=cr-at-eol,-blank-at-eol
+src/subsystems/throw_drop/resources/native_throw_reservation_t20.lua -text whitespace=cr-at-eol,-blank-at-eol
+src/subsystems/throw_drop/resources/startup_supply_t22.lua -text whitespace=cr-at-eol,-blank-at-eol
+src/subsystems/throw_drop/resources/startup_reservation_t22.lua -text whitespace=cr-at-eol,-blank-at-eol
+src/subsystems/throw_drop/resources/inventory_delivery_t26.lua -text whitespace=cr-at-eol,-blank-at-eol
+mods/KCD2VRStow/zzkcd2vr_grip_stow_cb1.lua -text whitespace=cr-at-eol,-blank-at-eol
+mods/KCD2VRMap/map_presentation_m31.lua -text whitespace=cr-at-eol,-blank-at-eol
+companion/source/Animations/humans/male/male.animevents -text -whitespace
+companion/BASE_GAMEPLAY/** -text
+companion/source/zzkcd2vr_corpse_d72.lua whitespace=cr-at-eol

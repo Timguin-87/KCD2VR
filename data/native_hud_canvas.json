@@ -1,0 +1,279 @@
+{
+  "kind": "static stock HUD evidence; not a live Flash path validation",
+  "source": {
+    "hud.gfx": "85303baaeaa925ae051fe49626f15e638642908599886168682a16e402a065cd",
+    "HUD.xml": "7dd34131a758f203e3f93c584fcda8839a574d8eb9c233323a1ca05999fa65d1",
+    "WHGame.dll": "bdf8f9e4a11257a72b64c84700e284c29e4c4ccaf5b8d4bfa7d0b2a7294479f7"
+  },
+  "stage_twips": [
+    0,
+    38400,
+    0,
+    21600
+  ],
+  "selected_readable_parents": [
+    "tl",
+    "tc",
+    "tr",
+    "cl",
+    "cr",
+    "cc",
+    "bl",
+    "bc",
+    "br",
+    "popUpVisual",
+    "tutorialInDialog"
+  ],
+  "root_placements": [
+    {
+      "depth": 1,
+      "id": 152,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        -146.0,
+        -652.95
+      ],
+      "name": "dummyLoader"
+    },
+    {
+      "depth": 3,
+      "id": 596,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "vignette"
+    },
+    {
+      "depth": 7,
+      "id": 599,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        960.0,
+        1080.0
+      ],
+      "name": "bbc"
+    },
+    {
+      "depth": 11,
+      "id": 609,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "ratioStrips"
+    },
+    {
+      "depth": 21,
+      "id": 611,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "popUp"
+    },
+    {
+      "depth": 23,
+      "id": 621,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        540.0
+      ],
+      "name": "cl"
+    },
+    {
+      "depth": 25,
+      "id": 625,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1920.0,
+        540.0
+      ],
+      "name": "cr"
+    },
+    {
+      "depth": 27,
+      "id": 626,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        967.95,
+        528.0
+      ],
+      "name": "cc"
+    },
+    {
+      "depth": 29,
+      "id": 692,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        960.0,
+        540.0
+      ],
+      "name": "cccursor"
+    },
+    {
+      "depth": 99,
+      "id": 799,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        960.0,
+        1080.0
+      ],
+      "name": "bc"
+    },
+    {
+      "depth": 241,
+      "id": 801,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "tl"
+    },
+    {
+      "depth": 245,
+      "id": 927,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        960.0,
+        0.0
+      ],
+      "name": "tc"
+    },
+    {
+      "depth": 270,
+      "id": 929,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1920.0,
+        0.0
+      ],
+      "name": "tr"
+    },
+    {
+      "depth": 276,
+      "id": 935,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        960.0,
+        540.0
+      ],
+      "name": "popUpVisual"
+    },
+    {
+      "depth": 284,
+      "id": 152,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "tutorialInDialog"
+    },
+    {
+      "depth": 286,
+      "id": 938,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1920.0,
+        1080.0
+      ],
+      "name": "br"
+    },
+    {
+      "depth": 290,
+      "id": 940,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1080.0
+      ],
+      "name": "bl"
+    },
+    {
+      "depth": 300,
+      "id": 610,
+      "matrix": [
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "fader"
+    }
+  ],
+  "excluded": {
+    "fader": "full-field fade",
+    "vignette": "full-field effect",
+    "ratioStrips": "native cinematic framing",
+    "popUp": "full-field dimmer",
+    "bbc": "mixed vignetteHolder/infoHolder; do not move until split is validated",
+    "cccursor": "world-projected cursor/bubbles; not ordinary screen-space HUD",
+    "dummyLoader": "non-content loader"
+  },
+  "native_getter": {
+    "element_vtable_rva": "0x4049BD0",
+    "movieclip_getter_slot": "0x238",
+    "expected_target_rva": "0x7F4C18",
+    "timestamp": "0x6A350E20",
+    "status": "static exact supplied DLL; runtime raw-name resolution remains an acceptance gate"
+  }
+}

@@ -1,0 +1,13 @@
+diff --git a/src/internal/mid_hook_adapter.hpp b/src/internal/mid_hook_adapter.hpp
+index 237abc7..de3b55d 100644
+--- a/src/internal/mid_hook_adapter.hpp
++++ b/src/internal/mid_hook_adapter.hpp
+@@ -41,7 +41,7 @@ namespace DetourModKit::detail
+      * @details Each slot costs one generated adapter function, so the pool is a compile-time set. Exhaustion is
+      *          reported as ErrorCode::MidHookCapacityExhausted rather than degraded into an untyped failure.
+      */
+-    inline constexpr std::size_t MID_ADAPTER_CAPACITY = 64;
++    inline constexpr std::size_t MID_ADAPTER_CAPACITY = 128;
+ 
+     /**
+      * @brief Process-lifetime dispatch state for one mid hook.

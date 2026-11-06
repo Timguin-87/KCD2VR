@@ -1,0 +1,62 @@
+#pragma once
+// CB1 physical finisher rows, generated from DeepSeek VERBATIM_FINISHERS_ALL_2026-10-25.csv
+// sha256 11f916f0af11c807bbe0ca369549705b76e97dd2f9f46f1c215fb20e94504cec. source: each combo's own text_ui_soul description (DeepSeek), technique GUID = native recipe+0x28.
+// do not hand edit: regenerate from the csv. Region/Feature/Motion = the FINISHER (last step) only.
+#include <array>
+#include "body_recipe_policy.h"
+namespace kcd2vr::finisher_cb1 {
+struct Row {const char* name;const char* technique;bodycombo59c7g::Region region;bodycombo59c7g::Feature feature;bodycombo59c7g::Motion motion;};
+inline constexpr std::array<Row,51> rows{{
+  Row{"Longsword_C01","70d214bf-361a-a482-6985-c6baa8704705",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Longsword_C02","fd27ee94-09d3-36a9-2093-e7845b498f58",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Longsword_C05","b01f2fb8-1bc2-3768-3e0a-49bd88532b5f",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Longsword_C06","10ca068e-59cd-5131-8b72-7aa2e115609c",bodycombo59c7g::Region::Knee,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Longsword_C07","a06f8804-2a61-a466-1829-fd0e8b1e4f9e",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Tip,bodycombo59c7g::Motion::Thrust},
+  Row{"Longsword_C08","c8a69862-57c0-75e9-5382-6e80524d940c",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Tip,bodycombo59c7g::Motion::Thrust},
+  Row{"Longsword_C09","8c93a9b1-7be4-2536-38d1-1013b97d328e",bodycombo59c7g::Region::Abdomen,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Longsword_C11","913ad7b3-46dc-0482-73d4-228b722f742a",bodycombo59c7g::Region::Chest,bodycombo59c7g::Feature::Tip,bodycombo59c7g::Motion::Thrust},
+  Row{"Longsword_C12","037e3ff3-3939-6242-420f-efe1c8ee0ed4",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Pommel,bodycombo59c7g::Motion::BluntStrike},
+  Row{"Longsword_C13","f6822916-86b0-a0f3-119f-8fd5a5e34007",bodycombo59c7g::Region::Head,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::CutAfterDeflection},
+  Row{"Shortsword_C01","10931c0f-f611-4d5b-8b55-3eb4aa74e51c",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Pommel,bodycombo59c7g::Motion::BluntStrike},
+  Row{"Shortsword_C03","e1249c8d-e6c9-4d8d-9b23-e40736bf0adf",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Shortsword_C04","049c12d2-2c22-44a0-bdcc-58799b34b417",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Shortsword_C05","ca2c644a-eafd-42ec-b79a-c82124b0b864",bodycombo59c7g::Region::Abdomen,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Shortsword_C06","9a452567-9263-4d4a-9e92-aa8dc9dcac12",bodycombo59c7g::Region::Neck,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Shortsword_C11","704b7e35-0c96-4e47-83ba-4c65ac220308",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Shortsword_C12","255cfbd5-2fc2-429c-8971-f9aa25a8e3f5",bodycombo59c7g::Region::Neck,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Shortsword_C13","3c29e8b7-610f-4638-bc43-0f7fe334888f",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Pommel,bodycombo59c7g::Motion::BluntStrike},
+  Row{"Shortsword_C14","8376eec5-7c71-4fe6-a86d-a897a69ee226",bodycombo59c7g::Region::Knee,bodycombo59c7g::Feature::Tip,bodycombo59c7g::Motion::Thrust},
+  Row{"ShortswordShield_C02","abd0c33f-5cd7-43b7-8a12-75d6c4d6ba5f",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::ShieldEdge,bodycombo59c7g::Motion::BluntStrike},
+  Row{"ShortswordShield_C03","3d24998e-ffe5-4323-a893-81b52852367f",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"ShortswordShield_C04","981a5157-bc92-48a3-85bf-a8d7a18a4c12",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"ShortswordShield_C05","189c60ca-7e37-4b6b-ab3b-e2c68324ed04",bodycombo59c7g::Region::Abdomen,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"ShortswordShield_C06","55f1f682-41fb-491f-8fc1-8ff776e20a47",bodycombo59c7g::Region::Neck,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"ShortswordShield_C11","f94da426-9478-4382-9656-86e2d5dded3d",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"ShortswordShield_C14","bdd0b8b3-2629-455b-84af-54fc52fe1aab",bodycombo59c7g::Region::Knee,bodycombo59c7g::Feature::Tip,bodycombo59c7g::Motion::Thrust},
+  Row{"Blunt_C01","ddd376c0-db0d-498b-9568-953950ca3087",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Handle,bodycombo59c7g::Motion::BluntStrike},
+  Row{"Blunt_C03","d1e711a4-fa4e-4a9c-bc68-a7e1a64c691f",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"Blunt_C05","efa160a1-2852-480c-a87d-aa57ccbbaeae",bodycombo59c7g::Region::Abdomen,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Cut},
+  Row{"Blunt_C09","2e318541-af50-4ad6-bb2b-0f3a05e34ca6",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::BluntStrike},
+  Row{"Blunt_C15","88c26d2f-c490-42f4-a963-6d9b93b47988",bodycombo59c7g::Region::Knee,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Thrust},
+  Row{"BluntShield_C02","1a624a60-96b5-4cda-a92d-6053f39c5b2a",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::ShieldEdge,bodycombo59c7g::Motion::BluntStrike},
+  Row{"BluntShield_C03","2c14464d-11d0-4e8d-b8a5-d55fa8df1e17",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"BluntShield_C04","4b663747-55f5-4223-90a7-c87e6d0e2a17",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+  Row{"BluntShield_C05","77d3a2b7-f75b-4428-9216-d6c2ed3b2f3d",bodycombo59c7g::Region::Abdomen,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Cut},
+  Row{"BluntShield_C09","d35ab487-6c8b-4ac8-9ced-d0ef753288f3",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::BluntStrike},
+  Row{"BluntShield_C15","c6f74191-e046-48bb-9b4c-e1b7e467524b",bodycombo59c7g::Region::Knee,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Thrust},
+  Row{"BluntShield_C16","ba6031fc-2401-40bf-95c1-9d3985631881",bodycombo59c7g::Region::Ribs,bodycombo59c7g::Feature::Shield,bodycombo59c7g::Motion::Bash},
+  Row{"Halberd_C03","018251c1-3566-4a1c-982b-4f3cf84735a5",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Cut},
+  Row{"Halberd_C04","9985a928-931d-4776-81c8-a99336b8c191",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Cut},
+  Row{"Halberd_C05","cbeb4988-405f-48ce-9f1b-fc30d752e6c9",bodycombo59c7g::Region::Abdomen,bodycombo59c7g::Feature::Tip,bodycombo59c7g::Motion::Thrust},
+  Row{"Halberd_C07","b149043c-2f79-4950-b75f-61d58eda12d5",bodycombo59c7g::Region::Leg,bodycombo59c7g::Feature::WeaponHead,bodycombo59c7g::Motion::Trip},
+  Row{"Unarmed_C01","3bf8ed7e-9e6b-40ed-bc1a-aa4ddf1cc902",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Strike},
+  Row{"Unarmed_C02","7653c443-59d6-468c-bd7c-d2881a30bbf7",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Strike},
+  Row{"Unarmed_C03","daed608b-de4a-40ac-96c7-d20b0b4b35d5",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Strike},
+  Row{"Unarmed_C05","0ca63c1d-4e3f-4a87-95e4-09d4195bfe05",bodycombo59c7g::Region::Neck,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Strike},
+  Row{"Unarmed_C06","eaebd35f-1f97-42f7-833c-812e69de7632",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Strike},
+  Row{"Unarmed_C07","9ca188a0-dc6f-48e5-b8e2-754ccef51e72",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Strike},
+  Row{"Unarmed_C08","328a8e4a-7188-4db4-a1cb-6c41eca26417",bodycombo59c7g::Region::Face,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::BluntStrike},
+  Row{"Unarmed_C09","ff0b6ba8-f88a-43cd-9919-bba14ea17eaf",bodycombo59c7g::Region::Torso,bodycombo59c7g::Feature::Fist,bodycombo59c7g::Motion::Bash},
+  Row{"Blunt_C04","3e1ec4c6-87c3-47e1-932d-d737451f8438",bodycombo59c7g::Region::Any,bodycombo59c7g::Feature::Blade,bodycombo59c7g::Motion::Cut},
+}};
+}

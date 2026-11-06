@@ -1,0 +1,5 @@
+[
+  "src/subsystems/physics/runtime/native_weapon_body_t4.cpp",
+  "src/subsystems/physics/runtime/native_weapon_clearance_t4.cpp",
+  "src/subsystems/physics/module.cpp"
+]

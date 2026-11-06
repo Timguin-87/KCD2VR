@@ -1,0 +1,6 @@
+{
+  "source": "src\\subsystems\\hybrid\\drain_cost_claim.inl",
+  "source_sha256": "47dcee82d632061aeabec2fd73833cac6e74eb03965641e63d71b6f80c1ccddf",
+  "body_sha256": "88536ad1bda37a209b88d30c38b714c7bebdc24e4ad54cf4dcf7eec20c01fc1e",
+  "scope": "Exact production no-release phase/ownership/cost decision; native owner witness supplied as an explicit leaf; real cost and motion ledgers."
+}

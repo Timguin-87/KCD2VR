@@ -1,0 +1,18 @@
+{
+  "DetourModKit": {
+    "version": "4.2.0",
+    "tag": "v4.2.0",
+    "asset": "DetourModKit_MSVC_v4.2.0.zip",
+    "url": "https://github.com/tkhquang/DetourModKit/releases/download/v4.2.0/DetourModKit_MSVC_v4.2.0.zip",
+    "sha256": "835f1cb78163c65e784f5662904772c7506d76fb7d01229e3dad0c2b65bd76a7",
+    "provenance": "Official GitHub release asset digest read 2026-10-16; installed package also reports4.2.0."
+  },
+  "OpenXR_SDK_Source": {
+    "version": "1.1.62",
+    "tag": "release-1.1.62",
+    "url": "https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-1.1.62.tar.gz",
+    "sha512": "339ae24974caffa58cabe4e7144a34d5a8c81933ea7f20d142d2af62a19584b466958e3744c45fceb1a33f810a685a64082fa8af20681155a9fbff55e3640131",
+    "provenance": "Installed vcpkg metadata and actual cached archive SHA512 verified 2026-10-16."
+  },
+  "installed_prefix_policy": "Existing explicit compatible prefixes remain accepted and recorded by CMake; no silent upgrade/download for a valid installed prefix."
+}

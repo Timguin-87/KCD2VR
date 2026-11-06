@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Material CloakAmount="0" Diffuse="1,1,1" GenMask="24200010000040" LayerAct="1" MatTemplate="" MtlFlags="524290" Opacity="1" Shader="Illum" Shininess="255" Specular="1,1,1" StringGenMask="%CLOTHING_SYSTEM%NORMAL_MAP%SPECULAR_MAP%SUBSURFACE_SCATTERING" SurfaceType="" vertModifType="0">
+	<Textures>
+		<Texture File="objects/characters/humans/male/clothing/scabbard/longsword/scabbard_longsword01/scabbard_longsword01_diff.tif" Map="Diffuse" />
+		<Texture File="objects/characters/humans/male/clothing/scabbard/longsword/scabbard_longsword01/scabbard_longsword01_ddna.tif" Map="Bumpmap" />
+		<Texture File="objects/characters/humans/male/clothing/scabbard/longsword/scabbard_longsword01/scabbard_longsword01_spec.tif" Map="Specular" />
+		<Texture File="objects/characters/humans/male/clothing/scabbard/longsword/scabbard_longsword01/scabbard_longsword01_id.tif" Map="Detail" />
+		<Texture File="objects/characters/humans/male/clothing/scabbard/longsword/scabbard_longsword01/scabbard_longsword01_bgs.tif" Map="Custom" />
+	</Textures>
+	<PublicParams BloodBreakup="0.2" BloodGloss="0.869" BloodMaskHardness="0.017" BloodSpecular="0.07618539,0.07618539,0.07618539" BloodTintBorder="0.4125426,0.000303527,0.000303527" BloodTintCenter="0.1384316,0.003676507,0.000607054" EmittanceMapGamma="1" GrimeMaskHardness="0" MacroBumpScale="1.19" MacroDiffuseScale="1" MacroGlossScale="1" MacroSpecularScale="1" ScratchMaskHardness="0" SSSIndex="0" />
+	<FeatureSlots Slot10="ScabbardBelt2" Slot11="ScabbardMetal2" Slot20="ScabbardBase2" />
+</Material>

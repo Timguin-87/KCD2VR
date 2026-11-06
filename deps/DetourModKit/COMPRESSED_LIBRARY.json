@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "archive": "lib/libDetourModKit.lib.zip",
+  "archive_sha256": "8d47dc4820e8770d60830651a5cddf243d9222e9d7063f4ec2f72f06364208f7",
+  "member": "lib/libDetourModKit.lib",
+  "bytes": 117009442,
+  "sha256": "c01dfd67d2a72bfb7fc5a8666f6bcd8dad93d530dafe5afcf7fdbcf9f02f6e54",
+  "variant": "reviewed adapter capacity128; byte-identical compression, no rebuilt library"
+}

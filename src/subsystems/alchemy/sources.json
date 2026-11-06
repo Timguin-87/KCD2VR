@@ -1,0 +1,4 @@
+[
+  "src/subsystems/alchemy/module.cpp",
+  "src/subsystems/alchemy/finish_observer_cb1.cpp"
+]

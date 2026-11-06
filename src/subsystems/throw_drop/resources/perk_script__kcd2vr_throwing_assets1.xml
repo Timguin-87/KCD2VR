@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="barbora" xsi:noNamespaceSchemaLocation="../database.xsd">
+  <perk_scripts version="1">
+    <perk_script perk_editor_name="BS recipe r_kcd2vr_throwing_dagger1" perk_id="0ee250d2-6197-59b7-88b5-23509d77fccd" />
+    <perk_script perk_editor_name="BS recipe r_kcd2vr_throwing_axe1" perk_id="c871addb-2958-550f-aa2d-36b37d9914a5" />
+    <perk_script perk_editor_name="KCD2VR starter receipt kcd2vr_throwing_dagger1" perk_id="70ceb681-04b8-5c5d-bb49-f80f03c9dc40" />
+    <perk_script perk_editor_name="KCD2VR starter receipt kcd2vr_throwing_axe1" perk_id="86c6952f-0382-5a68-9435-aebcd31a4a39" />
+    <perk_script perk_editor_name="KCD2VR T8 explicit recovery receipt dagger" perk_id="b033c7eb-4276-5921-b910-04490304152a" />
+    <perk_script perk_editor_name="KCD2VR T8 explicit recovery receipt axe" perk_id="38c8e9ba-87c7-51df-b8a7-3e8282bbcb1f" />
+    <perk_script perk_id="969eb6ac-4837-58a0-98d1-2fc9ac06c5d5" perk_editor_name="KCD2VR one-time LEFT chest knives T26" />
+  </perk_scripts>
+</database>

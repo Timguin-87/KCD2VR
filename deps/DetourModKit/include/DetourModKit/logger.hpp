@@ -1,0 +1,789 @@
+#ifndef DETOURMODKIT_LOGGER_HPP
+#define DETOURMODKIT_LOGGER_HPP
+
+/**
+ * @file logger.hpp
+ * @brief Process logging value facade, the free log() accessor, and source-location stamp policy.
+ * @details Logger is a VALUE FACADE that owns one file sink and an optional async writer.
+ *          The free log() returns the process-default instance.
+ *          Formatted records apply the configured stamp policy through LocatedFormat.
+ *          The logger is FAIL-SOFT.
+ *          A dropped or filtered line is a best-effort bool, never a Result.
+ *          The async transport stays behind the AsyncLogger pimpl.
+ * @warning `[B-100]` Run Logger construction, first use of log(), and enable_async_mode() outside the loader lock.
+ *          These routes allocate. enable_async_mode() can create the writer thread. The loader-lock teardown path
+ *          detaches the writer without a wait. `LoggerTest.LoaderLock*` pins the boundary.
+ */
+
+#include "DetourModKit/async_logger_config.hpp"
+
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <memory>
+#include <mutex>
+#include <source_location>
+#include <string>
+#include <string_view>
+#include <type_traits>
+
+namespace DetourModKit
+{
+    class Logger;
+
+    namespace detail
+    {
+        // Forward-declared so this public header never pulls the Win32-backed file-stream definition onto a
+        // consumer's include path. Logger's special members are out-of-line, so the shared_ptr is instantiated only
+        // in logger.cpp.
+        class WinFileStream;
+        class LoggerDropAccess;
+        class LoggerTestSeams;
+    } // namespace detail
+
+    /**
+     * @enum LogLevel
+     * @brief Severity levels for log messages, ordered from least to most severe.
+     * @note The underlying values are contiguous from 0, so a level comparison is a plain integer compare on the hot
+     *       path.
+     */
+    enum class LogLevel : std::uint8_t
+    {
+        Trace = 0,
+        Debug = 1,
+        Info = 2,
+        Warning = 3,
+        Error = 4
+    };
+
+    /**
+     * @brief Returns the upper-case string name of a log level.
+     * @param level The level to name.
+     * @return A static string view ("TRACE".."ERROR"), or "UNKNOWN" for an out-of-range value.
+     * @note Callback-safe: pure, allocation-free, and noexcept.
+     */
+    [[nodiscard]] constexpr std::string_view to_string(LogLevel level) noexcept
+    {
+        switch (level)
+        {
+        case LogLevel::Trace:
+            return "TRACE";
+        case LogLevel::Debug:
+            return "DEBUG";
+        case LogLevel::Info:
+            return "INFO";
+        case LogLevel::Warning:
+            return "WARNING";
+        case LogLevel::Error:
+            return "ERROR";
+        }
+        return "UNKNOWN";
+    }
+
+    /**
+     * @brief Parses a level name back into a LogLevel (case-insensitive).
+     * @param level_str The level name, e.g. "INFO" or "debug". Surrounding whitespace is NOT trimmed.
+     * @return The matching LogLevel, or LogLevel::Info when the string is unrecognized (a warning is written to
+     *         stderr).
+     * @details The fold is ASCII only, so LC_CTYPE cannot change which level a value resolves to ([B-37]). The
+     *          fail-soft default to Info keeps a typo in an INI "LogLevel" key from silencing the log entirely.
+     * @note Setup/control-plane only: allocates while upper-casing and may write to stderr; call from config parsing,
+     *       not from a hot path.
+     */
+    [[nodiscard]] LogLevel string_to_log_level(std::string_view level_str);
+
+    /**
+     * @enum LogOpenMode
+     * @brief Selects whether Logger construction replaces or preserves a target file.
+     * @details Truncate starts a fresh file. Append preserves prior records across process generations. The mode
+     *          affects only the first sink open. @ref Logger::reconfigure never truncates.
+     */
+    enum class LogOpenMode : std::uint8_t
+    {
+        /// Starts a fresh file and remains the default.
+        Truncate,
+        /// Preserves prior records and writes new records after them.
+        Append
+    };
+
+    /**
+     * @class LogSourceStampMode
+     * @brief Selects which formatted log levels render a source-location stamp.
+     * @details Lower LogLevel values carry more diagnostic detail.
+     *          at_or_below() retains stamps through one selected level.
+     *          The default retains stamps for Trace and Debug.
+     */
+    class LogSourceStampMode
+    {
+    public:
+        /// Constructs the default policy, which renders Trace and Debug source-location stamps.
+        constexpr LogSourceStampMode() noexcept = default;
+
+        /// Returns a policy that renders every source-location stamp.
+        [[nodiscard]] static constexpr LogSourceStampMode always() noexcept { return LogSourceStampMode{ERROR_LEVEL}; }
+
+        /**
+         * @brief Returns a policy that renders stamps from Trace through @p maximum_level.
+         * @param maximum_level The least verbose level that retains its stamp.
+         * @return The requested policy. An out-of-range level selects @ref LogSourceStampMode::always.
+         */
+        [[nodiscard]] static constexpr LogSourceStampMode at_or_below(LogLevel maximum_level) noexcept
+        {
+            const auto level = static_cast<std::uint8_t>(maximum_level);
+            return LogSourceStampMode{
+                level <= static_cast<std::uint8_t>(LogLevel::Error) ? static_cast<std::int8_t>(level) : ERROR_LEVEL
+            };
+        }
+
+        /// Returns a policy that renders no source-location stamp.
+        [[nodiscard]] static constexpr LogSourceStampMode never() noexcept { return LogSourceStampMode{NEVER_LEVEL}; }
+
+        /**
+         * @brief Tests whether @p level retains its source-location stamp.
+         * @param level The record level.
+         * @return true when the stamp renders.
+         */
+        [[nodiscard]] constexpr bool renders(LogLevel level) const noexcept
+        {
+            return static_cast<std::int16_t>(static_cast<std::uint8_t>(level)) <= m_maximum_level;
+        }
+
+        /// Compares two stamp policies by value.
+        [[nodiscard]] friend constexpr bool
+        operator==(const LogSourceStampMode &left, const LogSourceStampMode &right) noexcept = default;
+
+    private:
+        static constexpr std::int8_t NEVER_LEVEL = -1;
+        static constexpr std::int8_t DEBUG_LEVEL = static_cast<std::int8_t>(LogLevel::Debug);
+        static constexpr std::int8_t ERROR_LEVEL = static_cast<std::int8_t>(LogLevel::Error);
+
+        explicit constexpr LogSourceStampMode(std::int8_t maximum_level) noexcept : m_maximum_level(maximum_level) {}
+
+        std::int8_t m_maximum_level{DEBUG_LEVEL};
+    };
+
+    static_assert(std::is_trivially_copyable_v<LogSourceStampMode>);
+    static_assert(sizeof(LogSourceStampMode) == sizeof(std::int8_t));
+    static_assert(std::atomic<LogSourceStampMode>::is_always_lock_free);
+
+    /// Default subsystem prefix stamped into the log file's banner line.
+    inline constexpr std::string_view DEFAULT_LOG_PREFIX{"DetourModKit"};
+    /// Default log file name, resolved against the runtime module directory when relative.
+    inline constexpr std::string_view DEFAULT_LOG_FILE_NAME{"DetourModKit_Log.txt"};
+    /// Default strftime-style timestamp format; the writer appends a ".<ms>" fraction after it.
+    inline constexpr std::string_view DEFAULT_TIMESTAMP_FORMAT{"%Y-%m-%d %H:%M:%S"};
+
+    // Upper bound, in bytes, on a log line the formatted fast path renders without a heap allocation. Mirrors the
+    // async sink's inline message buffer (LogMessage::MAX_INLINE_SIZE). Longer lines take the documented overflow
+    // path on both sides.
+    inline constexpr std::size_t LOG_INLINE_MESSAGE_SIZE = 512;
+
+    // AsyncLogger stays forward-declared so the lock-free queue and string pool never reach a consumer translation
+    // unit. The complete type lives in src/internal/async_logger.hpp.
+    class AsyncLogger;
+
+    /**
+     * @struct LocatedFormat
+     * @brief A std::format_string that captures the call site for the configured stamp policy.
+     * @details A defaulted std::source_location parameter cannot follow a variadic pack.
+     *          The format-string argument captures the location instead.
+     *          The consteval constructor validates the format string at compile time.
+     *          It records the caller's log site, not a location inside the logger.
+     * @tparam Args The formatted argument types, deduced from the trailing pack at the call site.
+     */
+    template <typename... Args> struct LocatedFormat
+    {
+        /**
+         * @brief Wraps a compile-time format string and records the originating source location.
+         * @param s The format string, validated against Args at compile time exactly as std::format validates.
+         * @param loc Defaulted to the call site through std::source_location::current(); do not pass explicitly.
+         */
+        template <typename String>
+        consteval LocatedFormat(const String &s, std::source_location loc = std::source_location::current()) noexcept
+            : fmt(s), where(loc)
+        {
+        }
+
+        /// The validated format string forwarded to std::format at render time.
+        std::format_string<Args...> fmt;
+        /// The captured call site, available to the active source-location stamp policy.
+        std::source_location where;
+    };
+
+    /**
+     * @class Logger
+     * @brief A thread-safe file logger: the value facade behind the free log() accessor and Session::log().
+     * @details The logger owns one mutex-protected file sink plus an optional async writer.
+     *          The minimum level is atomic, so a level change is lock-free.
+     *          A record below that level is dropped before format evaluation.
+     *          The level-named templates and variadic log()/try_log() take a LocatedFormat.
+     *          These methods apply the stamp policy, and the compiler validates their format strings.
+     *          The raw log() and log_noexcept() forms add no stamp.
+     */
+    class Logger
+    {
+    public:
+        /**
+         * @brief Constructs a logger with an explicit sink, independent of the process default.
+         * @details A dedicated logger uses its own file. The process default from log() is separate. This constructor
+         *          does not disturb that instance.
+         * @param prefix Subsystem prefix used in diagnostics printed to stderr on a file error.
+         * @param file_name The log file path. Relative paths resolve against the runtime module directory.
+         * @param timestamp_fmt The strftime-style timestamp format for each line.
+         * @param open_mode The action for an existing target file. See @ref LogOpenMode.
+         * @param source_stamp_mode The source-location stamp policy. The default retains Trace and Debug stamps.
+         * @note Setup/control-plane only. Construction allocates and opens the sink.
+         */
+        explicit Logger(
+            std::string_view prefix,
+            std::string_view file_name,
+            std::string_view timestamp_fmt = DEFAULT_TIMESTAMP_FORMAT,
+            LogOpenMode open_mode = LogOpenMode::Truncate,
+            LogSourceStampMode source_stamp_mode = LogSourceStampMode{}
+        );
+
+        ~Logger() noexcept;
+
+        // A logger owns a live file handle, a mutex, and a writer thread, so it is pinned: a copy aliases the sink
+        // and a move invalidates the mutex a concurrent log() may hold.
+        Logger(const Logger &) = delete;
+        Logger &operator=(const Logger &) = delete;
+        Logger(Logger &&) = delete;
+        Logger &operator=(Logger &&) = delete;
+
+        /**
+         * @brief Publishes and applies the process default configuration.
+         * @details The first call creates the process default from staged values. Later calls use @ref reconfigure.
+         *          A rejected application restores the previous snapshot. A first-use sink-open failure leaves a
+         *          closed process default with the requested strings.
+         *
+         *          A call after shutdown() can reopen the sink. A logger stays inert if unsafe teardown detached its
+         *          writer. That writer retains final sink access.
+         * @param prefix Default log prefix string.
+         * @param file_name Default log file name.
+         * @param timestamp_fmt Default timestamp format string (strftime compatible).
+         * @param open_mode The mode for the process default's first sink open. An existing default follows the
+         *                  @ref reconfigure reopen rule, even if its sink is closed.
+         * @param source_stamp_mode The source-location stamp policy. The default retains Trace and Debug stamps.
+         * @note Setup/control-plane only. The call allocates and can reopen the log file. Do not call it from a hook
+         *       or input callback.
+         */
+        static void configure(
+            std::string_view prefix,
+            std::string_view file_name,
+            std::string_view timestamp_fmt = DEFAULT_TIMESTAMP_FORMAT,
+            LogOpenMode open_mode = LogOpenMode::Truncate,
+            LogSourceStampMode source_stamp_mode = LogSourceStampMode{}
+        );
+
+        /**
+         * @brief Reconfigures this logger and preserves records already written to the target file.
+         * @details The method is thread-safe. Equal parameters and a healthy stream cause no change. A same-file
+         *          change keeps the stream open. A changed or unhealthy sink reopens in append mode. A shut-down or
+         *          abandoned logger remains inert.
+         *
+         *          The replacement sink opens before current-sink retirement. A failed open or retirement leaves the
+         *          prefix, file, format, sink, and live async writer on the previous configuration.
+         * @param prefix New log prefix string.
+         * @param file_name New log file name.
+         * @param timestamp_fmt New timestamp format string (strftime compatible).
+         * @note Setup/control-plane only: reopens the log file and is not callback-safe.
+         */
+        void reconfigure(std::string_view prefix, std::string_view file_name, std::string_view timestamp_fmt);
+
+        /**
+         * @brief Enables asynchronous logging: messages are queued and written by a dedicated writer thread.
+         * @details A failure before publication leaves async mode off and keeps synchronous delivery.
+         *          A contained failure after publication keeps the writer active. Diagnostics use @ref try_log.
+         * @param config Async writer configuration; the timestamp format is overridden with this logger's own so both
+         *               sinks emit identical timestamps.
+         * @note Setup/control-plane only: starts the writer thread and takes the async lifecycle mutex; not
+         *       callback-safe.
+         */
+        void enable_async_mode(const AsyncLoggerConfig &config) noexcept;
+
+        /// Enables asynchronous logging with the default AsyncLoggerConfig. See the config-taking overload.
+        void enable_async_mode() noexcept;
+
+        /**
+         * @brief Disables asynchronous logging and returns to synchronous writes.
+         * @details Flushes pending async messages first. When the caller is not authorized to block, the writer is
+         *          detached instead of joined, the AsyncLogger is intentionally leaked, and
+         *          diagnostics::record_intentional_leak records the event. This Logger then stays inert and never
+         *          opens a second writer against a sink the detached thread still owns. `[B-44]` owns the counted
+         *          module reference that keeps that thread's code mapped.
+         * @note Setup/control-plane only: joins or detaches the writer thread and takes the async lifecycle mutex.
+         */
+        void disable_async_mode() noexcept;
+
+        /// Returns true when asynchronous logging is currently enabled. Callback-safe (a lock-free atomic read).
+        [[nodiscard]] bool is_async_mode_enabled() const noexcept;
+
+        /**
+         * @brief Returns the number of records rejected or not confirmed delivered.
+         * @details Aggregates facade-level drops (an inert or shut-down logger, a failed synchronous write, or a
+         *          record lost to a suppressed exception in @ref log_noexcept or try_log) with
+         *          the current and normally retired async writers' admission, overflow, invalid-record, sync-fallback,
+         *          and writer-sink losses. A batch whose insertion or final flush fails is counted in full because the
+         *          stream exposes no complete-record durability boundary. It never counts a level-filtered record,
+         *          which was intentionally skipped.
+         * @note Best-effort observability, callback-safe: atomic snapshot/read operations with no allocation or I/O.
+         */
+        [[nodiscard]] std::size_t dropped_count() const noexcept;
+
+        /**
+         * @brief Flushes pending log output.
+         * @details In async mode, waits for the queue to drain; in sync mode, flushes the file stream.
+         * @note Best-effort and noexcept: in sync mode it locks and blocks on file I/O, so it is control-plane, not
+         *       callback-safe.
+         */
+        void flush() noexcept;
+
+        /**
+         * @brief Shuts the logger down: drains async output and closes the file without a log message.
+         * @details Safe to call during teardown, and idempotent with the destructor. After shutdown() the destructor
+         *          is a no-op, so a later static teardown cannot reach freed state. A failed batch reservation selects
+         *          a one-record stack path, so the drain still advances under allocation failure
+         *          (Lifecycle.LoggerPersistentBatchOomStillDrainsAndJoins).
+         * @note Setup/control-plane only: drains the writer thread, closes the file, and is not callback-safe.
+         * @warning The join is unbounded by design: it returns once the writer has drained every admitted record. Do
+         *          not call it from a context that cannot block, and do not call it under the loader lock (the
+         *          loader-lock path detaches the writer instead of joining it).
+         */
+        void shutdown() noexcept;
+
+        /// Returns the current minimum level; a record below this level is dropped before formatting. Callback-safe.
+        [[nodiscard]] LogLevel get_log_level() const noexcept
+        {
+            return m_current_log_level.load(std::memory_order_acquire);
+        }
+
+        /**
+         * @brief Tests whether a record at @p level passes the current filter.
+         * @param level The level to test.
+         * @return true when a message at this level is recorded.
+         * @details Gate expensive trace-only work behind this (e.g. building a string solely to log it).
+         * @note Callback-safe: a lock-free atomic read.
+         */
+        [[nodiscard]] bool is_enabled(LogLevel level) const noexcept
+        {
+            return level >= m_current_log_level.load(std::memory_order_acquire);
+        }
+
+        /**
+         * @brief Sets the minimum level for messages to be recorded.
+         * @param level The minimum LogLevel to record; an out-of-range value is ignored with a warning.
+         * @details A changed threshold emits one Info control record that names both levels. The record bypasses the
+         *          level filter, so a stricter new threshold cannot hide the transition that produced it. An
+         *          unchanged threshold emits nothing.
+         * @note Setup/control-plane only: emits a log line about the change, so it can allocate and do sink I/O.
+         */
+        void set_log_level(LogLevel level);
+
+        /// Returns the source-location stamp policy. Callback-safe: one relaxed lock-free atomic read.
+        [[nodiscard]] LogSourceStampMode get_source_stamp_mode() const noexcept
+        {
+            return m_source_stamp_mode.load(std::memory_order_relaxed);
+        }
+
+        /**
+         * @brief Sets the source-location stamp policy for later formatted records.
+         * @param mode The new policy.
+         * @note Callback-safe: one relaxed lock-free atomic store. The change emits no control record.
+         */
+        void set_source_stamp_mode(LogSourceStampMode mode) noexcept
+        {
+            m_source_stamp_mode.store(mode, std::memory_order_relaxed);
+        }
+
+        /**
+         * @brief Logs an already-rendered message at @p level (no source-location stamp).
+         * @param level The level of the message.
+         * @param message The pre-formatted message.
+         * @return true if the message reached the sink (enqueued in async mode, or written to a healthy file stream in
+         *         sync mode); false if filtered out, dropped (queue full), or the file sink was closed/unhealthy. The
+         *         return is informational; callers that do not need delivery status may ignore it.
+         * @note This overload takes a finished line: a literal containing {} is written verbatim, NOT treated as a
+         *       std::format placeholder. For placeholder substitution and compile-time format-string checking use the
+         *       formatted overload log(level, fmt, args...) or the level-named methods.
+         * @note Logging is best-effort. In async mode a message enqueued after shutdown() begins is dropped and
+         *       counted, a message admitted before it is drained, and a full queue drops per the overflow policy. In
+         *       synchronous mode a Warning or Error force-flushes the file stream under the log mutex, so a per-frame
+         *       callback at those levels stalls the game thread on disk I/O. Enable async mode first for hot-path
+         *       logging.
+         */
+        bool log(LogLevel level, std::string_view message);
+
+        /**
+         * @brief No-throw counterpart of log() for callers on a noexcept boundary (no source-location stamp).
+         * @details Takes an already-rendered message and swallows any sink exception, so a hook callback or
+         *          loader-lock teardown path cannot reach std::terminate through the sink.
+         * @param level The level of the message.
+         * @param message The already-rendered message.
+         * @return true if the message was handed to the sink, false if filtered out or an internal failure was
+         *         suppressed. A suppressed failure is counted in @ref dropped_count.
+         * @note Callback-safe use requires async mode, the
+         *       OverflowPolicy::DropNewest policy, a message within LOG_INLINE_MESSAGE_SIZE, and no overlapping
+         *       async-mode transition. Under those conditions the path avoids queue waits, the string-pool lock, the
+         *       sink lock, and file I/O. The atomic writer lookup is not wait-free. Any other configuration or a
+         *       concurrent transition can take the string-pool lock, park the caller, or perform sink I/O.
+         */
+        [[nodiscard]] bool log_noexcept(LogLevel level, std::string_view message) noexcept;
+
+        /**
+         * @brief Logs a std::format-style message and captures its source location.
+         * @details The active LogSourceStampMode policy controls the stamp.
+         *          It adds a compact [file:line] stamp only when it enables @p level.
+         *          Arguments format only after @p level passes the filter.
+         *          The compiler validates the format string against @p args.
+         * @tparam Args Deduced formatted argument types.
+         * @param level The level of the message.
+         * @param fmt The format string (auto-wrapped into a LocatedFormat capturing the call site).
+         * @param args The arguments substituted into the format string.
+         * @note The function renders the line and routes it through log(level, string_view). The result uses that
+         *       overload's delivery notes. Its blocking hazards match @ref log_noexcept. This overload is not
+         *       noexcept, and formatting or the sink can throw. On a noexcept boundary, call @ref try_log or
+         *       @ref log_noexcept.
+         */
+        template <typename... Args>
+        void log(LogLevel level, LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args)
+        {
+            if (level >= m_current_log_level.load(std::memory_order_acquire))
+            {
+                (void)format_located(
+                    [this, level](std::string_view rendered) { return this->log(level, rendered); },
+                    source_stamp_enabled(level),
+                    fmt.where,
+                    fmt.fmt,
+                    std::forward<Args>(args)...
+                );
+            }
+        }
+
+        /**
+         * @name Level-named convenience loggers
+         * @brief Provides shorthand for log(LogLevel::X, fmt, args...).
+         * @details Each function captures the call site.
+         *          The active LogSourceStampMode policy controls the stamp.
+         *          It adds a compact [file:line] stamp only when it enables that function's level.
+         * @note The functions inherit these contracts from @ref log:
+         *       - They inherit its delivery contract.
+         *       - They inherit its lazy-evaluation contract.
+         *       - They inherit its callback-safety constraints.
+         *       - They inherit its throwing behavior, so a noexcept boundary calls @ref try_log.
+         * @{
+         */
+        template <typename... Args> void trace(LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args)
+        {
+            log(LogLevel::Trace, fmt, std::forward<Args>(args)...);
+        }
+
+        template <typename... Args> void debug(LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args)
+        {
+            log(LogLevel::Debug, fmt, std::forward<Args>(args)...);
+        }
+
+        template <typename... Args> void info(LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args)
+        {
+            log(LogLevel::Info, fmt, std::forward<Args>(args)...);
+        }
+
+        template <typename... Args> void warning(LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args)
+        {
+            log(LogLevel::Warning, fmt, std::forward<Args>(args)...);
+        }
+
+        template <typename... Args> void error(LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args)
+        {
+            log(LogLevel::Error, fmt, std::forward<Args>(args)...);
+        }
+        /** @} */
+
+        /**
+         * @brief Formats and logs without exceptions for callers on a noexcept boundary.
+         * @details Like log(level, fmt, args...), this overload captures the call site.
+         *          The active LogSourceStampMode policy controls the stamp.
+         *          It adds a compact [file:line] stamp only when it enables @p level.
+         *          A local try/catch contains format failures.
+         *          The log_noexcept() route contains sink failures.
+         *          Prefer this overload inside hook callbacks.
+         *          Arguments format only when @p level is enabled.
+         * @return true if the message was handed to the sink, false if filtered out or dropped because
+         *         formatting/logging failed. A dropped record is counted in @ref dropped_count.
+         * @note Best-effort and no-throw: it swallows every std::format and sink failure, so it will not terminate a
+         *       noexcept boundary. It is not unconditionally callback-safe because format_located() may allocate for
+         *       an over-long line. Delivery has @ref log_noexcept constraints and requires DropNewest.
+         */
+        template <typename... Args>
+        [[nodiscard]] bool
+        try_log(LogLevel level, LocatedFormat<std::type_identity_t<Args>...> fmt, Args &&...args) noexcept
+        {
+            if (level < m_current_log_level.load(std::memory_order_acquire))
+            {
+                return false;
+            }
+            try
+            {
+                return format_located(
+                    [this, level](std::string_view rendered) noexcept { return this->log_noexcept(level, rendered); },
+                    source_stamp_enabled(level),
+                    fmt.where,
+                    fmt.fmt,
+                    std::forward<Args>(args)...
+                );
+            }
+            catch (...)
+            {
+                // Only a format failure reaches here: the sink is log_noexcept, which counts its own losses, so this
+                // catch adds exactly the records that never reached a sink.
+                m_dropped_messages.fetch_add(1, std::memory_order_relaxed);
+                return false;
+            }
+        }
+
+        /**
+         * @struct StaticConfig
+         * @brief Stores an immutable snapshot of the process default configuration.
+         * @details An atomic shared pointer publishes the snapshot with acquire and release order. A reader takes no
+         *          logger-level lock. configure() replaces the snapshot. The default Logger reads it at construction.
+         *          Message paths do not use it.
+         */
+        struct StaticConfig
+        {
+            /// The default log prefix.
+            std::string log_prefix;
+            /// The default log file name.
+            std::string log_file_name;
+            /// The default timestamp format.
+            std::string timestamp_format;
+            /// The mode for the first sink open.
+            LogOpenMode open_mode;
+            /// The source-location stamp policy for formatted records.
+            LogSourceStampMode source_stamp_mode;
+
+            /**
+             * @brief Constructs a complete process default snapshot.
+             * @param prefix The log prefix.
+             * @param file The log file name.
+             * @param ts_fmt The timestamp format.
+             * @param mode The first sink open mode.
+             * @param stamp_mode The source-location stamp policy. The default retains Trace and Debug stamps.
+             */
+            StaticConfig(
+                std::string prefix,
+                std::string file,
+                std::string ts_fmt,
+                LogOpenMode mode = LogOpenMode::Truncate,
+                LogSourceStampMode stamp_mode = LogSourceStampMode{}
+            )
+                : log_prefix(std::move(prefix)), log_file_name(std::move(file)), timestamp_format(std::move(ts_fmt)),
+                  open_mode(mode), source_stamp_mode(stamp_mode)
+            {
+            }
+        };
+
+    private:
+        friend class detail::LoggerDropAccess;
+        // Unconditional friend: test access lives in the non-installed src/internal/logger_test_seams.hpp, so this
+        // installed definition carries no macro-dependent member.
+        friend class detail::LoggerTestSeams;
+
+        /// Constructs the process-default logger from the published StaticConfig; reached only through log().
+        Logger();
+
+        /// Tag selecting the inert constructor taken when first-use construction fails under allocation pressure.
+        struct InertTag
+        {
+        };
+
+        /**
+         * @brief Constructs an inert, sink-less logger that drops and counts every enabled record.
+         * @details Allocates nothing: opens no file, creates no shared sink mutex or writer, and leaves the sink
+         *          pointers null. Published by create_process_default() when normal first-use construction throws
+         *          under OOM, so the noexcept free log() returns a usable object instead of terminating. Every
+         *          operation fails closed for the process lifetime.
+         */
+        explicit Logger(InertTag) noexcept;
+
+        /**
+         * @brief Builds the process-default logger, falling back to an inert logger on first-use allocation failure.
+         * @details The free log() is noexcept, so a throw from the default constructor (first-use OOM) terminates the
+         *          host. This wraps that construction in a catch and, on failure, publishes a process-lifetime inert
+         *          logger. A first failure latches inert for the process generation.
+         */
+        [[nodiscard]] static Logger *create_process_default() noexcept;
+
+        /// True for the inert first-use logger, which never allocated a sink or mutex. See create_process_default().
+        [[nodiscard]] bool is_inert() const noexcept { return !m_log_mutex_ptr; }
+
+        /**
+         * @brief Attempts delivery of an already-rendered line without the level filter.
+         * @details Carries every other delivery rule of @ref log: shutdown and inert gates, the async route, the
+         *          synchronous stream, the Warning force-flush, and the drop count. set_log_level() uses it for each
+         *          transition control record.
+         * @return The delivery status @ref log documents.
+         */
+        bool emit_record(LogLevel level, std::string_view message);
+
+        /**
+         * @brief Renders a source-located line into a stack buffer and hands it to @p sink.
+         * @details When @p with_stamp is true, the output starts with "[file:line] ". A line that fits uses one
+         *          LOG_INLINE_MESSAGE_SIZE stack buffer. A longer line uses std::format once for the documented
+         *          overflow path. The formatter only reads its arguments, so both attempts can share the pack.
+         * @param with_stamp true to render the captured source location.
+         * @return Whatever @p sink returns for the line.
+         */
+        template <typename Sink, typename... Args>
+        static auto format_located(
+            Sink &&sink,
+            bool with_stamp,
+            const std::source_location &where,
+            std::format_string<Args...> fmt,
+            Args &&...args
+        )
+        {
+            std::array<char, LOG_INLINE_MESSAGE_SIZE> buffer;
+            std::string_view file;
+            std::uint_least32_t line{0};
+            std::size_t stamp_len{0};
+            auto body_out = buffer.data();
+            if (with_stamp)
+            {
+                file = source_basename(where.file_name());
+                line = where.line();
+                const auto stamp = std::format_to_n(buffer.data(), buffer.size(), "[{}:{}] ", file, line);
+                stamp_len = static_cast<std::size_t>(stamp.size);
+                body_out = stamp.out;
+            }
+            if (stamp_len <= buffer.size())
+            {
+                const auto body =
+                    std::format_to_n(body_out, buffer.size() - stamp_len, fmt, std::forward<Args>(args)...);
+                const auto total = stamp_len + static_cast<std::size_t>(body.size);
+                if (total <= buffer.size())
+                {
+                    return sink(std::string_view(buffer.data(), total));
+                }
+            }
+
+            if (with_stamp)
+            {
+                return sink(
+                    std::string_view(
+                        std::format("[{}:{}] {}", file, line, std::format(fmt, std::forward<Args>(args)...))
+                    )
+                );
+            }
+            return sink(std::string_view(std::format(fmt, std::forward<Args>(args)...)));
+        }
+
+        /// Tests the current source-location stamp policy with one relaxed atomic read.
+        [[nodiscard]] bool source_stamp_enabled(LogLevel level) const noexcept
+        {
+            return m_source_stamp_mode.load(std::memory_order_relaxed).renders(level);
+        }
+
+        /**
+         * @brief Extracts the file name from a source_location path (the segment after the last '/' or '\\').
+         * @details Keeps the stamp compact and toolchain-stable: __FILE__-derived paths differ between build roots and
+         *          compilers, but the trailing file name does not.
+         */
+        [[nodiscard]] static constexpr std::string_view source_basename(std::string_view path) noexcept
+        {
+            const auto slash = path.find_last_of("/\\");
+            return slash == std::string_view::npos ? path : path.substr(slash + 1);
+        }
+
+        /// Shared teardown body used by both ~Logger() and shutdown().
+        void shutdown_internal() noexcept;
+
+        /// Renders the current time through @p format, with a millisecond fraction appended.
+        std::string get_timestamp(const std::string &format) const;
+
+        /// Resolves the absolute path for @p file_name (wide for Unicode fidelity), relative to the runtime directory.
+        std::wstring generate_log_file_path(const std::string &file_name) const;
+
+        /**
+         * @brief Opens a candidate sink for @p file_name without touching this Logger.
+         * @param file_name The target file. A relative name resolves against the runtime directory.
+         * @param truncate Selects a fresh file when true. False preserves prior records.
+         * @return The open stream, or null when the file cannot be opened (a diagnostic goes to stderr).
+         */
+        [[nodiscard]] std::shared_ptr<detail::WinFileStream>
+        open_sink(const std::string &file_name, bool truncate) const;
+
+        /// Construction only: adopts the first sink and writes its banner. A failed open leaves a closed stream.
+        void adopt_first_sink(bool truncate);
+
+        /**
+         * @brief Applies new settings while the caller holds both m_async_mutex and *m_log_mutex_ptr.
+         * @details reconfigure() and configure() share this locked body. reconfigure() respects the shutdown latch.
+         *          configure() clears that latch before this call. A same-file option change keeps the stream open and
+         *          never truncates it.
+         *
+         *          All allocation and candidate-open work precedes prior-sink retirement. A false return leaves
+         *          configuration and sink ownership unchanged. A failed drain retains the current handle and buffered
+         *          tail.
+         * @return True when the settings commit. False means the replacement did not open or the prior sink did not
+         *         close cleanly.
+         */
+        [[nodiscard]] bool
+        reconfigure_locked(std::string_view prefix, std::string_view file_name, std::string_view timestamp_fmt);
+
+        static std::shared_ptr<const StaticConfig> get_static_config();
+        static void set_static_config(std::shared_ptr<const StaticConfig> config);
+
+        // log() owns the process-default Logger through a process-lifetime allocation, so it needs access to the
+        // private constructor.
+        friend Logger &log() noexcept;
+
+        // Lock ordering (must be acquired in this order to prevent deadlock):
+        //   1. static_config_mutex(): process configuration transaction (configure only)
+        //   2. m_async_mutex:          async logger lifecycle
+        //   3. *m_log_mutex_ptr:       file stream I/O
+
+        std::string m_log_prefix;
+        std::string m_log_file_name;
+        std::string m_timestamp_format;
+
+        std::shared_ptr<detail::WinFileStream> m_log_file_stream_ptr;
+        std::shared_ptr<std::mutex> m_log_mutex_ptr;
+        std::atomic<LogLevel> m_current_log_level{LogLevel::Info};
+        std::atomic<LogSourceStampMode> m_source_stamp_mode{LogSourceStampMode{}};
+        std::atomic<bool> m_shutdown_called{false};
+
+        // Facade-level drop counter: records refused by an inert/shut-down facade, records lost at the synchronous
+        // sink, drops absorbed from normally retired async writers, and late rejections from stale writer snapshots.
+        // Relaxed: best-effort observability, never a synchronization point.
+        std::atomic<std::size_t> m_dropped_messages{0};
+
+        // Latched when an async writer is detached and retained because teardown cannot join it. That writer keeps
+        // exclusive final sink ownership, so configure/reconfigure/flush must remain inert for this Logger instance.
+        std::atomic<bool> m_async_writer_abandoned{false};
+
+        // Held in an atomic so the log() hot path snapshots the writer without taking m_async_mutex.
+        // std::atomic<std::shared_ptr<T>> is NOT lock-free on either shipped toolchain ([B-23]), so the load takes
+        // one bounded internal critical section per log() call. Correct within log_noexcept's callback-safety
+        // conditions, but not a wait-free read.
+        std::atomic<std::shared_ptr<AsyncLogger>> m_async_logger{};
+        std::atomic<bool> m_async_mode_enabled{false};
+        std::mutex m_async_mutex;
+    };
+
+    /**
+     * @brief Returns the process-default Logger.
+     * @details The default is created on first use from the configuration last published by Logger::configure(). The
+     *          instance is intentionally never destroyed, so the reference stays valid for the whole process,
+     *          including static-destructor and detached-thread logging during teardown. Call log().shutdown() (or let
+     *          the Session do it) to flush and close the sink.
+     * @return A reference to the single process-default Logger.
+     * @note Callback-safe in steady state: after first use it is a noexcept reference accessor. First use constructs
+     *       the logger and can allocate/open the sink, so initialize it from setup code before calling log() on a hot
+     *       path.
+     */
+    [[nodiscard]] Logger &log() noexcept;
+} // namespace DetourModKit
+
+#endif // DETOURMODKIT_LOGGER_HPP

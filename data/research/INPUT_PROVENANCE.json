@@ -1,0 +1,23 @@
+{
+  "scope": "Exact retained inputs for portable research/generation/tests; no runtime behavior or historical evidence modified.",
+  "members": [
+    {
+      "path": "data/research/combat/AUTHORED_EVENT_JOIN_D60.json",
+      "bytes": 7029709,
+      "sha256": "b515491b454dcd12dcc295d87fbdbc9885e7d4f4c51257665e17030ebdf9ce30",
+      "origin": "D60 authored retail event/fragment join; original preserved in frozen D77"
+    },
+    {
+      "path": "tests/data/map/GEOMETRY_D64.json",
+      "bytes": 11375,
+      "sha256": "2d8f33092a9c1f830b940c45def6b5042edc6e04a58f756d847acd799660da28",
+      "origin": "D64 generated sheet and marker geometry receipt; original preserved in frozen D77"
+    },
+    {
+      "path": "data/research/combat/combo_table_disagreements.json",
+      "bytes": 1778,
+      "sha256": "9b99e3bc7f6a4d795502f00336d6886157b8c8ad62f169c11ab8c5913f5b2796",
+      "origin": "D41 disputed combo input; recovered byte-identically from frozen D42 and matched against frozen D41"
+    }
+  ]
+}

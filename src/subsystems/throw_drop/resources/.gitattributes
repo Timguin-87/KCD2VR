@@ -1,0 +1,4 @@
+# The canonical starter is byte-pinned against the authored unified PAK.
+inventory_delivery_t6.lua -text whitespace=cr-at-eol
+
+*.xml -text

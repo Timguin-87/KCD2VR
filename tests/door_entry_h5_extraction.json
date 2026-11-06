@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "src/subsystems/doors/door_hand_native66.inl": "059c4335d81909f7bf664532c510bffe841474aa70d59f325b922af3628e74b4",
+    "src/frik_pose_probe.cpp": "b9f6a62d15cd093679cb27aa38812ce3e876ab79a4fccc57f9b89a827180f18a",
+    "src/subsystems/doors/native_door_service.inl": "2bc3051b3945c77de61f8cbd6b1fcfbf27b1e4f4c8824a1f0e98e9d8b4fb4896",
+    "src/subsystems/doors/native_door19c4.inl": "bb3df56ad48cc1554aa27ef77dc41916330436fdcbd7e2a25ebaf7e0b47baf4e",
+    "src/core/native_door19c4.h": "fdfd3dcdc08ee619c525ed43c1a3a3287356a587465f9dc318cb0b612b3d0eee"
+  },
+  "generated": "tests/generated_door_entry_h5.inc",
+  "generatedSha256": "d200510c50e860379eeb8e07d35e4e08a4d1ad05e322490c706dc2e91d6ea3c1",
+  "scope": "Actual producer/capture/control65, exact DoorEntry66/OwnedDoorMotion66/DoorNativeCall66 and public wrappers. Native root-memory matcher has separate retained fixture; no engine action or body mutation is performed."
+}

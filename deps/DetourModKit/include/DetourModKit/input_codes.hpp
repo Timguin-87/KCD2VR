@@ -1,0 +1,260 @@
+#ifndef DETOURMODKIT_INPUT_CODES_HPP
+#define DETOURMODKIT_INPUT_CODES_HPP
+
+/**
+ * @file input_codes.hpp
+ * @brief Unified input code types for keyboard, mouse, and gamepad inputs.
+ * @details Provides a tagged InputCode type that identifies both the device source and button/key code, along with
+ *          named key resolution for human-readable configuration strings. Gamepad codes correspond to XInput button
+ *          masks. Each PascalCase constant in GamepadCode and WheelCode also has an UPPER_SNAKE_CASE spelling with
+ *          the same value. Both spellings are public API.
+ */
+
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
+#include <string_view>
+
+namespace DetourModKit
+{
+    /**
+     * @enum InputSource
+     * @brief Identifies the device type for an input code.
+     */
+    enum class InputSource : std::uint8_t
+    {
+        Keyboard,
+        Mouse,
+        Gamepad,
+        MouseWheel
+    };
+
+    /**
+     * @brief Converts an InputSource enum to its string representation.
+     * @param source The InputSource enum value.
+     * @return std::string_view String representation of the source.
+     */
+    [[nodiscard]] constexpr std::string_view input_source_to_string(InputSource source) noexcept
+    {
+        switch (source)
+        {
+        case InputSource::Keyboard:
+            return "Keyboard";
+        case InputSource::Mouse:
+            return "Mouse";
+        case InputSource::Gamepad:
+            return "Gamepad";
+        case InputSource::MouseWheel:
+            return "MouseWheel";
+        }
+        return "Unknown";
+    }
+
+    /**
+     * @struct InputCode
+     * @brief A tagged input identifier combining a device source and a button/key code.
+     * @details For Keyboard and Mouse sources, the code is a Windows Virtual Key code (usable with GetAsyncKeyState).
+     *          For Gamepad, the code is an XInput button bitmask or a synthetic trigger identifier (see GamepadCode).
+     *          For MouseWheel, the code is a WheelCode direction identifier; the wheel is an event with no polled key
+     *          state, so it is captured by the input layer's queue message hook and surfaced as a momentary
+     *          per-direction pulse (trigger-only, never a held modifier).
+     */
+    struct InputCode
+    {
+        InputSource source = InputSource::Keyboard;
+        int code = 0;
+
+        constexpr bool operator==(const InputCode &) const noexcept = default;
+    };
+
+    /**
+     * @brief Hash functor for InputCode, enabling use in unordered containers.
+     */
+    struct InputCodeHash
+    {
+        std::size_t operator()(const InputCode &ic) const noexcept
+        {
+            return std::hash<int>{}(ic.code) ^ (std::hash<std::uint8_t>{}(static_cast<std::uint8_t>(ic.source)) << 16);
+        }
+    };
+
+    /**
+     * @brief Creates a keyboard InputCode from a Windows Virtual Key code.
+     * @param vk The VK code (e.g., 0x41 for 'A').
+     * @return InputCode Tagged as Keyboard.
+     */
+    [[nodiscard]] constexpr InputCode keyboard_key(int vk) noexcept
+    {
+        return {InputSource::Keyboard, vk};
+    }
+
+    /**
+     * @brief Creates a mouse InputCode from a Windows Virtual Key code.
+     * @param vk The VK code (e.g., 0x01 for VK_LBUTTON).
+     * @return InputCode Tagged as Mouse.
+     */
+    [[nodiscard]] constexpr InputCode mouse_button(int vk) noexcept
+    {
+        return {InputSource::Mouse, vk};
+    }
+
+    /**
+     * @brief Creates a gamepad InputCode from an XInput button code.
+     * @param code The XInput button mask or synthetic trigger code (see GamepadCode).
+     * @return InputCode Tagged as Gamepad.
+     */
+    [[nodiscard]] constexpr InputCode gamepad_button(int code) noexcept
+    {
+        return {InputSource::Gamepad, code};
+    }
+
+    /**
+     * @brief Creates a mouse-wheel InputCode from a wheel direction code.
+     * @param code The wheel direction identifier (see WheelCode).
+     * @return InputCode Tagged as MouseWheel.
+     */
+    [[nodiscard]] constexpr InputCode mouse_wheel(int code) noexcept
+    {
+        return {InputSource::MouseWheel, code};
+    }
+
+    /**
+     * @namespace GamepadCode
+     * @brief XInput-compatible gamepad button codes and synthetic analog identifiers.
+     * @details Digital button codes match XInput XINPUT_GAMEPAD_* bitmask values. LeftTrigger/RightTrigger and
+     *          thumbstick direction codes are synthetic identifiers for analog inputs treated as digital with
+     *          configurable deadzone thresholds.
+     */
+    namespace GamepadCode
+    {
+        inline constexpr int DpadUp = 0x0001;
+        inline constexpr int DpadDown = 0x0002;
+        inline constexpr int DpadLeft = 0x0004;
+        inline constexpr int DpadRight = 0x0008;
+        inline constexpr int Start = 0x0010;
+        inline constexpr int Back = 0x0020;
+        inline constexpr int LeftStick = 0x0040;
+        inline constexpr int RightStick = 0x0080;
+        inline constexpr int LeftBumper = 0x0100;
+        inline constexpr int RightBumper = 0x0200;
+        inline constexpr int A = 0x1000;
+        inline constexpr int B = 0x2000;
+        inline constexpr int X = 0x4000;
+        inline constexpr int Y = 0x8000;
+
+        /// Synthetic codes for analog triggers treated as digital inputs.
+        inline constexpr int LeftTrigger = 0x10000;
+        inline constexpr int RightTrigger = 0x10001;
+
+        /**
+         * @brief Synthetic codes for thumbstick axes treated as digital inputs.
+         * @details Each direction fires when the axis exceeds the stick deadzone threshold.
+         */
+        inline constexpr int LeftStickUp = 0x10002;
+        inline constexpr int LeftStickDown = 0x10003;
+        inline constexpr int LeftStickLeft = 0x10004;
+        inline constexpr int LeftStickRight = 0x10005;
+        inline constexpr int RightStickUp = 0x10006;
+        inline constexpr int RightStickDown = 0x10007;
+        inline constexpr int RightStickLeft = 0x10008;
+        inline constexpr int RightStickRight = 0x10009;
+
+        /// Default analog trigger threshold (0-255 range, values above are "pressed").
+        inline constexpr int TriggerThreshold = 30;
+
+        /**
+         * @brief Default thumbstick deadzone threshold (0-32767 range).
+         * @details Matches XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE (7849).
+         */
+        inline constexpr int StickThreshold = 7849;
+
+        // UPPER_SNAKE_CASE spellings of the constants above (A, B, X, Y are identical in both spellings).
+        inline constexpr int DPAD_UP = DpadUp;
+        inline constexpr int DPAD_DOWN = DpadDown;
+        inline constexpr int DPAD_LEFT = DpadLeft;
+        inline constexpr int DPAD_RIGHT = DpadRight;
+        inline constexpr int START = Start;
+        inline constexpr int BACK = Back;
+        inline constexpr int LEFT_STICK = LeftStick;
+        inline constexpr int RIGHT_STICK = RightStick;
+        inline constexpr int LEFT_BUMPER = LeftBumper;
+        inline constexpr int RIGHT_BUMPER = RightBumper;
+        inline constexpr int LEFT_TRIGGER = LeftTrigger;
+        inline constexpr int RIGHT_TRIGGER = RightTrigger;
+        inline constexpr int LEFT_STICK_UP = LeftStickUp;
+        inline constexpr int LEFT_STICK_DOWN = LeftStickDown;
+        inline constexpr int LEFT_STICK_LEFT = LeftStickLeft;
+        inline constexpr int LEFT_STICK_RIGHT = LeftStickRight;
+        inline constexpr int RIGHT_STICK_UP = RightStickUp;
+        inline constexpr int RIGHT_STICK_DOWN = RightStickDown;
+        inline constexpr int RIGHT_STICK_LEFT = RightStickLeft;
+        inline constexpr int RIGHT_STICK_RIGHT = RightStickRight;
+        inline constexpr int TRIGGER_THRESHOLD = TriggerThreshold;
+        inline constexpr int STICK_THRESHOLD = StickThreshold;
+    } // namespace GamepadCode
+
+    /**
+     * @namespace WheelCode
+     * @brief Mouse-wheel direction identifiers used by InputSource::MouseWheel codes.
+     * @details Values are 1-based and dense so the input layer can map a code to a zero-based direction index with
+     *          `code - WheelCode::Up`. Up/Down are the vertical wheel; Left/Right are the horizontal (tilt) wheel.
+     */
+    namespace WheelCode
+    {
+        inline constexpr int Up = 1;
+        inline constexpr int Down = 2;
+        inline constexpr int Left = 3;
+        inline constexpr int Right = 4;
+
+        // UPPER_SNAKE_CASE spellings of the constants above.
+        inline constexpr int UP = Up;
+        inline constexpr int DOWN = Down;
+        inline constexpr int LEFT = Left;
+        inline constexpr int RIGHT = Right;
+    } // namespace WheelCode
+
+    /**
+     * @brief Attempts to resolve a human-readable name to an InputCode.
+     * @details Performs case-insensitive matching against a built-in table of known key, mouse button, and gamepad
+     *          button names.
+     *
+     *          Recognized name formats:
+     *          - Keyboard: "A"-"Z", "0"-"9", "F1"-"F24", "Ctrl", "Shift", "Alt",
+     *            "Space", "Enter", "Escape", "Tab", "Backspace", Windows/menu keys ("LWin", "RWin", "Apps"), and OEM
+     *            punctuation ("Grave"/"Backtick"/"Tilde", "Semicolon", "Comma", "Period", "Slash", etc.)
+     *          - Mouse: "Mouse1" (left) through "Mouse5" (XButton2)
+     *          - Mouse wheel: "WheelUp", "WheelDown", "WheelLeft", "WheelRight"
+     *          - Gamepad: "Gamepad_A", "Gamepad_B", "Gamepad_LB", "Gamepad_LT", etc.
+     *          - Source-tagged hex (the inverse of format_input_code's off-table form): "Mouse:0xFE",
+     *            "Gamepad:0x800", "MouseWheel:0x9", "Keyboard:0xFF".
+     *
+     * @param name The input name to resolve.
+     * @return std::optional<InputCode> The resolved code, or std::nullopt if unrecognized.
+     * @note A bare (untagged) hex token such as "0xFF" yields std::nullopt: this resolver handles named keys and
+     *       source-tagged hex only. See format_input_code for the two off-table forms and their reconstruction paths.
+     */
+    [[nodiscard]] std::optional<InputCode> parse_input_name(std::string_view name);
+
+    /**
+     * @brief Returns a human-readable name for an InputCode, if one exists.
+     * @param code The input code to look up.
+     * @return std::string_view The canonical name, or an empty view if not in the table.
+     */
+    [[nodiscard]] std::string_view input_code_to_name(const InputCode &code);
+
+    /**
+     * @brief Formats an InputCode as a human-readable string.
+     * @details Returns the canonical name if the code is in the lookup table. Off-table codes fall back to hex: a
+     *          Keyboard code emits bare hex ("0x72"), while any other source is tagged with its device name
+     *          ("Mouse:0xFE") so the source is not lost. A source-tagged token round-trips through parse_input_name.
+     *          A bare-hex Keyboard token round-trips through the config combo parser used by config::bind_combos,
+     *          whose untagged-hex fallback defaults to the Keyboard source.
+     * @param code The input code to format.
+     * @return std::string Formatted string.
+     */
+    [[nodiscard]] std::string format_input_code(const InputCode &code);
+
+} // namespace DetourModKit
+
+#endif // DETOURMODKIT_INPUT_CODES_HPP

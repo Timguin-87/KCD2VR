@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<kcd_mod><info><name>KCD2VR HUD noletterbox compatibility D74</name>
+<modid>zz_kcd2vr_hud_compat</modid><description>Exact noletterbox 1.9 HUD with KCD2VR compact messages and matching glyph/alchemy-name callbacks. Load after noletterbox and KCD2VR.</description>
+<author>KCD2VR</author><version>74.1</version><created_on>2026-11-01</created_on><modifies_level>false</modifies_level></info>
+<supports><kcd_version>1.*</kcd_version></supports></kcd_mod>

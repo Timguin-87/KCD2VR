@@ -1,0 +1,10 @@
+# V66.100: never replace the user's persisted VRIK or ordinary settings.
+if(NOT DEFINED DEFAULT_INI OR NOT DEFINED TARGET_INI)
+  message(FATAL_ERROR "DEFAULT_INI and TARGET_INI are required")
+endif()
+if(NOT EXISTS "${TARGET_INI}")
+  configure_file("${DEFAULT_INI}" "${TARGET_INI}" COPYONLY)
+  message(STATUS "Created first-run INI: ${TARGET_INI}")
+else()
+  message(STATUS "Preserved existing INI: ${TARGET_INI}")
+endif()

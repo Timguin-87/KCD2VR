@@ -1,0 +1,29 @@
+[
+  {
+    "source": "src/xr_manager.cpp",
+    "function": "bool XrManager::SampleHeadPoseAtTime(",
+    "start_line": 4545,
+    "sha256": "9701ba06e46237fdf959779b63c54ebb89907568c68594bb4401c1fdd23ce727"
+  },
+  {
+    "source": "src/xr_manager.cpp",
+    "function": "bool XrManager::SampleLateHeadPose(",
+    "start_line": 4652,
+    "sha256": "abbedf25f3456cf0e19ac1dd0358ab5f11cfadc9f74f2e9f86b2d186cd6a8811"
+  },
+  {
+    "sources": {
+      "src/xr_manager.cpp": "5a8472d1f2250fdd6dcae956f2cfa82071467757d3cfdf56cdc7e3733a289ee0",
+      "src/camera_hook.cpp": "39d25731bf6a8d5bab035e491b50971ce567e1f253c7d090fe3ba370407e7607",
+      "src/frik_pose_probe.cpp": "20205c1c4411f9b42a5037caa67d0444ad9343eee62960c807b6352899d8c50c",
+      "src/subsystems/vrik/tracking_reader.inl": "0eeb6452898b8d6011bf00c747280dccb7a5c5fcee8e108e547512d7f632381a",
+      "src/subsystems/vrik/tracking_producer.inl": "78247204d8d65b68a81cd1d005f61cf8f979f262cf21817cf83e19c9d044e393",
+      "src/subsystems/base/pose_physical_executor.inl": "e83266f5bf4110c6d0a8c0d5c35e1742e1f05c13fb148b3ba7816cefa4ba2fe7",
+      "src/subsystems/hud_ui_controls/runtime/xr_input.cpp": "8b1c18376489ed220bfd0ae96a8636c00499b3009eee7c3011cfdcff9437cc11",
+      "src/subsystems/hud_ui_controls/runtime/xr_input.h": "68ae3fb823735809c7100e4dad70ffcbf4bf754f04f5b8e9c08d440fb4ffe478"
+    },
+    "early_predicted_body_present": true,
+    "output_sha256": "bc632de267c963279f88c6ddf2967e783cd9cc74d2d358b18ef466722cb1b513",
+    "scope": "Actual complete samplers, literal early publication block, packet transaction/reader/camera publication prefix and physical metadata/held/target statements; OpenXR/native/context/render scheduling leaves controlled."
+  }
+]

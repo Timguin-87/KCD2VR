@@ -17,10 +17,6 @@ public:
     static void SetEnabled(bool enabled) noexcept;
     static bool Enabled() noexcept;
 
-    static std::uint64_t StageCalls() noexcept;
-    static std::uint64_t MrtCalls() noexcept;
-    static std::uint64_t ResourceCandidates() noexcept;
-    static std::uint64_t DepthResourceHits() noexcept;
 
 private:
     using SceneGBufferStageExecuteFunc = void(__fastcall*)(void* self);

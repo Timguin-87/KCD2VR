@@ -1,0 +1,12 @@
+/build*/
+/build*.log
+/dist/
+/delivery/
+__pycache__/
+*.pyc
+*.obj
+*.pdb
+*.ilk
+*.pch
+*.exe
+/EXPORT_MANIFEST.json

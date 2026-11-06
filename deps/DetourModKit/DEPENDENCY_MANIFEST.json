@@ -1,0 +1,288 @@
+{
+  "variant": "reviewed adapter capacity128",
+  "library_sha256": "c01dfd67d2a72bfb7fc5a8666f6bcd8dad93d530dafe5afcf7fdbcf9f02f6e54",
+  "files": [
+    {
+      "path": "include/DetourModKit/abi/wheel_host.h",
+      "sha256": "1720d5f7f25f668c5601e031bf0a5ab0d86bef89dc7d16b7eea7d4a93f3ca162",
+      "bytes": 18363
+    },
+    {
+      "path": "include/DetourModKit/address.hpp",
+      "sha256": "9bd54dce7fa275d83383f7be4df8aeabe4eb31ff3646e40e23a5277388226a66",
+      "bytes": 9879
+    },
+    {
+      "path": "include/DetourModKit/anchor.hpp",
+      "sha256": "1373583208ee56e664e3975fce8f3a64026e544b95ccd36f125e4dcff9082925",
+      "bytes": 39862
+    },
+    {
+      "path": "include/DetourModKit/async_logger_config.hpp",
+      "sha256": "0a65ec6f9e33e90711182b623117f6556fc53a4342e510f50495a41d63ae635e",
+      "bytes": 6084
+    },
+    {
+      "path": "include/DetourModKit/config.hpp",
+      "sha256": "78e952256cc60ea5c75e31d04b558c7496fbb5c962667a8ba932f6745e2cf7fb",
+      "bytes": 35254
+    },
+    {
+      "path": "include/DetourModKit/defines.hpp",
+      "sha256": "3aacad1a2cde75ebf918ce502dce32f2e1c00c65ad58aea39fd05b09fbe63945",
+      "bytes": 7994
+    },
+    {
+      "path": "include/DetourModKit/detail/drift_manifest.hpp",
+      "sha256": "a26a1f8f2e6dcf4f95929c6ce8e0c12d1b497f4ce57699db11eefecc9128ea94",
+      "bytes": 5419
+    },
+    {
+      "path": "include/DetourModKit/detail/event_dispatcher.hpp",
+      "sha256": "b7166a45dec0b5a427be65d5539b0f885bdf35079068969321879990ed8894db",
+      "bytes": 43280
+    },
+    {
+      "path": "include/DetourModKit/detail/pattern_core.hpp",
+      "sha256": "2a1be3a0d980fdddd664638d3dd92a482cd63b18f52e7aec8808d3741f4898ed",
+      "bytes": 36837
+    },
+    {
+      "path": "include/DetourModKit/detail/profile_ring.hpp",
+      "sha256": "21a7276df4350e22aa832ba50183881167db21ab8c90fa9f31bfc6177e7153ca",
+      "bytes": 19084
+    },
+    {
+      "path": "include/DetourModKit/detail/worker.hpp",
+      "sha256": "0dafc5ca12897f0846c53acb26fd0bc6a3ab5134a593393156a9a93588611715",
+      "bytes": 4930
+    },
+    {
+      "path": "include/DetourModKit/diagnostics.hpp",
+      "sha256": "bb828f88369616f701e217637b99be6c23e38fe1c25681d956981d84417f119a",
+      "bytes": 17813
+    },
+    {
+      "path": "include/DetourModKit/error.hpp",
+      "sha256": "7406de5680da0e0fd3244833ecee9d6636fea8a41105984fd44a5257877ecdf2",
+      "bytes": 35318
+    },
+    {
+      "path": "include/DetourModKit/filesystem.hpp",
+      "sha256": "775baeec4dc3d0e32c202af86b8b14dcc2dd67a550bedba3303faeb5fd4b7283",
+      "bytes": 2364
+    },
+    {
+      "path": "include/DetourModKit/format.hpp",
+      "sha256": "eddb84b5c7aa12acc9d1dbdaaf1cc34156cb3a748bf332e2099bdbbec0ae0155",
+      "bytes": 8456
+    },
+    {
+      "path": "include/DetourModKit/hook.hpp",
+      "sha256": "8eca4a2bc3b3d12458b98a296c5d282abed2a232ea6e7a863ad15cd3499e02b2",
+      "bytes": 72759
+    },
+    {
+      "path": "include/DetourModKit/input.hpp",
+      "sha256": "3e0f156758bf7317e008d9f9c5867373f75cf7beb306ec0bbea0710d4c63f359",
+      "bytes": 44504
+    },
+    {
+      "path": "include/DetourModKit/input_codes.hpp",
+      "sha256": "540865054342c656f9712ce331ff48a2ab2c889185507b30b88e3272c73345f2",
+      "bytes": 11438
+    },
+    {
+      "path": "include/DetourModKit/logger.hpp",
+      "sha256": "546044a233e0d9a61cac541f637db6e188dadb28c9390d0e2967e01c611d8f91",
+      "bytes": 42423
+    },
+    {
+      "path": "include/DetourModKit/manifest.hpp",
+      "sha256": "fe5138196e8b62ca6768b9567cb2bfc5b6f5dfa03407cbacb678030439961d73",
+      "bytes": 57395
+    },
+    {
+      "path": "include/DetourModKit/math.hpp",
+      "sha256": "70e753e7ce1ca0621a0d5a25a6730fa53ebe3e6bbea083a2124cd441f6dbc938",
+      "bytes": 776
+    },
+    {
+      "path": "include/DetourModKit/memory.hpp",
+      "sha256": "ab9e6fa3f70c0572e255c864b263f6efdafc5c7b3b1c4a90964f744fc3f98f30",
+      "bytes": 54677
+    },
+    {
+      "path": "include/DetourModKit/profiler.hpp",
+      "sha256": "3d4d1422701abb4e8cbedfde17d243e63099edf6bef20f6695f2d59ad33c64eb",
+      "bytes": 11494
+    },
+    {
+      "path": "include/DetourModKit/region.hpp",
+      "sha256": "25898184123a40f5230b9174379f03df4065f57e340553893ebb31bce0781644",
+      "bytes": 6933
+    },
+    {
+      "path": "include/DetourModKit/rtti.hpp",
+      "sha256": "23d4a1cb36c15c05ad04a55d31609d81402fc8cb3edc316907207a012fc3f597",
+      "bytes": 30523
+    },
+    {
+      "path": "include/DetourModKit/rtti_dissect.hpp",
+      "sha256": "3ec7d4b9ec72c342ad8787324ca5a71c4144a4153cc62c26aa882ac63b0dcd70",
+      "bytes": 38368
+    },
+    {
+      "path": "include/DetourModKit/scan.hpp",
+      "sha256": "e33caf2cd383a72a1e12c5983118d523b86917d08902a489ba6145a99618192c",
+      "bytes": 78228
+    },
+    {
+      "path": "include/DetourModKit/session.hpp",
+      "sha256": "e4fb17e3756c6967b5c5a81541c5f4296e14ad3b85e7205484e9eb711c3db13d",
+      "bytes": 21626
+    },
+    {
+      "path": "include/DetourModKit/sighealth.hpp",
+      "sha256": "7aa3226b8d986975cada9de8c208634c5009460a821229c482ca88fb702a172d",
+      "bytes": 23734
+    },
+    {
+      "path": "include/DetourModKit/version.hpp",
+      "sha256": "9d63c7fb150f13bfdccaf2df4878406caf4f2ba39c6058c2ca55d202c6e1abcb",
+      "bytes": 1124
+    },
+    {
+      "path": "include/DetourModKit.hpp",
+      "sha256": "48fd7aebb5981d5b63f2f2a0df2a68a02dba9afaeb14015ad705ff8118631f82",
+      "bytes": 1642
+    },
+    {
+      "path": "include/DirectXMath/DirectXCollision.h",
+      "sha256": "57024179c5e050c423c58ad128242f39bb06fc54d4e72c54eedad567bb2719f2",
+      "bytes": 18112
+    },
+    {
+      "path": "include/DirectXMath/DirectXCollision.inl",
+      "sha256": "a67dc6a2ff69f47d5e1e8612df0d79f575c7dd0e115c574c435cb40320a44c57",
+      "bytes": 200089
+    },
+    {
+      "path": "include/DirectXMath/DirectXColors.h",
+      "sha256": "ab3c008ce73863986e0498d412df14ef43be13d2259aaa8bad0f8479f3bc8709",
+      "bytes": 28688
+    },
+    {
+      "path": "include/DirectXMath/DirectXMath.h",
+      "sha256": "72bb679d4074b12b151f131ba2b984dd66306a8a74ea48eb0a4d9df8666f8b7d",
+      "bytes": 133739
+    },
+    {
+      "path": "include/DirectXMath/DirectXMathConvert.inl",
+      "sha256": "8c3e5d3be914c5e05354776920c35741bb75a8d7bd5d35c26cd792b79942f793",
+      "bytes": 82613
+    },
+    {
+      "path": "include/DirectXMath/DirectXMathMatrix.inl",
+      "sha256": "f4efbe5061806bfaabd5f22d4f69cce5f65c0fd42d4221c65cf092bcfaf33439",
+      "bytes": 122200
+    },
+    {
+      "path": "include/DirectXMath/DirectXMathMisc.inl",
+      "sha256": "972d2d34da86f2383bc0426455e06466509fb1f7cb5e77fa8a5e5a436d8c5192",
+      "bytes": 82442
+    },
+    {
+      "path": "include/DirectXMath/DirectXMathVector.inl",
+      "sha256": "7fb28b06016ac1ec85c5be26e2cdc382f4302604652e85924eaa3b7af7d3256a",
+      "bytes": 550316
+    },
+    {
+      "path": "include/DirectXMath/DirectXPackedVector.h",
+      "sha256": "97dd0d0f96cfb94ce9e52174585badb2c0586a3a52b03a70cf905af9755f53a0",
+      "bytes": 51516
+    },
+    {
+      "path": "include/DirectXMath/DirectXPackedVector.inl",
+      "sha256": "c6a77d29bc62d782c547c6953c60c972d81f9563a90be08e900b198e7176df48",
+      "bytes": 172164
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitAbi.cmake",
+      "sha256": "fe679b5506ede9a63bbe43523944c262d2d5e196ced2e8fe06e0fb6406b105d4",
+      "bytes": 1377
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitConfig.cmake",
+      "sha256": "f9492b59ad4c0e197ecf03ce239e055b1fbc77eecf9b2e78ea40ed9b380df4e3",
+      "bytes": 12755
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitConfigVersion.cmake",
+      "sha256": "c434ff7afecefc0283e3b0b9743a8cab043cb9c67b8fb7aad287d5373eca59d1",
+      "bytes": 2827
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitTargets-release.cmake",
+      "sha256": "ab4ff59fcee3fefb582aa8909ddc11eb96c7a0f8eb8b2878650cb06122dc96b1",
+      "bytes": 938
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitTargets.cmake",
+      "sha256": "5b0ff4b7d6e9fef8d1e48f8fd1b79e12c4b667586663c0904c148d3797cba096",
+      "bytes": 4579
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitWheelHostTargets-release.cmake",
+      "sha256": "ddfcd08727cb2bd1d47600056c05dfafcf61d577e0e160b3c30322b87fab1553",
+      "bytes": 941
+    },
+    {
+      "path": "lib/cmake/DetourModKit/DetourModKitWheelHostTargets.cmake",
+      "sha256": "cb16ff5b1c582e6a83efe0e44e57daf195f8bfb57268ff3c74a4c9a9856aa017",
+      "bytes": 4374
+    },
+    {
+      "path": "lib/libDetourModKit.lib",
+      "sha256": "c01dfd67d2a72bfb7fc5a8666f6bcd8dad93d530dafe5afcf7fdbcf9f02f6e54",
+      "bytes": 117009442
+    },
+    {
+      "path": "lib/libDetourModKitWheelHost.lib",
+      "sha256": "126ff0b3f074066b782b3af775e8e977bdbc567c7afc35620a441747fa0bcc6d",
+      "bytes": 243144
+    },
+    {
+      "path": "lib/safetyhook.lib",
+      "sha256": "ca68ddc1f97270ca6666d62173b609c4091cb422e1e2917363d2b384d36c9db4",
+      "bytes": 4810604
+    },
+    {
+      "path": "lib/Zycore.lib",
+      "sha256": "898dfa7e4a00338784f68696e8edd0a6de0b59164345dfce3e405249e6af5a2d",
+      "bytes": 652938
+    },
+    {
+      "path": "lib/Zydis.lib",
+      "sha256": "832c920f1bab34df68ebb7c8ef1c507ffbe5ee13342b92c6ec864a6e8fbb6235",
+      "bytes": 3321288
+    },
+    {
+      "path": "share/doc/DetourModKit/DetourModKit_Acknowledgements.txt",
+      "sha256": "08f9eb30581f5734166f038face54a2df966d3599c155e7d4dc5900f0f565e96",
+      "bytes": 5924
+    },
+    {
+      "path": "share/doc/DetourModKit/LICENSE",
+      "sha256": "740512a438ece06429d9845cbe89158db7b517428805aea9f0dd2d27c58d2b2a",
+      "bytes": 1100
+    },
+    {
+      "path": "share/doc/DetourModKit/README.md",
+      "sha256": "a98586adfe17390345b51df91bd6036948702ca0d03e44a28d2e1b64d971c4cb",
+      "bytes": 34644
+    }
+  ],
+  "original_review": "DMK_PRIVATE_CAPACITY128_20261024",
+  "runtime": "exact MSVC x64 package used by reviewed Windows link"
+}

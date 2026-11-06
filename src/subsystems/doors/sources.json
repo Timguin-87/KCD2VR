@@ -1,0 +1,4 @@
+[
+  "src/door_signal19c4r4.cpp",
+  "src/subsystems/doors/module.cpp"
+]

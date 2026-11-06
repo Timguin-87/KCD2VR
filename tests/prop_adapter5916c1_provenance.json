@@ -1,0 +1,11 @@
+{
+  "source": "src/vrik/staged_pickup596c2.inl",
+  "source_sha256": "2a4f3fc2b0a0e38f4a6e9c2517049fceec13f5692da6d4c22c0a037d25155310",
+  "consumer_sha256": "51406141e3c4e8eeed31f31351ef47f34bd7cc07325c79840afa966203f4ba66",
+  "generated_sha256": {
+    "prop_adapter5916c1.inc": "554e004e1e89cebeec2e822b89b2b2f5a4ec3564d82a3f8ca2690c192c4a770f",
+    "pickup_build_d78.inc": "3b663c169a2c0f73438318b217ce9922410cf5584b44ea60c165f59c257f36d3",
+    "small_pickup_d81.inc": "e70770fd3f298ca4ac01298b1990a5270be833cbe1dfed79414052fc80475337"
+  },
+  "native_leaves": "explicit host spies; no native physics execution"
+}

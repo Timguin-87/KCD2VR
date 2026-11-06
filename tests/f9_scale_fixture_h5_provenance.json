@@ -1,0 +1,10 @@
+{
+  "sourceInputs": {
+    "tests/native_weapon_body_t4_test.cpp": "3b3968471dfd06c20c43137344ac1a7cec3d9351b231e62be171817a8ad517d2",
+    "tests/native_held_capture63_test.cpp": "e0cbe081fc0c6d27056bca410f05c61eb2d444ddf86e6832e00ad1547c5617e4",
+    "src/subsystems/physics/native_held_owner_t4.inl": "c59ee9bc9697ba2d238071db1b731e695b94b1707d5860ad987436167d3414bf",
+    "src/subsystems/physics/runtime/native_weapon_body_t4.cpp": "2e5b2d153c9aa7f8fce8cf0abffa1234dcd8a0244ddadfb83eaf1eb973744734"
+  },
+  "generatedCanonicalUtf8LfSha256": "b1ec92cdf71bce4e44e94f3afb18353b1265ae68cf17fbb6681d8f5618ce2a40",
+  "scope": "Reuse exact actual backend .cpp, generated actual Capture functions and original native-provider/setup code. Only providers changed: use supplied Matrix34 instead of identity; phase native source-ID leaves compare actual Capture output instead of hardcoded sentinel pointers; remove duplicated backend public API stubs. Original fixture mains not executed; production decisions not rewritten."
+}

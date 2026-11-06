@@ -1,0 +1,2 @@
+void SetGuardEntry178r29(float maxSpeed,unsigned dwellMs) noexcept {g_guard_enter_speed178r29.store(maxSpeed,std::memory_order_relaxed);melee_tuning_c54::guardEntrySpeed.store(maxSpeed);g_guard_enter_dwell178r29.store(dwellMs,std::memory_order_relaxed);}
+void SetGuardExitSpeed178r45(float speed) noexcept {g_guard_exit_speed178r45.store(speed,std::memory_order_relaxed);melee_tuning_c54::guardReleaseSpeed.store(speed);}

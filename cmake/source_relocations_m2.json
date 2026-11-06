@@ -1,0 +1,21 @@
+{
+  "src/held_map_m1.cpp": "src/subsystems/vrmap/runtime/held_map_m1.cpp",
+  "src/held_map_feed_t2.cpp": "src/subsystems/vrmap/runtime/held_map_feed_t2.cpp",
+  "src/dialogue_camera_override.cpp": "src/subsystems/dialogues/runtime/dialogue_camera_override.cpp",
+  "src/npc_lookat_hmd.cpp": "src/subsystems/dialogues/runtime/npc_lookat_hmd.cpp",
+  "src/action_map_probe.cpp": "src/subsystems/hud_ui_controls/runtime/action_map_probe.cpp",
+  "src/flashui_probe.cpp": "src/subsystems/hud_ui_controls/runtime/flashui_probe.cpp",
+  "src/hud_layer_v6664.cpp": "src/subsystems/hud_ui_controls/runtime/hud_layer_v6664.cpp",
+  "src/hud_xml_mod.cpp": "src/subsystems/hud_ui_controls/runtime/hud_xml_mod.cpp",
+  "src/native_input_look_lab.cpp": "src/subsystems/hud_ui_controls/runtime/native_input_look_lab.cpp",
+  "src/native_vr_pad_premap.cpp": "src/subsystems/hud_ui_controls/runtime/native_vr_pad_premap.cpp",
+  "src/prompt_device_lock.cpp": "src/subsystems/hud_ui_controls/runtime/prompt_device_lock.cpp",
+  "src/shop_state_probe.cpp": "src/subsystems/hud_ui_controls/runtime/shop_state_probe.cpp",
+  "src/touch_bindings.cpp": "src/subsystems/hud_ui_controls/runtime/touch_bindings.cpp",
+  "src/ui_menu_camera59c2.cpp": "src/subsystems/hud_ui_controls/runtime/ui_menu_camera59c2.cpp",
+  "src/ui_menu_input.cpp": "src/subsystems/hud_ui_controls/runtime/ui_menu_input.cpp",
+  "src/ui_native_state.cpp": "src/subsystems/hud_ui_controls/runtime/ui_native_state.cpp",
+  "src/xr_input.cpp": "src/subsystems/hud_ui_controls/runtime/xr_input.cpp",
+  "src/native_weapon_body_t4.cpp": "src/subsystems/physics/runtime/native_weapon_body_t4.cpp",
+  "src/native_weapon_clearance_t4.cpp": "src/subsystems/physics/runtime/native_weapon_clearance_t4.cpp"
+}

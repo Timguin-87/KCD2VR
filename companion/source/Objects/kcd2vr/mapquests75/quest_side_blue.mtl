@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Material MtlFlags="524544" vertModifType="0"><SubMaterials><Material Name="proxy" Shader="NoDraw" MtlFlags="525440" /><Material Name="native_map_ink" Shader="Illum" MtlFlags="524416" Diffuse="1,1,1" Specular="0,0,0" Opacity="1" AlphaTest="0.2" Shininess="1" GenMask="0" StringGenMask=""><Textures><Texture File="Libs/UI/Textures/Icons/Map/quest_side_blue_icon.dds" Map="Diffuse" /></Textures><PublicParams /></Material></SubMaterials></Material>

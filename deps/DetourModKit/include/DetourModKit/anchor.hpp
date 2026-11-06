@@ -1,0 +1,683 @@
+#ifndef DETOURMODKIT_ANCHOR_HPP
+#define DETOURMODKIT_ANCHOR_HPP
+
+/**
+ * @file anchor.hpp
+ * @brief Declarative anchor registry: one table that resolves a mod's patch-fragile constants and reports drift.
+ * @details Declares patch-fragile values once, resolves them through the existing scan/RTTI backends, and reports
+ *          one machine-readable drift table. Missing or contradictory evidence fails closed; Quorum can require
+ *          N-of-M independent agreement, while Manual remains the explicit pinned fallback.
+ * @warning `[B-100]` Under the loader lock, call only the Callback-safe trust and quality queries. Resolution can
+ *          allocate, query loader state, scan memory, or create threads.
+ */
+
+#include "DetourModKit/error.hpp"
+#include "DetourModKit/region.hpp"
+#include "DetourModKit/scan.hpp"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
+namespace DetourModKit
+{
+    namespace anchor
+    {
+        /**
+         * @enum AnchorKind
+         * @brief Which backend resolves an anchor, and therefore how update-resilient it is.
+         * @details When a target can be expressed more than one way, prefer the most update-resilient backend:
+         *          ExportName > StringXref > VtableIdentity > RipGlobal > CodeOperand, with a Quorum voting over
+         *          several of those raising confidence further and Manual as the last resort. A named export is a
+         *          module's documented ABI; a string literal and a mangled type name survive game patches far better
+         *          than the code bytes and addresses around them.
+         */
+        enum class AnchorKind : std::uint8_t
+        {
+            /// A class vtable address, keyed on its mangled name, via @ref rtti::vtable_for_type.
+            VtableIdentity,
+            /// An absolute address (Direct or RIP-relative candidate cascade), via @ref scan::resolve.
+            RipGlobal,
+            /// An in-code immediate or `[reg + disp]` displacement, via @ref scan::read_code_constant.
+            CodeOperand,
+            /**
+             * @brief The instruction (or enclosing function) that references an immutable string literal, via
+             *        @ref scan::find_string_xref.
+             */
+            StringXref,
+            /// A pinned literal with no backend; reported as at-risk because it cannot self-heal.
+            Manual,
+            /**
+             * @brief Reserved for a future prologue-dataflow backend (a call argument to its register/stack home).
+             *        Declaring it now keeps a registry table forward-compatible; it currently reports
+             *        @ref AnchorStatus::Unsupported.
+             */
+            CallArgHome,
+            /**
+             * @brief A corroborated value accepted only when at least N of M independent sub-anchors resolve and agree
+             *        (N-of-M voting).
+             */
+            Quorum,
+            /**
+             * @brief A named export resolved by walking its module's PE Export Address Table, via
+             *        @ref scan::resolve_export. Uses @ref Anchor::export_name and the optional
+             *        @ref Anchor::export_module (an empty module resolves within the resolve scope).
+             */
+            ExportName,
+            /**
+             * @brief No backend: the fail-closed default for an anchor whose @ref Anchor::kind was never set. An
+             *        aggregate table entry that omits the kind reports @ref AnchorStatus::Failed instead of a trusted
+             *        address 0.
+             */
+            Unset
+        };
+
+        /// The number of @ref AnchorKind enumerators; sizes the per-kind deny-list in @ref ScanProfile.
+        inline constexpr std::size_t ANCHOR_KIND_COUNT = 9;
+        static_assert(
+            static_cast<std::size_t>(AnchorKind::Unset) + 1 == ANCHOR_KIND_COUNT,
+            "ANCHOR_KIND_COUNT must track the AnchorKind enumerator count."
+        );
+
+        /**
+         * @enum QuorumMatch
+         * @brief The agreement policy a @ref AnchorKind::Quorum applies when deciding whether two resolved member
+         *        values count as one vote for the same target.
+         */
+        enum class QuorumMatch : std::uint8_t
+        {
+            /// Two member values agree only when identical (the default, strongest policy).
+            ExactValue,
+            /**
+             * @brief Two member values agree when their gap is at most @ref Anchor::quorum_tolerance; a negative
+             *        tolerance fails closed (never accepts). The pairwise-independence gate prevents a false
+             *        near-value cluster from two members that decode adjacent bytes.
+             */
+            WithinTolerance
+        };
+
+        /**
+         * @enum AnchorStatus
+         * @brief The outcome of resolving one anchor.
+         */
+        enum class AnchorStatus : std::uint8_t
+        {
+            /// The initial state written into an untouched slot; a resolved report never leaves this in place.
+            Unresolved,
+            /// The backend resolved a value and every applicable validator/corroboration check passed.
+            Resolved,
+            /**
+             * @brief The backend missed, a validator rejected the value, a denied backend was requested, or a quorum
+             *        disagreed; no value is invented (fail closed).
+             */
+            Failed,
+            /// The kind has no resolver yet (@ref AnchorKind::CallArgHome).
+            Unsupported,
+            /// A quorum's members were not all pairwise-independent evidence, so corroboration would be meaningless.
+            QuorumNotIndependent,
+            /**
+             * @brief A quorum reached its threshold for two or more values that do not agree with each other, so no
+             *        single value is corroborated. Declaration order must not silently pick a winner, so the vote
+             *        fails closed.
+             */
+            QuorumAmbiguous
+        };
+
+        /**
+         * @brief A post-resolve validator predicate: returns false to fail an otherwise-resolved anchor closed.
+         * @details Runs on the resolved value just before it is accepted. Returning false resets the value to 0 and
+         *          sets @ref AnchorStatus::Failed, identical to a backend miss, so the caller re-heals by re-resolving.
+         *          Use it to assert a domain invariant a generic backend cannot know (the target lies in an expected
+         *          sub-range, a displacement points into `.rdata`, the site begins with a plausible prologue).
+         * @param value The resolved value (an address cast to int64, an in-code constant, or the manual literal).
+         * @param context The opaque @ref Anchor::validator_context pointer, forwarded verbatim (nullptr if unused).
+         */
+        using AnchorValidator = bool (*)(std::int64_t value, const void *context) noexcept;
+
+        /**
+         * @struct Anchor
+         * @brief One declarative registry entry: what to resolve, how, and how to verify it. Authored as a static
+         *        table.
+         * @details A flat aggregate authored with designated initializers, so a table lists only the fields its kind
+         *          uses and leaves the rest defaulted. The active field set depends on @ref kind; other kinds' fields
+         *          are ignored. All views (@ref label, @ref mangled, @ref site, @ref xref_text) are non-owning and must
+         *          outlive the resolve call. The canonical use is a `static constexpr`/`static const` table whose
+         *          storage lives for the process.
+         */
+        struct Anchor
+        {
+            /// Identifier echoed into the @ref ResolvedAnchor; excluded from @ref anchor_fingerprint.
+            std::string_view label;
+            /// Which backend resolves this anchor. Defaults to @ref AnchorKind::Unset so an omitted kind fails closed.
+            AnchorKind kind = AnchorKind::Unset;
+
+            /// VtableIdentity: the MSVC mangled type name, e.g. ".?AVGameAudioEffect@engine@@".
+            std::string_view mangled;
+
+            /**
+             * @brief RipGlobal / CodeOperand: the candidate ladder resolving to the address or the instruction site.
+             *        Borrowed.
+             */
+            std::span<const scan::Candidate> site;
+            /// CodeOperand: whether to read an immediate or a memory-operand displacement.
+            scan::OperandKind operand_kind = scan::OperandKind::Immediate;
+            /// CodeOperand: index into the instruction's VISIBLE operands.
+            std::uint8_t operand_index = 0;
+            /// CodeOperand: 0 preserves the decoded value; 1 through 8 narrows non-RIP low bytes and sign-extends.
+            std::uint8_t byte_width = 0;
+
+            /// StringXref: the exact literal content to anchor on (no quotes). Borrowed.
+            std::string_view xref_text;
+            /// StringXref: byte encoding of the literal in the image (Utf16le for wchar_t literals).
+            scan::StringEncoding xref_encoding = scan::StringEncoding::Utf8;
+            /// StringXref: whether to return the referencing instruction, its enclosing function, or the pointer slot.
+            scan::XrefReturn xref_return = scan::XrefReturn::ReferencingInstruction;
+            /// StringXref: match a trailing NUL so a prefix of a longer literal is not matched.
+            bool xref_require_terminator = true;
+            /// StringXref: keep the lea/mov shape scan and add the broad Zydis sweep for rarer reference shapes.
+            bool xref_broad_match = false;
+
+            /// Manual: the pinned literal value, taken as-is (unless @ref validate_manual runs the validator on it).
+            std::int64_t manual_value = 0;
+
+            /**
+             * @brief Optional post-resolve predicate; nullptr skips validation. Never applied to Manual unless
+             *        @ref validate_manual, nor to CallArgHome; for a Quorum it runs once on the corroborated value.
+             */
+            AnchorValidator validator = nullptr;
+            /// Opaque pointer forwarded verbatim to @ref validator.
+            const void *validator_context = nullptr;
+            /// Run @ref validator on a Manual anchor too, instead of taking the pinned literal unchecked.
+            bool validate_manual = false;
+            /**
+             * @brief Reject a backend-resolvable anchor that carries no @ref validator (status Failed). Only the five
+             *        backend kinds (VtableIdentity, RipGlobal, CodeOperand, StringXref, ExportName) are subject to
+             *        this:
+             *        a pinned Manual literal and a Quorum are both exempt. A Manual is not a resolved target, and a
+             *        Quorum's N-of-M corroboration is already the verification.
+             */
+            bool require_validator = false;
+
+            /**
+             * @brief Quorum: the M candidate sub-anchors that vote on the target. Non-owning pointers into the caller's
+             *        own anchor storage; every member must outlive the resolve call. The quorum fails closed (status
+             *        @ref AnchorStatus::Failed) on a malformed declaration - fewer than two members, a null member, or
+             *        a member that is itself a Quorum (nesting is bounded to one level).
+             */
+            std::span<const Anchor *const> quorum_members;
+            /**
+             * @brief Quorum: N, the minimum number of members that must resolve AND agree for the quorum to accept
+             *        (N-of-M voting). 0 (the default) means unanimous: every member in @ref quorum_members must
+             *        agree, so a two-member quorum with the default is the strict 2-of-2 corroboration. A quorum is
+             *        corroboration, so an explicit N below 2 or above the member count is a malformed vote and fails
+             *        the quorum closed rather than degrading to a single signal.
+             * @details Vote semantics: each resolved member value is a candidate center, and a center qualifies when
+             *          at least N resolved votes agree with it. Two qualified centers that disagree yield
+             *          @ref AnchorStatus::QuorumAmbiguous. Otherwise the vote commits the smallest qualified center,
+             *          independent of member order. Under @ref QuorumMatch::WithinTolerance agreement is measured
+             *          against that center, so the accepted members can span up to two tolerances.
+             */
+            std::size_t quorum_threshold = 0;
+            /// Quorum: how two resolved member values must relate for a vote to count them as agreeing.
+            QuorumMatch quorum_match = QuorumMatch::ExactValue;
+            /// Quorum: the tolerance for @ref QuorumMatch::WithinTolerance (a negative tolerance fails closed).
+            std::int64_t quorum_tolerance = 0;
+
+            /**
+             * @brief RipGlobal: page-protection class the byte-tier ladder scans. The @ref scan::Pages::Readable
+             *        default lets a Direct rung resolve a plain global in `.rdata` / `.data`. Set
+             *        @ref scan::Pages::Executable when every rung anchors on an in-image instruction. A byte twin in a
+             *        data page then cannot demote a unique resolve to a fail-closed ambiguity. Ignored by CodeOperand
+             *        and non-scan kinds.
+             */
+            scan::Pages pages = scan::Pages::Readable;
+
+            /**
+             * @brief ExportName: the module whose Export Address Table holds the export, e.g. "kernel32.dll". Empty
+             *        (the default) resolves the export within the same @p scope the anchor is resolved against, so an
+             *        anchor on the scanned module's own export needs no module name. A non-empty name is looked up
+             *        through @ref Region::module_named at resolve time, so an ExportName in a foreign module (one
+             *        independent of the table's shared scan scope) resolves correctly. Borrowed; ignored by every other
+             *        kind.
+             */
+            std::string_view export_module;
+            /// ExportName: the exact, case-sensitive export symbol name (no decoration), e.g. "Sleep". Borrowed.
+            std::string_view export_name;
+        };
+
+        /**
+         * @enum ResultDomain
+         * @brief What a resolved anchor's value IS, so a binding cannot mutate through an incompatible target.
+         * @details From @ref declared_domain: a mid-hook binding needs a @ref CodeSite, a VMT binding a
+         *          @ref VtableAddress, an address / pointer-chain write a real address (CodeSite or DataAddress). A
+         *          @ref Scalar is a constant, not an address, and authorizes no write; @ref Unknown is the fail-closed
+         *          default an unresolved or unsupported entry keeps.
+         */
+        enum class ResultDomain : std::uint8_t
+        {
+            /// A failed, unresolved, or unsupported entry: no resolved target. Authorizes no mutation.
+            Unknown,
+            /// An executable instruction site (an inline-hook or mid-hook target).
+            CodeSite,
+            /// A non-executable data address (a global variable or a resolved pointer slot).
+            DataAddress,
+            /// A class vtable base, keyed on its type identity (a VMT-hook target).
+            VtableAddress,
+            /// A decoded constant, not an address (a code immediate / displacement or a pinned Manual literal).
+            Scalar
+        };
+
+        /**
+         * @enum PhysicalSource
+         * @brief The normalized evidence backend that produced a resolved value.
+         */
+        enum class PhysicalSource : std::uint8_t
+        {
+            /// No resolved value (failed, unsupported, or unresolved).
+            None,
+            /// A Direct / RIP-relative byte-signature cascade (an @ref AnchorKind::RipGlobal).
+            ByteSignature,
+            /// A string-literal cross-reference (an @ref AnchorKind::StringXref).
+            StringLiteral,
+            /// A reverse-RTTI vtable identity (an @ref AnchorKind::VtableIdentity).
+            TypeIdentity,
+            /// A PE export-table walk (an @ref AnchorKind::ExportName).
+            ExportTable,
+            /// A decoded in-code immediate or displacement (an @ref AnchorKind::CodeOperand).
+            CodeOperand,
+            /// A pinned Manual literal with no backend (an @ref AnchorKind::Manual).
+            ManualPin,
+            /// A value corroborated by N-of-M voting (an @ref AnchorKind::Quorum), with no single physical source.
+            Corroborated
+        };
+
+        /**
+         * @enum WitnessCompleteness
+         * @brief Whether a resolved value came from a complete, authoritative view of its scope.
+         * @details A truncated or unauthoritative sweep fails before it can produce @ref Complete.
+         */
+        enum class WitnessCompleteness : std::uint8_t
+        {
+            /// No assessable completeness (the entry did not resolve).
+            Unknown,
+            /// Resolved over a complete, authoritative view of the scope.
+            Complete
+        };
+
+        /**
+         * @struct ResolvedWitness
+         * @brief The image, source, and completeness evidence carried by a resolved anchor.
+         * @details Populated only on @ref AnchorStatus::Resolved. Scalar values carry no image identity.
+         */
+        struct ResolvedWitness
+        {
+            /**
+             * @brief Identity of the module owning the resolved address; absent for a Scalar or synthetic address.
+             * @details Copies the accepted value-owner identity. Missing identity or owner/mapping drift through
+             *          validation, quorum voting, or commit yields @ref AnchorStatus::Failed with no witness.
+             */
+            scan::ImageIdentity image{};
+            /// The normalized backend that produced the value.
+            PhysicalSource source = PhysicalSource::None;
+            /// For a @ref PhysicalSource::CodeOperand, which operand field was decoded; otherwise unused.
+            scan::OperandKind operand_kind = scan::OperandKind::Immediate;
+            /// Whether the resolve saw a complete, authoritative view.
+            WitnessCompleteness completeness = WitnessCompleteness::Unknown;
+            /**
+             * @brief The literal bytes of the span the winning byte-pattern rung matched; absent for every other kind.
+             * @details Present only when @ref AnchorKind::RipGlobal wins on a byte-pattern rung. Structural rungs
+             *          and scalar results carry no matched span.
+             */
+            scan::WinningEvidence evidence{};
+        };
+
+        /**
+         * @struct ResolvedAnchor
+         * @brief One resolved entry in the drift report: the anchor's identity plus its outcome and value.
+         * @details The report array is the drift report itself: walk it once at init to log what resolved, what failed,
+         *          and what is a pinned Manual literal and therefore at risk. @ref value is meaningful only when
+         *          @ref status is @ref AnchorStatus::Resolved, and carries the quantity interpreted per @ref kind (a
+         *          vtable or global address cast to int64, an in-code constant, or the manual literal).
+         */
+        struct ResolvedAnchor
+        {
+            /**
+             * @brief A borrowed view of @ref Anchor::label, not an owned copy: it aliases the source anchor's storage
+             *        and shares its lifetime. Valid only while that anchor (canonically a `static` table entry that
+             *        lives for the process) outlives the report; copy into owned storage before the source can end.
+             */
+            std::string_view label;
+            /// Copied from @ref Anchor::kind.
+            AnchorKind kind = AnchorKind::Unset;
+            /// The resolution outcome.
+            AnchorStatus status = AnchorStatus::Unresolved;
+            /// The resolved quantity, meaningful only when @ref status is @ref AnchorStatus::Resolved.
+            std::int64_t value = 0;
+            /**
+             * @brief What @ref value is, for binding-compatibility gating (see @ref ResultDomain). Set from
+             *        @ref declared_domain when the entry resolves; @ref ResultDomain::Unknown otherwise.
+             */
+            ResultDomain domain = ResultDomain::Unknown;
+            /**
+             * @brief The resolved value's semantic-site witness; empty unless @ref status is Resolved.
+             */
+            ResolvedWitness witness{};
+        };
+
+        /**
+         * @struct AnchorQuality
+         * @brief A one-pass robustness summary of a drift report, for gating "is this manifest healthy enough to run?".
+         */
+        struct AnchorQuality
+        {
+            /// Total entries in the report.
+            std::size_t total = 0;
+            /// Entries that resolved.
+            std::size_t resolved = 0;
+            /// Entries that failed closed.
+            std::size_t failed = 0;
+            /// Entries whose kind has no resolver yet (CallArgHome).
+            std::size_t unsupported = 0;
+            /// Quorum entries rejected because their sub-anchors were not independent.
+            std::size_t not_independent = 0;
+            /// Pinned Manual literals that cannot self-heal (counted regardless of status).
+            std::size_t manual_at_risk = 0;
+            /// Corroborated quorums that resolved (the strongest evidence).
+            std::size_t corroborated = 0;
+        };
+
+        /**
+         * @enum GateVerdict
+         * @brief The startup decision a drift report yields: enable, enable-with-caution, or safe-disable.
+         * @details `[B-51]` The verdict lets a mod disable a feature before it uses unverified addresses. It prevents a
+         *          low-quality log followed by a game-memory patch.
+         */
+        enum class GateVerdict : std::uint8_t
+        {
+            /// Healthy enough to enable outright: the resolve ratio met the threshold and no at-risk signal fired.
+            Pass,
+            /**
+             * @brief Resolved above the threshold, but a soft signal (a pinned Manual literal that cannot self-heal,
+             *        or a report with nothing assessable) marks the resolution at-risk. The caller decides how to
+             *        treat the risk.
+             */
+            Degraded,
+            /**
+             * @brief Below the threshold - too few anchors resolved, or too many failed. Safe-disable the feature
+             *        rather than run it on addresses the manifest could not verify.
+             */
+            Fail
+        };
+
+        /**
+         * @struct GatePolicy
+         * @brief The thresholds that turn an @ref AnchorQuality summary into a @ref GateVerdict. Defaults fail closed.
+         * @details A plain value with no global state, so a mod can hold one policy per feature (a cosmetic overlay can
+         *          tolerate a lower ratio than a frame-time camera patch that writes a live pointer). The defaults are
+         *          the strictest: every resolvable anchor must heal and nothing may fail.
+         */
+        struct GatePolicy
+        {
+            /**
+             * @brief Minimum fraction, in [0, 1], of RESOLVABLE anchors (@ref AnchorQuality::total minus the
+             *        unsupported @ref AnchorKind::CallArgHome kind) that must resolve for the gate to pass. A
+             *        caller-supplied value outside [0, 1] is clamped; NaN is treated as the strict default. The default
+             *        1.0 requires every resolvable anchor to heal.
+             */
+            double min_resolved_ratio = 1.0;
+            /**
+             * @brief Hard cap on non-resolving failures (@ref AnchorQuality::failed plus @ref
+             *        AnchorQuality::not_independent); exceeding it fails the gate regardless of the ratio. The default
+             *        0 tolerates no failure.
+             */
+            std::size_t max_failed = 0;
+            /**
+             * @brief When true (the default), any counted @ref AnchorQuality::manual_at_risk entry downgrades an
+             *        otherwise-passing verdict to @ref GateVerdict::Degraded, because a Manual literal cannot
+             *        self-heal across a patch.
+             */
+            bool manual_at_risk_degrades = true;
+        };
+
+        /**
+         * @brief Turns a drift-report robustness summary into a startup enable/disable decision.
+         * @param quality The summary from @ref assess_quality (or @ref diagnostics::Snapshot::anchor_quality).
+         * @param policy The thresholds; the default policy fails closed (every resolvable anchor must heal, zero
+         *               failures tolerated).
+         * @return @ref GateVerdict::Fail when the report is below the threshold (safe-disable the feature), @ref
+         *         GateVerdict::Degraded when it resolved but carries a soft risk, else @ref GateVerdict::Pass.
+         * @details For feature-granular gating, gate a sub-span of a shared report. The ratio denominator excludes
+         *          the unsupported @ref AnchorKind::CallArgHome kind, which has no resolver. Every resolvable entry
+         *          that did not resolve (a Failed anchor, a QuorumNotIndependent one, an untouched Unresolved slot)
+         *          stays in the denominator, so a partial resolve fails closed. A report with nothing to assess is
+         *          @ref GateVerdict::Degraded, never a false Pass. A hand-built @ref AnchorQuality whose status
+         *          counts exceed @ref AnchorQuality::total fails closed to @ref GateVerdict::Fail.
+         * @note Callback-safe: pure threshold arithmetic over @p quality, allocation-free and side-effect-free.
+         */
+        [[nodiscard]] GateVerdict evaluate_gate(const AnchorQuality &quality, const GatePolicy &policy = {}) noexcept;
+
+        /**
+         * @brief Summarizes a drift report and gates it in one call.
+         * @param report The @ref ResolvedAnchor array (or a per-feature sub-span) produced by a resolve_all variant.
+         * @param policy The gate thresholds.
+         * @return The gate verdict for @p report under @p policy; equivalent to
+         *         `evaluate_gate(assess_quality(report), policy)`.
+         * @note Callback-safe: one allocation-free tally pass plus the threshold arithmetic.
+         */
+        [[nodiscard]] GateVerdict
+        evaluate_gate(std::span<const ResolvedAnchor> report, const GatePolicy &policy = {}) noexcept;
+
+        /**
+         * @brief Maps a @ref GateVerdict to a short human-readable label.
+         * @param verdict The verdict.
+         * @return A static string view naming the verdict.
+         */
+        [[nodiscard]] std::string_view gate_verdict_to_string(GateVerdict verdict) noexcept;
+
+        /**
+         * @struct ScanProfile
+         * @brief A per-game bundle of setup-only scan-tuning DEFAULTS, applied as a plain value with no global state.
+         * @details It supplies defaults only: an explicit per-anchor choice still wins, so wiring a profile never
+         *          overrides an explicit setting. The plain @ref resolve / @ref resolve_all are equivalent to resolving
+         *          with an empty profile.
+         */
+        struct ScanProfile
+        {
+            /**
+             * @brief Widen the broad string-xref sweep on for StringXref anchors. It can only widen: a per-anchor
+             *        @ref Anchor::xref_broad_match still wins, so this never forces broad mode off.
+             */
+            bool default_broad_string_xref = false;
+            /// The candidate ordering applied to RipGlobal / CodeOperand ladders (reuses the scan module's policy).
+            scan::CandidateOrder candidate_order = scan::CandidateOrder::AsDeclared;
+            /// A per-@ref AnchorKind deny-list. A denied backend fails closed (never silently replaced by another).
+            std::array<bool, ANCHOR_KIND_COUNT> deny_backend{};
+
+            /**
+             * @brief Reports whether @p kind's backend is denied by this profile.
+             * @param kind The anchor kind to test.
+             * @return true when the kind is in range and its deny-list slot is set.
+             */
+            [[nodiscard]] bool is_denied(AnchorKind kind) const noexcept
+            {
+                const auto index = static_cast<std::size_t>(kind);
+                return index < deny_backend.size() && deny_backend[index];
+            }
+        };
+
+        /**
+         * @brief Applies a profile's string-xref defaults to a query, widening broad-match only.
+         * @param profile The profile whose defaults to apply.
+         * @param query The base query (typically built from an anchor's xref_* fields).
+         * @return The query with @ref ScanProfile::default_broad_string_xref folded in (widen-only: an already-broad
+         *         query stays broad, never downgraded).
+         */
+        [[nodiscard]] scan::StringRefQuery
+        apply_profile(const ScanProfile &profile, scan::StringRefQuery query) noexcept;
+
+        /**
+         * @brief Resolves one anchor through its backend, fail-closed.
+         * @param anchor The anchor to resolve.
+         * @param scope One module image or reserved allocation to resolve within; defaults to the host executable.
+         *              Scoping is load-bearing: the same vtable name or instruction shape can exist in several loaded
+         *              modules, so a scope-backed anchor fails closed when the range crosses allocation boundaries.
+         * @return A @ref ResolvedAnchor carrying the outcome and (on success) the value.
+         * @details Rechecks the scope's single-allocation identity through commit, including scope-backed quorum
+         *          members. An explicit ExportName module may differ from the common scope.
+         * @note Setup/control-plane only: the resolve runs its backend scan, which can allocate and walk pages.
+         */
+        [[nodiscard]] ResolvedAnchor resolve(const Anchor &anchor, Region scope = Region::host());
+
+        /**
+         * @brief Resolves a table of anchors serially, writing one @ref ResolvedAnchor per input.
+         * @param anchors The anchor table.
+         * @param out The report buffer; at most `min(anchors.size(), out.size())` entries are written.
+         * @param scope The module image to resolve within.
+         * @return The number of entries written.
+         * @note Setup/control-plane only (see @ref resolve).
+         */
+        [[nodiscard]] std::size_t
+        resolve_all(std::span<const Anchor> anchors, std::span<ResolvedAnchor> out, Region scope = Region::host());
+
+        /**
+         * @brief Resolves a table of independent anchors concurrently through a fork-join worker pool.
+         * @param anchors The anchor table.
+         * @param out The report buffer; at most `min(anchors.size(), out.size())` entries are written, in input order.
+         * @param scope The module image to resolve within.
+         * @param max_workers Upper bound on worker threads (0 = auto-select from hardware_concurrency, clamped).
+         * @return The number of entries written.
+         * @details Each anchor still goes through the single-anchor @ref resolve path, so backend failures, validators,
+         *          quorum checks, and result ordering all match @ref resolve_all. It is opt-in because validators run
+         *          concurrently; use the serial @ref resolve_all when a validator context is order-dependent or must be
+         *          externally serialized.
+         * @note Setup/control-plane only: spawns a worker pool. Never call it from a hook or under the loader lock.
+         */
+        [[nodiscard]] std::size_t resolve_all_parallel(
+            std::span<const Anchor> anchors,
+            std::span<ResolvedAnchor> out,
+            Region scope = Region::host(),
+            std::size_t max_workers = 0
+        );
+
+        /**
+         * @brief Rolls a drift report into an @ref AnchorQuality summary in one allocation-free pass (no re-resolve).
+         * @param report The @ref ResolvedAnchor array produced by a resolve_all variant.
+         * @return The tallied summary.
+         * @note Callback-safe: one allocation-free tally pass over @p report.
+         */
+        [[nodiscard]] AnchorQuality assess_quality(std::span<const ResolvedAnchor> report) noexcept;
+
+        /**
+         * @brief Hashes an anchor's resolution EVIDENCE into a stable 64-bit diff key, excluding the resolved address.
+         * @param anchor The anchor to fingerprint.
+         * @return A 64-bit FNV-1a hash of the declarative inputs the backend uses.
+         * @details The fingerprint excludes the resolved address, the cosmetic @ref Anchor::label, and the candidate
+         *          names, so it stays stable when only the address drifts. Persist it next to each resolved value. A
+         *          moved value with the same fingerprint is self-healed drift. A changed fingerprint means that the
+         *          signature itself changed and needs a new review. A byte tier hashes the
+         *          compiled Pattern's bytes, mask, and decode parameters. A Quorum combines every member's evidence
+         *          order-independently and folds in the effective vote threshold, agreement mode, and tolerance. It
+         *          reads only the declarative views, resolves nothing, and allocates nothing.
+         * @note Callback-safe: allocation-free and side-effect-free (see @ref anchor_trust_fingerprint).
+         */
+        [[nodiscard]] std::uint64_t anchor_fingerprint(const Anchor &anchor) noexcept;
+
+        /**
+         * @brief Hashes an anchor's definition evidence together with its effective live-image identity.
+         * @param anchor The anchor to fingerprint.
+         * @param scope_identity The @ref scan::ImageIdentity of the module the anchor effectively resolves against
+         *                       (@ref scan::image_identity of that module).
+         * @return A 64-bit scope-bound trust key.
+         * @details ASLR does not affect the key. For @ref AnchorKind::ExportName, the effective identity replaces the
+         *          declared module spelling so inherited and explicit spellings of the same module agree.
+         * @note Callback-safe: allocation-free and side-effect-free.
+         */
+        [[nodiscard]] std::uint64_t
+        anchor_trust_fingerprint(const Anchor &anchor, scan::ImageIdentity scope_identity) noexcept;
+
+        /**
+         * @brief Maps an @ref AnchorStatus to a short human-readable label.
+         * @param status The status.
+         * @return A static string view naming the status.
+         */
+        [[nodiscard]] std::string_view anchor_status_to_string(AnchorStatus status) noexcept;
+
+        /**
+         * @brief The @ref ResultDomain an anchor is declared to resolve, for binding-compatibility gating.
+         * @param anchor The anchor.
+         * @return The domain implied by @ref Anchor::kind: a VtableIdentity is a VtableAddress, a CodeOperand or Manual
+         *         a Scalar, a StringXref a CodeSite (a DataAddress for a StringPointerSlot return), an ExportName
+         *         provisionally a CodeSite, a RipGlobal a CodeSite only when @ref Anchor::pages narrows it to
+         *         executable pages (else a DataAddress), and a Quorum the single specific domain its members agree on
+         *         (Unknown when they conflict, or for CallArgHome / Unset). @ref ResolvedAnchor::domain follows the
+         *         live page class instead: a code-site kind committed at a non-executable address is stamped
+         *         @ref ResultDomain::DataAddress. Allocation-free and side-effect-free.
+         */
+        [[nodiscard]] ResultDomain declared_domain(const Anchor &anchor) noexcept;
+
+        /**
+         * @brief Maps a @ref ResultDomain to a short human-readable label.
+         * @param domain The domain.
+         * @return A static string view naming the domain.
+         */
+        [[nodiscard]] std::string_view result_domain_to_string(ResultDomain domain) noexcept;
+
+        /**
+         * @brief Maps a @ref PhysicalSource to a short human-readable label.
+         * @param source The physical source.
+         * @return A static string view naming the source.
+         */
+        [[nodiscard]] std::string_view physical_source_to_string(PhysicalSource source) noexcept;
+
+        /**
+         * @brief Resolves one anchor with a profile's defaults applied (deny-list, candidate order, broad-string
+         * widen).
+         * @param anchor The anchor to resolve.
+         * @param profile The per-game defaults. A denied backend fails closed; the profile threads into Quorum
+         *                 sub-anchors, so a denied sub-anchor kind fails the quorum closed.
+         * @param scope The module image to resolve within.
+         * @return A @ref ResolvedAnchor carrying the outcome and (on success) the value.
+         * @note Setup/control-plane only (see @ref resolve).
+         */
+        [[nodiscard]] ResolvedAnchor
+        resolve_with_profile(const Anchor &anchor, const ScanProfile &profile, Region scope = Region::host());
+
+        /**
+         * @brief Resolves a table serially with a profile's defaults applied.
+         * @param anchors The anchor table.
+         * @param out The report buffer; at most `min(anchors.size(), out.size())` entries are written.
+         * @param profile The per-game defaults.
+         * @param scope The module image to resolve within.
+         * @return The number of entries written.
+         * @note Setup/control-plane only (see @ref resolve).
+         */
+        [[nodiscard]] std::size_t resolve_all_with_profile(
+            std::span<const Anchor> anchors,
+            std::span<ResolvedAnchor> out,
+            const ScanProfile &profile,
+            Region scope = Region::host()
+        );
+
+        /**
+         * @brief Resolves a table concurrently with a profile's defaults applied.
+         * @param anchors The anchor table.
+         * @param out The report buffer; at most `min(anchors.size(), out.size())` entries are written, in input order.
+         * @param profile The per-game defaults.
+         * @param scope The module image to resolve within.
+         * @param max_workers Upper bound on worker threads (0 = auto-select).
+         * @return The number of entries written.
+         * @note Setup/control-plane only: spawns a worker pool. Never call it from a hook or under the loader lock.
+         */
+        [[nodiscard]] std::size_t resolve_all_with_profile_parallel(
+            std::span<const Anchor> anchors,
+            std::span<ResolvedAnchor> out,
+            const ScanProfile &profile,
+            Region scope = Region::host(),
+            std::size_t max_workers = 0
+        );
+    } // namespace anchor
+} // namespace DetourModKit
+
+#endif // DETOURMODKIT_ANCHOR_HPP

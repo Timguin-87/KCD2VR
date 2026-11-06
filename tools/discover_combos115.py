@@ -1,0 +1,137 @@
+"""Read-only combo catalogue from the user's retail tables/localization.
+
+Preserves both localization text columns and raw recipe attributes: prose,
+GuardZone and AttackType are different evidence, not interchangeable input IDs.
+No game loading, native calls, generated runtime policy or success-state writes.
+"""
+import argparse
+from collections import Counter
+import hashlib
+import json
+from pathlib import Path
+import xml.etree.ElementTree as ET
+import zipfile
+
+
+def discover(game):
+    provenance = []
+
+    def read(archive, member):
+        with zipfile.ZipFile(game / archive) as z:
+            data = z.read(member)
+        provenance.append(dict(archive=archive, member=member, bytes=len(data),
+                               sha256=hashlib.sha256(data).hexdigest()))
+        return ET.fromstring(data)
+
+    def table(name):
+        return read('Data/Tables.pak', 'Libs/Tables/' + name + '.xml')
+
+    recipes = table('combat/CombatCombos__generated').findall('.//CombatCombo')
+    links = table('rpg/perk_combat_technique').findall('.//perk_combat_technique')
+    perks = table('rpg/perk__combat').findall('.//perk')
+    zone_rows = table('combat/combat_zone').findall('.//combat_zone')
+    input_rows = table('combat/combat_input_class').findall('.//combat_input_class')
+    loc_rows = read('Localization/English_xml.pak', 'text_ui_soul.xml').findall('Row')
+    localization = {}
+    for row in loc_rows:
+        cells = [''.join(c.itertext()) for c in row.findall('Cell')]
+        if len(cells) < 2:
+            raise ValueError('Localization row without key/text')
+        if cells[0] in localization:
+            raise ValueError('Duplicate localization key: ' + cells[0])
+        localization[cells[0]] = cells[1:]
+
+    def unique_index(rows, key):
+        result = {}
+        for row in rows:
+            value = row.attrib[key]
+            if value in result:
+                raise ValueError('Duplicate ' + key + ': ' + value)
+            result[value] = dict(row.attrib)
+        return result
+
+    techniques = unique_index(links, 'combat_technique_id')
+    perk_by_id = unique_index(perks, 'perk_id')
+    zones = unique_index(zone_rows, 'combat_zone_id')
+    combos, keys, used_techniques = [], set(), set()
+    for recipe in recipes:
+        attributes = dict(recipe.attrib)
+        # Cxx alone is not unique across equipment groups.
+        key = (attributes['Id'], attributes['RightWeapon'], attributes['LeftWeapon'])
+        if key in keys:
+            raise ValueError('Duplicate equipment-qualified recipe: ' + repr(key))
+        keys.add(key)
+        technique = attributes['CombatTechniqueId']
+        perk = perk_by_id[techniques[technique]['perk_id']]
+        used_techniques.add(technique)
+        steps = [dict(s.attrib) for s in recipe.findall('./CombatComboSteps/CombatComboStep')]
+        if not steps:
+            raise ValueError('Empty recipe: ' + repr(key))
+        for step in steps:
+            if step['GuardZone'] not in zones:
+                raise ValueError('Unknown zone: ' + repr(step))
+        text = {}
+        for field in ('perk_ui_name', 'perk_ui_desc', 'perk_ui_lore_desc'):
+            loc_key = perk[field]
+            text[field] = dict(key=loc_key, text_columns=localization[loc_key])
+        combos.append(dict(recipe=attributes, steps=steps, perk=perk, localization=text))
+
+    return dict(
+        schema=1, provenance=provenance,
+        summary=dict(recipes=len(combos),
+                     by_equipment_group=dict(sorted(Counter(c['recipe']['UIGroup'] for c in combos).items())),
+                     all_recipes_resolve_technique_perk_and_text=True),
+        combat_zones=list(zones.values()),
+        combat_input_classes=[dict(r.attrib) for r in input_rows],
+        combos=combos,
+        technique_links_without_recipe=[techniques[k] for k in sorted(set(techniques) - used_techniques)],
+        limits=[
+            'This inventories the supplied base archives; it does not resolve installed mod/patch load order.',
+            'Both localization text columns are retained; they sometimes disagree, including direction and strike type.',
+            'An omitted recipe attribute is omitted here, not assigned a guessed engine default.',
+            'GuardZone, AttackType, IsCharged and UseSolver describe recipe data, not a callable input ABI.',
+            'Recipe/perk presence does not prove Henry has learned it or can execute it now.',
+            'The master_strike_combat_zone_id table relation is not a runtime eligibility or success flag.',
+            'Names such as Headbutt cannot substitute for motion evidence; the associated prose can describe a different action.',
+            'No opponent body-region transforms, hit acceptance, combo completion or perfect-block window are recovered here.',
+        ])
+
+
+def render(report):
+    lines = [
+        '# Retail combo catalogue: static evidence', '',
+        'Generated by `tools/discover_combos115.py` from the supplied game archives. '
+        'This is research data, not implemented VR controls or proof of live eligibility.', '',
+        'The table displays the final localization text column for readability; '
+        '`combo_assets.json` preserves every text column, exact perk/technique IDs, '
+        'all recipe attributes and source hashes. Descriptions and recipe types can disagree. '
+        'An empty attribute is not an inferred default.', '',
+        '| Equipment group | Recipe | Display name | Ordered GuardZone values | Final-step attributes | Description |',
+        '|---|---|---|---|---|---|',
+    ]
+
+    def cell(value):
+        return str(value).replace('|', '\\|').replace('\r', ' ').replace('\n', ' ')
+
+    for combo in report['combos']:
+        recipe, loc, steps = combo['recipe'], combo['localization'], combo['steps']
+        values = [recipe['UIGroup'], recipe['Id'], loc['perk_ui_name']['text_columns'][-1],
+                  ' -> '.join(s['GuardZone'] for s in steps),
+                  ', '.join(f'{k}={v}' for k, v in steps[-1].items()),
+                  loc['perk_ui_desc']['text_columns'][-1]]
+        lines.append('| ' + ' | '.join(cell(v) for v in values) + ' |')
+    lines += ['', '## Limits', '']
+    lines += ['- ' + limit for limit in report['limits']]
+    return '\n'.join(lines) + '\n'
+
+
+if __name__ == '__main__':
+    p = argparse.ArgumentParser()
+    p.add_argument('--game', type=Path, required=True)
+    p.add_argument('--out', type=Path, required=True)
+    args = p.parse_args()
+    result = discover(args.game)
+    args.out.mkdir(parents=True, exist_ok=True)
+    (args.out / 'combo_assets.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+    (args.out / 'combo_catalogue.md').write_text(render(result), encoding='utf-8')
+    print(json.dumps(result['summary'], indent=2))

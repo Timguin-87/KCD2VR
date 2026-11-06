@@ -1,0 +1,6 @@
+// C26e: the VR menu book skin is built INTO the DLL (no MIS_MENU_BOOK.bmp file needed any more).
+// CMake configure_file writes the absolute asset path, so rc.exe finds it from any build directory.
+#include "@KCD2VR_SRC_DIR@/src/resource_ids26.h"
+IDB_KCD2VR_MENU_BOOK BITMAP "@KCD2VR_SRC_DIR@/assets/MIS_MENU_BOOK.bmp"
+// R118: default KCD2VR.ini built into the DLL (raw bytes, RCDATA). Written only when the game folder has no KCD2VR.ini.
+IDR_KCD2VR_DEFAULT_INI RCDATA "@KCD2VR_SRC_DIR@/KCD2VR.ini"

@@ -1,0 +1,12 @@
+{
+  "Libs/UI/hud.gfx": "92957cc4e93556dbfdc7e78abbb1373f37cf6da9adbd0eda3e7c1937a893e440",
+  "Libs/UI/Menu.gfx": "a929e9b9e13d042bc093eeba167c151ea67dea0be466087af2e28ddda6672bba",
+  "Libs/UI/ItemSelection.gfx": "677c4ae6b2de21d03c803d940bc5fb885a1416fdbc903efdfa143ab65b238c97",
+  "Libs/UI/ItemTransfer.gfx": "45d8a202e873e9af69153f4c58191c6617ec73424fcfc539d41eb92ec63ab5fe",
+  "Libs/UI/ApseMap.gfx": "cf14511572f29d61bbddf861a28e1d02330c14f3b950787acae30afdc8fc4279",
+  "Libs/UI/ApseModalDialog.gfx": "6cee85487f901619a76fae62da558df5fdb928f1b868e16d65c002c435910f72",
+  "Libs/UI/ApsePlayerInfo.gfx": "3fda43244f8bd7d1a9210a5ce029b15c3e182098c02e7bcfacd6d4f222f3539a",
+  "Libs/UI/GameOver.gfx": "bedc3cb424ed458f8535bf5c3a0602291e2675eabb7361c26b769e25a505756f",
+  "Libs/UI/buttons.gfx": "46f7a5e28a4bcf6e7635203bb5e7bda653a623f5a755eab48f81cd4999ad8dfc",
+  "Libs/UI/UIElements/HUD.xml": "1d6887549bba6f8a82cf3cfdc86dbd0c99f4693f1f6dd7b81143833bc72afc04"
+}

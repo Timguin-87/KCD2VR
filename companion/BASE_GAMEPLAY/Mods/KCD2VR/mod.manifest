@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<kcd_mod>
+	<info>
+		<name>KCD2VR Companion</name>
+		<modid>kcdvr</modid>
+		<description>C66 unified companion: preserved native combat tables, map, controls/dialogue; hand-owned native door animation protocol1966/revision66; gated lab protocol1 and finite opt-in throwing prototypes. Requires matching C66 ASI. Replaces older separate KCD2VR, KCD2VRDoors, KCD2VRMap, kcd2vr_lab and KCD2VRThrowingAssets installations. Gore remains separate. T6: native inventory starter once (5 daggers and 3 compact native axes), independent of right-hip visibility; save-owned claimed receipts are never reset or refilled. No ASI or native door protocol change.</description>
+		<author>KCD2VR</author>
+		<version>66.178.66</version>
+		<created_on>2026-10-11</created_on>
+		<modifies_level>false</modifies_level>
+	</info>
+	<supports>
+		<kcd_version>1.*</kcd_version>
+	</supports>
+</kcd_mod>

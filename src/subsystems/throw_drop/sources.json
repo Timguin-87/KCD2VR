@@ -1,0 +1,4 @@
+[
+  "src/subsystems/throw_drop/module.cpp",
+  "src/subsystems/throw_drop/runtime/grip_stow_cb1.cpp"
+]

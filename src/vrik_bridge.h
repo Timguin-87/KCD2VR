@@ -27,8 +27,6 @@ public:
     static void Update(XrManager& xr);
     static Target Left();
     static Target Right();
-    static ArmChain LeftArm();
-    static ArmChain RightArm();
 
 private:
     static std::atomic<bool> enabled_;

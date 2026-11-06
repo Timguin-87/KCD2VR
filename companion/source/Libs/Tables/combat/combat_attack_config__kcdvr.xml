@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="barbora" xsi:noNamespaceSchemaLocation="../database.xsd">
+	<combat_attack_configs version="1">
+		<!-- KCD2VR C33: R3 = the special attack input. Armed, it maps to zone 5 like the retail fist config 18,
+		     so the kick rows (attack type 4, aZ5) are the ones the game can pick. -->
+		<combat_attack_config combat_attack_config_id="102" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="4" r_weapon_class_id="4" />
+		<combat_attack_config combat_attack_config_id="103" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="7" r_weapon_class_id="7" />
+		<combat_attack_config combat_attack_config_id="104" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="-1" r_weapon_class_id="0" />
+		<combat_attack_config combat_attack_config_id="105" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="-1" r_weapon_class_id="6" />
+		<combat_attack_config combat_attack_config_id="106" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="8" r_weapon_class_id="4" />
+		<combat_attack_config combat_attack_config_id="107" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="-1" r_combat_weapon_group_id="1" r_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="108" combat_input_class_id="2" combat_zone_id="5" l_weapon_class_id="8" r_combat_weapon_group_id="1" r_weapon_class_id="-1" />
+			<combat_attack_config combat_attack_config_id="109" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="3" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="110" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="5" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="111" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="6" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="112" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="3" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="113" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="5" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="114" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="6" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="115" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="1" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="116" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="2" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="117" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="4" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="118" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="16" l_weapon_class_id="11" />
+		<combat_attack_config combat_attack_config_id="119" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="1" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="120" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="2" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="121" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="16" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="122" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="1" l_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="123" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="2" l_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="124" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="4" l_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="125" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="16" l_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="126" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="3" l_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="127" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="5" l_weapon_class_id="-1" />
+		<combat_attack_config combat_attack_config_id="128" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="9" />
+		<combat_attack_config combat_attack_config_id="129" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="9" l_weapon_class_id="9" />
+		<combat_attack_config combat_attack_config_id="130" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="10" />
+		<combat_attack_config combat_attack_config_id="131" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="10" l_weapon_class_id="10" />
+		<combat_attack_config combat_attack_config_id="132" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="14" />
+		<combat_attack_config combat_attack_config_id="133" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="14" l_weapon_class_id="14" />
+		<combat_attack_config combat_attack_config_id="134" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="15" />
+		<combat_attack_config combat_attack_config_id="135" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="15" l_weapon_class_id="15" />
+		<combat_attack_config combat_attack_config_id="136" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="13" l_weapon_class_id="12" />
+		<combat_attack_config combat_attack_config_id="137" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="13" l_weapon_class_id="13" />
+		<combat_attack_config combat_attack_config_id="138" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="0" />
+		<combat_attack_config combat_attack_config_id="139" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="8" />
+		<combat_attack_config combat_attack_config_id="140" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="12" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="141" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="3" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="142" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="5" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="143" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="6" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="144" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="1" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="145" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="2" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="146" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="4" l_weapon_class_id="17" />
+		<combat_attack_config combat_attack_config_id="147" combat_input_class_id="2" combat_zone_id="5" r_weapon_class_id="16" l_weapon_class_id="17" />
+	</combat_attack_configs>
+</database>

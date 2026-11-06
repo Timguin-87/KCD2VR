@@ -1,0 +1,1045 @@
+{
+  "schema": 1,
+  "source_archive": "IPL gamedata.pak(10).zip",
+  "source_sha256": "302036f184b25a9357d361d7eab02c27f7657db69e89050b6bc473b48d6d1910",
+  "scope": "All 28 UIElements XML definitions found in the supplied IPL gamedata archive; not a claim of every runtime screen/page or installed mod.",
+  "policy_notice": "Metadata is extracted evidence; VR roles below are explicit implementation choices. Native visibility and renderer behavior still require runtime acceptance.",
+  "elements": [
+    {
+      "element": "AlchemyBook",
+      "kind": "AlchemyBook",
+      "role": "WorldTexture",
+      "rationale": "Book surface at the alchemy station; no automatic pointer/menu claim.",
+      "xml_sha256": "762ab03cb619edb21d9fe3298a306a46f6ad34da3ea28fb7e15e4778abc9cf06",
+      "gfx_sha256": "ddb59d86e4a478e2a28234f4caf4ab4e91245171d4b5e99758e32f48a2f038f8",
+      "native_attributes": {
+        "name": "AlchemyBook",
+        "lazy_update": "0"
+      },
+      "gfx": {
+        "file": "AlchemyBook.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0"
+      },
+      "position_constraints": {
+        "width": "256",
+        "height": "256"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseCharacter",
+      "kind": "Character",
+      "role": "ApseRoot",
+      "rationale": "Character page in native APSE hub.",
+      "xml_sha256": "cb5c2a8ba60c056ea96f4f24d03e3af8f4c8d636861d21877e1060b645c915d9",
+      "gfx_sha256": "39ab16fe3db40529613b4e606d6bd0f7c955e4ec7b2460221a04fc5b28403f6c",
+      "native_attributes": {
+        "name": "ApseCharacter",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseCharacter.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseCodexList",
+      "kind": "CodexList",
+      "role": "ApseRoot",
+      "rationale": "Codex list can establish APSE hub focus; content is a child.",
+      "xml_sha256": "06ad9d1096d74e84c794a5eaa859a5438c0628db0821808154156bc8f5abdfa3",
+      "gfx_sha256": "3b782072ae0bb46d0a47126b1568ec739e542dc90b9e68889048117d52e1b88d",
+      "native_attributes": {
+        "name": "ApseCodexList",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseCodexList.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseCraftingContent",
+      "kind": "CraftContent",
+      "role": "ApseChild",
+      "rationale": "Shared crafting/codex content; never independently infer crafting focus.",
+      "xml_sha256": "20b2bc7f042227d05f636a1827e9c67983b5d2fe734d3e29cf773a102cbfd59d",
+      "gfx_sha256": "0eb740a48f5f5c9031d5a5f4750371d37ad43224fdc24924b545432147b4b65f",
+      "native_attributes": {
+        "name": "ApseCraftingContent",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseCraftingContent.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseCraftingList",
+      "kind": "CraftList",
+      "role": "CraftRoot",
+      "rationale": "Selection-list visibility, not crafting activity or a book texture alone.",
+      "xml_sha256": "d83bb5c5d394afcfaca604c2811d25452ef47455b428303ceb98907700a486c1",
+      "gfx_sha256": "cd7eb050543f9e1b85031cc605cbfe74a4cbef0cbeb0cf3937b8bd59473f439b",
+      "native_attributes": {
+        "name": "ApseCraftingList",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseCraftingList.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseInventoryInfo",
+      "kind": "InventoryInfo",
+      "role": "ApseChild",
+      "rationale": "Information companion; do not keep a menu open from this alone.",
+      "xml_sha256": "c67fb639033a54fed1eae5b31399161ef48071d15991edc709216f77cec85201",
+      "gfx_sha256": "bf4d99f3f6524728a4f93cf1aa6505cc5003542dd8c30ed25dca2ce0ab75e7ad",
+      "native_attributes": {
+        "name": "ApseInventoryInfo",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseInventoryInfo.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "1024",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          20480,
+          0,
+          40960
+        ],
+        "width": 1024.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseInventoryList",
+      "kind": "Inventory",
+      "role": "ApseRoot",
+      "rationale": "Inventory tab; preserve completed APSE composition.",
+      "xml_sha256": "a280c77a28d8ccb05c22762b84683f06d1d6127dc73259e763550062f9117877",
+      "gfx_sha256": "489b21fe8b30bc2e757471b5b3ae180ff2d62a3205d42637ffb5968a354592f1",
+      "native_attributes": {
+        "name": "ApseInventoryList",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseInventoryList.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseMap",
+      "kind": "Map",
+      "role": "ApseRoot",
+      "rationale": "Native map page; not a declaration that every map texture is a physical map.",
+      "xml_sha256": "320131af7dddf4fda8a6c18dc481451b82710c47b5c62696571ec0ab85ef5443",
+      "gfx_sha256": "c886643f6afe323bdb12699f744c61b1bd540b3cd0d2e019afd492019286ac17",
+      "native_attributes": {
+        "name": "ApseMap",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseMap.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "4096",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          81920,
+          0,
+          40960
+        ],
+        "width": 4096.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseMapLegendList",
+      "kind": "MapLegend",
+      "role": "ApseChild",
+      "rationale": "Map companion; no independent menu lifetime.",
+      "xml_sha256": "641a590d0b4079e552b6ab399ca5e6809f5fa1b36aed12c36f70a3a29c4448ab",
+      "gfx_sha256": "e48d0af83791a11fa5b3a7169c2f811fc82d7df413afdcd073d04318dd3c8ea0",
+      "native_attributes": {
+        "name": "ApseMapLegendList",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseMapLegendList.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "1024",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          20480,
+          0,
+          40960
+        ],
+        "width": 1024.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseModalDialog",
+      "kind": "Modal",
+      "role": "Modal",
+      "rationale": "Inherit parent presentation; own interactive focus only while observed visible.",
+      "xml_sha256": "cfc35498c71546f9264effd700f3f3817b9b3a8dad1380bb4fd3e205ea281507",
+      "gfx_sha256": "7e3ec05a423e8c6f4f3ac9f1159dbe38d60638f8413b9c9b4d8b280dd8cffaa2",
+      "native_attributes": {
+        "name": "ApseModalDialog",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseModalDialog.gfx",
+        "layer": "36"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "ApsePlayerInfo",
+      "kind": "PlayerInfo",
+      "role": "ApseChild",
+      "rationale": "Player information companion; no independent menu lifetime.",
+      "xml_sha256": "c96d6eb83088ddff01e952f6c465a7431c9bf8e9ce4f92a04c932f408d377f3f",
+      "gfx_sha256": "d091e8bf7d4476915b5c56e33db06000965b4fb9848f8e576edaf02c40c5652c",
+      "native_attributes": {
+        "name": "ApsePlayerInfo",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApsePlayerInfo.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "1024",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          20480,
+          0,
+          40960
+        ],
+        "width": 1024.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApsePlayerList",
+      "kind": "PlayerList",
+      "role": "ApseRoot",
+      "rationale": "Player/perks/reputation page in APSE hub.",
+      "xml_sha256": "c9337df6978e180098d114cb36ed892ee1c3f5392c34fcf30355e926c43e303a",
+      "gfx_sha256": "cabd997c676081953d82dff9b73a515a5ee274daaf500e197380a4de5d923487",
+      "native_attributes": {
+        "name": "ApsePlayerList",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApsePlayerList.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseQuestLogDiary",
+      "kind": "QuestDiary",
+      "role": "ApseChild",
+      "rationale": "Diary companion; root list controls APSE lifetime.",
+      "xml_sha256": "a1f09a5f17d103f5d06165ce43c57b24706827435af42562259c2ebf9be57630",
+      "gfx_sha256": "aa3c80a5da5744ff970d7bd7aedbfdae011c59f784c2efab761d2dc3caaae6ab",
+      "native_attributes": {
+        "name": "ApseQuestLogDiary",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseQuestLogDiary.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ApseQuestLogList",
+      "kind": "QuestList",
+      "role": "ApseRoot",
+      "rationale": "Quest list page in APSE hub.",
+      "xml_sha256": "f8ff9e556c9819cb8ebfacb3a18e901fda42c5340fad83edff142f1a0fa680cf",
+      "gfx_sha256": "a5c3de94dc24e0a0872315a79034bdf69686d2b2901a76dbf577e13677c8d5a4",
+      "native_attributes": {
+        "name": "ApseQuestLogList",
+        "lazy_update": "0",
+        "mouseevents": "1",
+        "cursor": "0",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ApseQuestLogList.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "basedOnSpec"
+      },
+      "position_constraints": {
+        "width": "2048",
+        "height": "2048"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "ForgeBuilderPlan",
+      "kind": "ForgePlan",
+      "role": "WorldTexture",
+      "rationale": "Native forge plan texture, not a fullscreen interactive screen.",
+      "xml_sha256": "bda354f9205d01bd00a4e29d992699b496dd89d0cadb2907952a770894d78277",
+      "gfx_sha256": "69813be17cee783680acf6b96caa7510041399960a73cddd3a24600741d7b7d9",
+      "native_attributes": {
+        "name": "ForgeBuilderPlan",
+        "lazy_update": "0"
+      },
+      "gfx": {
+        "file": "ForgeBuilderPlan.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "screen_resize": "allways"
+      },
+      "position_constraints": {
+        "width": "3840",
+        "height": "2700"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          76800,
+          0,
+          54000
+        ],
+        "width": 3840.0,
+        "height": 2700.0
+      }
+    },
+    {
+      "element": "GameOver",
+      "kind": "GameOver",
+      "role": "PadMenu",
+      "rationale": "Controller declared, mouse not declared. No grip mouse takeover.",
+      "xml_sha256": "76d69f48dc86de81a52a0e0bae54e1c96c60cddfa3eb0d55b432908ae98670e7",
+      "gfx_sha256": "5c8af55b088250a5f80a5b4d6fbdd4be75d36ca3b73a042cb5d553cad02c6fce",
+      "native_attributes": {
+        "name": "GameOver",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "GameOver.gfx",
+        "layer": "40"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "GeneralBook",
+      "kind": "GeneralBook",
+      "role": "WorldTexture",
+      "rationale": "Native readable world/book surface; keep authored interaction.",
+      "xml_sha256": "2ebf782f74ada05db55e747efab3f9590938149bf8b1d0f3f21c0ac67a610563",
+      "gfx_sha256": "8bf92b419c522efcbae8dd229465c833839f0e147462b43f5b2748f5cf8d27df",
+      "native_attributes": {
+        "name": "GeneralBook",
+        "lazy_update": "0"
+      },
+      "gfx": {
+        "file": "GeneralBook.gfx",
+        "layer": "0"
+      },
+      "align": {
+        "mode": "fixdyntexsize",
+        "valign": "center",
+        "halign": "center"
+      },
+      "position_constraints": {
+        "width": "1024",
+        "height": "1024"
+      },
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          40960,
+          0,
+          40960
+        ],
+        "width": 2048.0,
+        "height": 2048.0
+      }
+    },
+    {
+      "element": "HorseInspect",
+      "kind": "HorseInspect",
+      "role": "NativeContext",
+      "rationale": "Contextual horse inspection; preserve native presentation/control transport, no generic menu pointer takeover.",
+      "xml_sha256": "0ff741e289ce7e489eafcd2f15011dcff71564d3242e96dc0eb7eec2c0c01ce3",
+      "gfx_sha256": "43ca3dc82317445bb00b2fb7ae28845cfff92c1110dbdc2b73082624d0fb3f78",
+      "native_attributes": {
+        "name": "HorseInspect",
+        "mouseevents": "1",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "HorseInspect.gfx",
+        "layer": "30"
+      },
+      "align": {
+        "mode": "dynamic",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "hud",
+      "kind": "Hud",
+      "role": "Hud",
+      "rationale": "Readable groups/full-field effects handled by existing separate HUD policy.",
+      "xml_sha256": "7dd34131a758f203e3f93c584fcda8839a574d8eb9c233323a1ca05999fa65d1",
+      "gfx_sha256": "85303baaeaa925ae051fe49626f15e638642908599886168682a16e402a065cd",
+      "native_attributes": {
+        "name": "hud",
+        "render_lockless": "0",
+        "mouseevents": "1"
+      },
+      "gfx": {
+        "file": "hud.gfx",
+        "layer": "25"
+      },
+      "align": {
+        "mode": "fullscreen"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "ItemSelection",
+      "kind": "ItemSelection",
+      "role": "ContextMenu",
+      "rationale": "Complete selection movie, including internal amount/info dialogs.",
+      "xml_sha256": "15184a150c50c5951b1351b7d1ee0bb9319014867499070ad6c499ed0f78d89b",
+      "gfx_sha256": "e0d8c2f9c2567116d4da11367b94a601fa885a6083690877569e719f03f22215",
+      "native_attributes": {
+        "name": "ItemSelection",
+        "mouseevents": "1",
+        "cursor": "1",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ItemSelection.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "ItemTransfer",
+      "kind": "ItemTransfer",
+      "role": "ContextMenu",
+      "rationale": "Complete transfer movie, including internal amount/question dialogs.",
+      "xml_sha256": "eb065db52bb41b91267e4a244012d766270d3cec763b6c436d27aaa63b6ff3f1",
+      "gfx_sha256": "b60c2aac4996c8bd0e1fd15c2ceb412c7254d9fb5455abfc22a8166029f955ba",
+      "native_attributes": {
+        "name": "ItemTransfer",
+        "mouseevents": "1",
+        "cursor": "1",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "ItemTransfer.gfx",
+        "layer": "20"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "LoadingScreen",
+      "kind": "Loading",
+      "role": "PassiveBlocking",
+      "rationale": "Fit completed native loading image; permit only the native Back/Skip action, never generic pointer/navigation or gameplay actions.",
+      "xml_sha256": "c7ba092a8b4e048dc4d6e06f9a6d80cf561036c67e799aa36fb6f25b73529463",
+      "gfx_sha256": "2c076b0727325359d1ff2cdaed85ac0a716600ef44613fe60baa4ea6d3c06611",
+      "native_attributes": {
+        "name": "LoadingScreen"
+      },
+      "gfx": {
+        "file": "LoadingScreen.gfx",
+        "layer": "50"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "LockPicking",
+      "kind": "LockPicking",
+      "role": "NativeContext",
+      "rationale": "Contextual minigame: preserve immersive presentation and existing controls; no automatic Theater or generic mouse navigation.",
+      "xml_sha256": "79fef7dbf8b690e4f433321bc2584306565a820f904c0a31c8c8df6de4b0caab",
+      "gfx_sha256": "ce9e56440bc3397b97ca9ed39c551a0632d154f0f58401570b223ff3e6015454",
+      "native_attributes": {
+        "name": "LockPicking",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "LockPicking.gfx",
+        "layer": "10"
+      },
+      "align": {
+        "mode": "dynamic",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "Menu",
+      "kind": "Menu",
+      "role": "FullMenu",
+      "rationale": "Native frontend/pause/settings and their page stack.",
+      "xml_sha256": "50a2d01827a700bdc291061dc796bf633876b90536a9295a1034f9ed0682d75b",
+      "gfx_sha256": "7f37d24fc14b3961fb58b403340532a947239a4a0bdce01f059485572d841c1c",
+      "native_attributes": {
+        "name": "Menu",
+        "mouseevents": "1",
+        "cursor": "1",
+        "controller_input": "1"
+      },
+      "gfx": {
+        "file": "Menu.gfx",
+        "layer": "45"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "Overlay",
+      "kind": "Overlay",
+      "role": "FieldEffect",
+      "rationale": "Vignettes, photo-mode graphics and cinematic overlays; not an input-focus signal.",
+      "xml_sha256": "e449a8c17c89024d98bf668b94d785d472003615d7c6769da6a56c5b2ded1104",
+      "gfx_sha256": "b20af95f18bc243f5ce74bb5d2630df22d1938d05c271e7a6447ea88ceedb1e2",
+      "native_attributes": {
+        "name": "Overlay"
+      },
+      "gfx": {
+        "file": "Overlay.gfx",
+        "layer": "5"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "Pickpocketing",
+      "kind": "Pickpocketing",
+      "role": "NativeContext",
+      "rationale": "Contextual minigame: preserve immersive presentation and existing controls; no automatic Theater or generic mouse navigation.",
+      "xml_sha256": "1e85940d5aa25a3592db60ca6dfedb57ece6388287db626f73fd79f85fc5c15c",
+      "gfx_sha256": "13c77e20a557d406ab1f444db9a9e34bd14a8b8498226945660494bf3fe2f576",
+      "native_attributes": {
+        "name": "Pickpocketing",
+        "controller_input": "1",
+        "events_exclusive": "1"
+      },
+      "gfx": {
+        "file": "Pickpocketing.gfx",
+        "layer": "27"
+      },
+      "align": {
+        "mode": "dynamic",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1",
+        "max": "0"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "Progress",
+      "kind": "Progress",
+      "role": "PassiveOverlay",
+      "rationale": "Generic progress overlay: preserve full-field native coverage, never infer exclusive focus or Theater from visibility alone.",
+      "xml_sha256": "5f4dea93d698c3f9e22d9a9ffe5e8b81e3f9a74c079f375abbed67a22662edc7",
+      "gfx_sha256": "ae92cb4b3440d05292cd004fe5d480daab50506a90d1eb4322330a534987835e",
+      "native_attributes": {
+        "name": "Progress"
+      },
+      "gfx": {
+        "file": "progress.gfx",
+        "layer": "80"
+      },
+      "align": {
+        "mode": "fullscreen",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    },
+    {
+      "element": "SkipTime",
+      "kind": "SkipTime",
+      "role": "ContextMenu",
+      "rationale": "Centered waiting/sleeping interface with declared pointer/controller input.",
+      "xml_sha256": "ed7a05bd591f8779c6c04da6836d9a9f067aae3794411bcc3a39fe8694a12164",
+      "gfx_sha256": "db73bce0f5d65997eddf7804c17ae7d4cabe2333ff07fd3c7bdf1c7f8f40b81c",
+      "native_attributes": {
+        "name": "SkipTime",
+        "mouseevents": "1",
+        "cursor": "1",
+        "controller_input": "1",
+        "events_exclusive": "0"
+      },
+      "gfx": {
+        "file": "SkipTime.gfx",
+        "layer": "35"
+      },
+      "align": {
+        "mode": "dynamic",
+        "valign": "center",
+        "halign": "center",
+        "scale": "1"
+      },
+      "position_constraints": {},
+      "logical_stage": {
+        "signature": "CFX",
+        "rect_twips": [
+          0,
+          38400,
+          0,
+          21600
+        ],
+        "width": 1920.0,
+        "height": 1080.0
+      }
+    }
+  ]
+}

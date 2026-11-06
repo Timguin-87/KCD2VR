@@ -16,7 +16,6 @@ public:
     static bool Install();
     static void Uninstall();
 
-    static bool IsRecursiveView(const void* render_view) noexcept;
     static std::uint64_t RecursivePassCount() noexcept;
     static std::uint64_t RecursiveRequestCount() noexcept;
 

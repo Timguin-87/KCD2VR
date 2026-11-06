@@ -77,8 +77,6 @@ void VrikBridge::SetEnabled(bool e)
 bool VrikBridge::Enabled(){return enabled_.load(std::memory_order_acquire);}
 VrikBridge::Target VrikBridge::Left(){return left_;}
 VrikBridge::Target VrikBridge::Right(){return right_;}
-VrikBridge::ArmChain VrikBridge::LeftArm(){return left_arm_;}
-VrikBridge::ArmChain VrikBridge::RightArm(){return right_arm_;}
 
 void VrikBridge::Update(XrManager& xr)
 {

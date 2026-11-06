@@ -1,0 +1,248 @@
+# DetourModKit CMake package configuration file (.in template)
+
+
+####### Expanded from @PACKAGE_INIT@ by configure_package_config_file() #######
+####### Any changes to this file will be overwritten by the next CMake run ####
+####### The input file was DetourModKitConfig.cmake.in                            ########
+
+get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+
+macro(set_and_check _var _file)
+  set(${_var} "${_file}")
+  if(NOT EXISTS "${_file}")
+    message(FATAL_ERROR "File or directory ${_file} referenced by variable ${_var} does not exist !")
+  endif()
+endmacro()
+
+macro(check_required_components _NAME)
+  foreach(comp ${${_NAME}_FIND_COMPONENTS})
+    if(NOT ${_NAME}_${comp}_FOUND)
+      if(${_NAME}_FIND_REQUIRED_${comp})
+        set(${_NAME}_FOUND FALSE)
+      endif()
+    endif()
+  endforeach()
+endmacro()
+
+####################################################################################
+
+set(DetourModKit_VERSION "4.2.0")
+
+# Machine-readable record of the producing toolchain's ABI axes (DetourModKit_ABI_* variables), exposed for package
+# validation.
+include("${CMAKE_CURRENT_LIST_DIR}/DetourModKitAbi.cmake")
+
+# ABI and toolchain compatibility validation.
+# This is a C++23 static archive with no extern "C" boundary, so the compiler's mangling, exception model, and the
+# layout of every std type crossing the API are baked in and are not interchangeable across toolchains. Rather than
+# document that and trust the consumer to comply, compare the consumer's toolchain against the recorded producer axes
+# and fail find_package early on an incompatible tuple. Compiler ABI family, standard library, target system, pointer
+# size, and target architecture are hard requirements. Compiler version is advisory because a difference alone does
+# not establish incompatibility within an ABI family. Architecture names are normalized across common x64 and ARM64
+# spellings before comparison. CRT and iterator-debug agreement is a per-config link-time property DMK never
+# overrides, so the linker enforces it (LNK2038 on MSVC), not this file. A consumer that accepts the risk may set
+# DetourModKit_ALLOW_INCOMPATIBLE_ABI to downgrade the hard failures to warnings.
+if(CMAKE_CXX_COMPILER_ID)
+    if(MSVC OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
+        set(_dmk_consumer_family "msvc")
+        set(_dmk_consumer_stl "msvc-stl")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set(_dmk_consumer_family "gnu")
+        set(_dmk_consumer_stl "libstdc++")
+    else()
+        set(_dmk_consumer_family "${CMAKE_CXX_COMPILER_ID}")
+        set(_dmk_consumer_stl "unknown")
+    endif()
+
+    if("${DetourModKit_ABI_COMPILER_ID}" STREQUAL "MSVC" OR "${DetourModKit_ABI_SIMULATE_ID}" STREQUAL "MSVC")
+        set(_dmk_producer_family "msvc")
+    elseif("${DetourModKit_ABI_COMPILER_ID}" STREQUAL "GNU")
+        set(_dmk_producer_family "gnu")
+    else()
+        set(_dmk_producer_family "${DetourModKit_ABI_COMPILER_ID}")
+    endif()
+
+    set(_dmk_abi_errors "")
+    set(_dmk_abi_warnings "")
+    set(_dmk_abi_rejected FALSE)
+
+    if(NOT "${_dmk_consumer_family}" STREQUAL "${_dmk_producer_family}")
+        string(CONCAT _dmk_error
+            "compiler ABI family '${_dmk_consumer_family}' does not match the archive's "
+            "'${_dmk_producer_family}' (recorded ${DetourModKit_ABI_COMPILER_ID})")
+        list(APPEND _dmk_abi_errors "${_dmk_error}")
+    endif()
+    if(DetourModKit_ABI_STL AND NOT "${_dmk_consumer_stl}" STREQUAL "${DetourModKit_ABI_STL}")
+        list(APPEND _dmk_abi_errors
+            "standard library '${_dmk_consumer_stl}' does not match the archive's '${DetourModKit_ABI_STL}'")
+    endif()
+    if(DetourModKit_ABI_POINTER_SIZE AND NOT "${CMAKE_SIZEOF_VOID_P}" STREQUAL "${DetourModKit_ABI_POINTER_SIZE}")
+        list(APPEND _dmk_abi_errors
+            "pointer size ${CMAKE_SIZEOF_VOID_P} does not match the archive's ${DetourModKit_ABI_POINTER_SIZE}")
+    endif()
+
+    # Target system is a hard ABI axis because DetourModKit uses Windows loader and memory contracts.
+    if(DetourModKit_ABI_SYSTEM AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "${DetourModKit_ABI_SYSTEM}")
+        list(APPEND _dmk_abi_errors
+            "target system '${CMAKE_SYSTEM_NAME}' does not match the archive's '${DetourModKit_ABI_SYSTEM}'")
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID)
+        set(_dmk_consumer_arch_raw "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}")
+    else()
+        set(_dmk_consumer_arch_raw "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    string(TOLOWER "${_dmk_consumer_arch_raw}" _dmk_consumer_arch)
+    string(TOLOWER "${DetourModKit_ABI_ARCHITECTURE}" _dmk_producer_arch)
+    if(_dmk_consumer_arch MATCHES "^(amd64|x86_64|x64)$")
+        set(_dmk_consumer_arch "x64")
+    elseif(_dmk_consumer_arch MATCHES "^(arm64|aarch64)$")
+        set(_dmk_consumer_arch "arm64")
+    endif()
+    if(_dmk_producer_arch MATCHES "^(amd64|x86_64|x64)$")
+        set(_dmk_producer_arch "x64")
+    elseif(_dmk_producer_arch MATCHES "^(arm64|aarch64)$")
+        set(_dmk_producer_arch "arm64")
+    endif()
+    if(_dmk_consumer_arch AND _dmk_producer_arch
+            AND NOT "${_dmk_consumer_arch}" STREQUAL "${_dmk_producer_arch}")
+        string(CONCAT _dmk_error
+            "target architecture '${_dmk_consumer_arch_raw}' does not match the archive's "
+            "'${DetourModKit_ABI_ARCHITECTURE}'")
+        list(APPEND _dmk_abi_errors "${_dmk_error}")
+    endif()
+
+    if("${_dmk_consumer_family}" STREQUAL "${_dmk_producer_family}"
+            AND DetourModKit_ABI_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION)
+        string(REGEX MATCH "^[0-9]+" _dmk_consumer_major "${CMAKE_CXX_COMPILER_VERSION}")
+        string(REGEX MATCH "^[0-9]+" _dmk_producer_major "${DetourModKit_ABI_COMPILER_VERSION}")
+        if(_dmk_consumer_major AND _dmk_producer_major
+                AND NOT "${_dmk_consumer_major}" STREQUAL "${_dmk_producer_major}")
+            string(CONCAT _dmk_error
+                "compiler major version ${_dmk_consumer_major} differs from the archive's "
+                "${_dmk_producer_major}; confirm the two are ABI-compatible")
+            list(APPEND _dmk_abi_warnings "${_dmk_error}")
+        endif()
+    endif()
+
+    foreach(_dmk_w IN LISTS _dmk_abi_warnings)
+        message(WARNING "DetourModKit ABI: ${_dmk_w}.")
+    endforeach()
+
+    if(_dmk_abi_errors)
+        string(REPLACE ";" "\n  - " _dmk_abi_error_text ";${_dmk_abi_errors}")
+        if(DetourModKit_ALLOW_INCOMPATIBLE_ABI)
+            message(WARNING
+                "DetourModKit ABI mismatch overridden by DetourModKit_ALLOW_INCOMPATIBLE_ABI:${_dmk_abi_error_text}")
+        else()
+            set(DetourModKit_FOUND FALSE)
+            string(CONCAT DetourModKit_NOT_FOUND_MESSAGE
+                "DetourModKit at ${PACKAGE_PREFIX_DIR} was built for an incompatible toolchain:"
+                "${_dmk_abi_error_text}\nThis archive is specific to its system, compiler, STL, and architecture. "
+                "A compatible consumer toolchain is required. "
+                "DetourModKit_ALLOW_INCOMPATIBLE_ABI=ON accepts the mismatch risk.")
+            set(_dmk_abi_rejected TRUE)
+        endif()
+    endif()
+
+    unset(_dmk_consumer_family)
+    unset(_dmk_consumer_stl)
+    unset(_dmk_producer_family)
+    unset(_dmk_abi_errors)
+    unset(_dmk_abi_warnings)
+    unset(_dmk_abi_error_text)
+    unset(_dmk_consumer_major)
+    unset(_dmk_producer_major)
+    unset(_dmk_consumer_arch)
+    unset(_dmk_consumer_arch_raw)
+    unset(_dmk_producer_arch)
+    unset(_dmk_error)
+    unset(_dmk_w)
+    if(_dmk_abi_rejected)
+        unset(_dmk_abi_rejected)
+        return()
+    endif()
+    unset(_dmk_abi_rejected)
+endif()
+
+# Static dependency archives (DetourModKit::deps).
+# DetourModKit is a static library; its SafetyHook/Zydis/Zycore dependencies are
+# shipped as plain archives next to it. They cannot be re-exported as CMake
+# targets (each already belongs to its own export set, and a transitively
+# required target may live in only one), so they are exposed here as a single
+# INTERFACE imported target that the installed DetourModKit target links for its
+# INSTALL interface. A static archive does not absorb the objects of the
+# libraries it links, so this link is genuinely required; a dependent is listed
+# before its dependency to satisfy single-pass linkers.
+if(NOT TARGET DetourModKit::deps)
+    add_library(DetourModKit::deps INTERFACE IMPORTED)
+    set(_dmk_dep_release_names safetyhook.lib;Zydis.lib;Zycore.lib)
+    set(_dmk_dep_debug_names safetyhookd.lib;Zydisd.lib;Zycored.lib)
+    set(_dmk_dep_libdir "${PACKAGE_PREFIX_DIR}/lib")
+    set(_dmk_dep_libs "")
+    list(LENGTH _dmk_dep_release_names _dmk_dep_count)
+    if(_dmk_dep_count GREATER 0)
+        math(EXPR _dmk_dep_last "${_dmk_dep_count} - 1")
+        foreach(_dmk_i RANGE ${_dmk_dep_last})
+            list(GET _dmk_dep_release_names ${_dmk_i} _dmk_dep_rel)
+            list(GET _dmk_dep_debug_names ${_dmk_i} _dmk_dep_dbg)
+            # One entry per dependency, resolving to the archive that matches the consumer's configuration: a Debug
+            # consumer links the debug-postfixed archive, every other configuration links the release archive (DMK
+            # applies its debug postfix to the Debug config only). A prefix that shipped a single configuration does
+            # not carry the other's archive, so a cross-configuration link fails closed here rather than silently
+            # binding a mismatched-configuration archive.
+            string(CONCAT _dmk_dep_link
+                "$<$<CONFIG:Debug>:${_dmk_dep_libdir}/${_dmk_dep_dbg}>"
+                "$<$<NOT:$<CONFIG:Debug>>:${_dmk_dep_libdir}/${_dmk_dep_rel}>")
+            list(APPEND _dmk_dep_libs "${_dmk_dep_link}")
+        endforeach()
+        set_target_properties(DetourModKit::deps PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${_dmk_dep_libs}"
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include")
+    endif()
+    unset(_dmk_dep_libs)
+    unset(_dmk_dep_release_names)
+    unset(_dmk_dep_debug_names)
+    unset(_dmk_dep_libdir)
+    unset(_dmk_dep_count)
+    unset(_dmk_dep_last)
+    unset(_dmk_dep_rel)
+    unset(_dmk_dep_dbg)
+    unset(_dmk_dep_link)
+    unset(_dmk_i)
+endif()
+
+# Imported target.
+# Includes the DetourModKitTargets.cmake file generated by install(EXPORT),
+# which defines the DetourModKit::DetourModKit imported target. Its INSTALL
+# interface links DetourModKit::deps (defined above).
+if(NOT TARGET DetourModKit::DetourModKit)
+    include("${CMAKE_CURRENT_LIST_DIR}/DetourModKitTargets.cmake")
+
+    # RelWithDebInfo and MinSizeRel are release-family configurations (NDEBUG, release CRT and iterator-debug level),
+    # so a consumer building them must link the Release archives. Map them explicitly: without the map CMake's default
+    # fallback can pick the Debug archive for the compiled DetourModKit while DetourModKit::deps (which treats every
+    # non-Debug configuration as release) stays on Release, mixing configurations across the link. Release is listed
+    # first so a dual-config prefix resolves to it, with the config's own name as a fallback so a prefix that shipped
+    # only that single configuration (exporting IMPORTED_LOCATION_RELWITHDEBINFO but no _RELEASE) still resolves --
+    # a bare "Release" map would redirect to a nonexistent location with no fallback. A Debug-only prefix still fails
+    # closed for these configs (neither location present).
+    set_target_properties(DetourModKit::DetourModKit PROPERTIES
+        MAP_IMPORTED_CONFIG_RELWITHDEBINFO "Release;RelWithDebInfo"
+        MAP_IMPORTED_CONFIG_MINSIZEREL "Release;MinSizeRel")
+endif()
+
+# Resident wheel host (DetourModKit::WheelHost). A standalone target with its own export set, never a transitive
+# dependency of DetourModKit::DetourModKit, so a consumer that does not need it never links it. The export file ships
+# in every prefix; the existence guard keeps find_package(DetourModKit) working against an older prefix that predates
+# the host.
+if(NOT TARGET DetourModKit::WheelHost
+        AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/DetourModKitWheelHostTargets.cmake")
+    include("${CMAKE_CURRENT_LIST_DIR}/DetourModKitWheelHostTargets.cmake")
+endif()
+
+check_required_components(DetourModKit)
+
+message(STATUS "Found DetourModKit: ${DetourModKit_VERSION}")
+message(STATUS "DetourModKit ABI: C++23 static library, no extern \"C\" boundary -- "
+  "link only from the same target system and compiler/STL/CRT toolchain that built this prefix.")

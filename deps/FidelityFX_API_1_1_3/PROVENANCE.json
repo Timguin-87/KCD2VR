@@ -1,0 +1,44 @@
+{
+  "tag": "v1.1.3",
+  "commit": "54fbaafdc34716811751bea5032700e78f5a0f33",
+  "files": [
+    {
+      "path": "LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/54fbaafdc34716811751bea5032700e78f5a0f33/LICENSE.txt",
+      "size": 1115,
+      "sha256": "82cf74fc23885107c7f69249ac3f1dac55898ff68320eb2c753984cae6b2d78a"
+    },
+    {
+      "path": "ffx-api/include/ffx_api/ffx_api.h",
+      "source": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/54fbaafdc34716811751bea5032700e78f5a0f33/ffx-api/include/ffx_api/ffx_api.h",
+      "size": 7306,
+      "sha256": "5b53c0b54ecdea611d294eaff11fc8b571ca3556a250829079572984848325c1"
+    },
+    {
+      "path": "ffx-api/include/ffx_api/ffx_api_types.h",
+      "source": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/54fbaafdc34716811751bea5032700e78f5a0f33/ffx-api/include/ffx_api/ffx_api_types.h",
+      "size": 14836,
+      "sha256": "002704b0546129c32aa3599068c9a3a89dffe4084e9132e8a04b8f73017d335e"
+    },
+    {
+      "path": "ffx-api/include/ffx_api/ffx_upscale.h",
+      "source": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/54fbaafdc34716811751bea5032700e78f5a0f33/ffx-api/include/ffx_api/ffx_upscale.h",
+      "size": 12370,
+      "sha256": "2d936232df27b9745e5978ddb737f22ab5b46f9378f6dcd26e49462c5b761101"
+    },
+    {
+      "path": "ffx-api/include/ffx_api/dx12/ffx_api_dx12.h",
+      "source": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/54fbaafdc34716811751bea5032700e78f5a0f33/ffx-api/include/ffx_api/dx12/ffx_api_dx12.h",
+      "size": 13073,
+      "sha256": "215804fba316acb81d2c463b6bbce36c53cc63465c15b8c9858554c8111fae24"
+    }
+  ],
+  "hash_scope": "File entries record the original upstream bytes. Local modifications are listed separately.",
+  "local_modifications": [
+    {
+      "path": "ffx-api/include/ffx_api/ffx_api.h",
+      "description": "Guard the default FFX_API_ENTRY definition with #ifndef. The bridge defines it empty when consuming these declarations; it does not export SDK implementations. No ABI declarations or types changed.",
+      "modified_sha256": "8e7f93095d9e02bc98d675ac80b11807e8d8161f6df9dd2c5c510ed80dc89ae1"
+    }
+  ]
+}

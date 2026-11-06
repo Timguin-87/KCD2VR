@@ -1,0 +1,5 @@
+[
+  "src/subsystems/dialogues/runtime/dialogue_camera_override.cpp",
+  "src/subsystems/dialogues/runtime/npc_lookat_hmd.cpp",
+  "src/subsystems/dialogues/module.cpp"
+]

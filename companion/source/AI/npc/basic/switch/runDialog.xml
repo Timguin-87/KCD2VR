@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<BehaviorTrees>
+  <BehaviorTree name="switch_runDialog" is_function="1">
+    <Variables>
+      <Variable name="dialogModuleOnDialog" type="dialogModule:onDialog" values="" isPersistent="0" form="single" />
+    </Variables>
+    <Parameters>
+      <Variable name="dialogRequest" type="dialogModule:onDialogRequest" values="" isPersistent="0" form="single" requirementType="In" />
+    </Parameters>
+    <Root OneTimeOnly="false" FailState="Recoverable" saveVersion="2">
+      <Behavior canSkip="1">
+        <FuseBox StatusPropagation="Child" OneCleanup="true" saveVersion="2">
+          <Child canSkip="1">
+            <Parallel successMode="Any" failureMode="Any">
+              <!-- Native dialogue lifetime never depends on the optional Lua gate. -->
+              <DoDialog DialogId="$dialogRequest.reqId" />
+              <!-- D81: recheck the packet gate during this native dialogue.
+                   A first packet can arrive after DoDialog starts. OFF skips the
+                   receipt for this tick; it must never park forever before ON. -->
+              <Parallel successMode="Any" failureMode="Any">
+                  <Selector>
+                    <Loop count="-1">
+                      <Sequence>
+                        <LuaGate code="return KCD2VR_LifeD73 and KCD2VR_LifeD73.Enabled()" saveVersion="2">
+                          <Then canSkip="1">
+                            <ExecuteLua code="KCD2VR_LifeD73.Dialogue(entity)" />
+                          </Then>
+                          <Else canSkip="1">
+                            <Success />
+                          </Else>
+                        </LuaGate>
+                        <Wait duration="'250ms'" timeType="GameTime" doFail="false" variation="" />
+                      </Sequence>
+                    </Loop>
+                    <Wait duration="'-1'" timeType="GameTime" doFail="false" variation="" />
+                  </Selector>
+                  <Selector>
+                    <While doFail="false" propagateChildFail="false" condition="true">
+                      <LinkGate from="$this.id" to="" tag="'kcd2vr_lifeListenD73'" amount="AtLeastOne" presence="Present" RunLogic="Halt">
+                        <Sequence>
+                          <Wait duration="'2s'" timeType="GameTime" doFail="false" variation="'2s'" />
+                          <LuaGate code="return KCD2VR_LifeD73 and KCD2VR_LifeD73.CanAnimate(entity,true)" saveVersion="2">
+                            <Then canSkip="1">
+                              <LuaGate code="return KCD2VR_LifeD73.CanGesture(entity)" saveVersion="2">
+                                <Then canSkip="1">
+                                  <SuppressFailure>
+                                    <RandomGate opensWithChance="0.500000" saveVersion="2">
+                                      <Then canSkip="1">
+                                        <AnimationAction fragment="'ADLG_Think'" tags="" eventReferenceObject="" alignObject="" slaveObject="" resourceOverride="" allowTorchForPlayer="false" />
+                                      </Then>
+                                      <Else canSkip="1">
+                                        <AnimationAction fragment="'ADLG_Cross'" tags="" eventReferenceObject="" alignObject="" slaveObject="" resourceOverride="" allowTorchForPlayer="false" />
+                                      </Else>
+                                    </RandomGate>
+                                  </SuppressFailure>
+                                </Then>
+                                <Else canSkip="1">
+                                  <SuppressFailure>
+                                    <AnimationAction fragment="'ADLG_FA_Idle_thinking1'" tags="" eventReferenceObject="" alignObject="" slaveObject="" resourceOverride="" allowTorchForPlayer="false" />
+                                  </SuppressFailure>
+                                </Else>
+                              </LuaGate>
+                            </Then>
+                            <Else canSkip="1">
+                              <Success />
+                            </Else>
+                          </LuaGate>
+                        </Sequence>
+                      </LinkGate>
+                    </While>
+                    <Wait duration="'-1'" timeType="GameTime" doFail="false" variation="" />
+                  </Selector>
+              </Parallel>
+            </Parallel>
+          </Child>
+          <OnFail canSkip="1">
+            <ClearInbox inbox="'dialogMailbox'" type="'dialogModule'" condition="" />
+          </OnFail>
+        </FuseBox>
+      </Behavior>
+    </Root>
+    <ForestContainer />
+  </BehaviorTree>
+</BehaviorTrees>

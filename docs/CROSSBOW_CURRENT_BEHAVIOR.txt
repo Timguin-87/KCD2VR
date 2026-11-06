@@ -1,0 +1,120 @@
+Crossbow reloading: current behavior and remaining boundaries
+Reviewed 2026-11-04: R93R4, based on a921f35 plus the bounded placement-wait correction.
+
+The hand-driven reload is implemented for all three native crossbow classes.
+Crossbow reload must be enabled; it defaults ON. Instant Reloads changes the
+speed of the remaining native tail, not whether the hands control the reload.
+The unfinished direct-event reload route is retired. The current path uses the
+actual native reload action, real tool/bolt entities and the game's own costs.
+This is source and fixture verification. It is not a claim that all three types
+have now passed a headset test.
+
+How the gesture works
+- Light, class10: hold the crossbow in the left hand, open then close the right
+  Grip near the string, and pull it back. Authored string-to-rail travel is about
+  9.37cm. Raw controller displacement earns the stroke; the displayed hand is
+  constrained to the actual measured native string position.
+- Medium, class14: right Grip at the chest requests the native reload and takes
+  the game's real spanner/tool. It is carried by the right hand. Engage it with
+  the string and pull about13.15cm. The seven failed tool runs in the preserved
+  Nov3 recording were this class, not the heavy class.
+- Heavy, class15: take the actual native tool at the chest, bring it to the
+  string, then operate its mounted mechanism. The current gesture is a short
+  forward rail/lever push, adjustable4–20cm, default8cm. It is NOT a completed
+  simulation of rotary winding. The same real entity travels in the right hand
+  before mount and follows the observed native mechanism after mount.
+- Bolt, all classes: right Grip at the right-shoulder quiver admits the game's
+  LoadReachedAmmo event. Its actual created bolt is held by the right hand.
+  Move it to the rail and release. Placement uses8cm proximity and, where the
+  exact native helper-frame convention is known,35deg alignment. Only then is
+  the native nock/load event admitted. Stock is not fabricated or decremented
+  by a separate VR implementation.
+
+What does NOT automatically return control
+Incomplete pulls, releasing/regripping the string/tool, waiting for the chest
+or quiver gesture, and releasing a bolt away from the rail normally pause the
+same native reload. A misplaced bolt may be gripped and placed again. Those
+are waiting states, not a request for Henry to finish automatically.
+The native event-free transition and the final tail after a completed physical
+milestone intentionally retain native semantics. They are not lost ownership.
+
+What DOES still give the reload back
+Client::restore restores only the speed this owner previously changed, after
+checking the exact native action identity. If it cannot safely restore, it keeps
+restore debt instead of writing to a foreign action. Its remaining triggers are:
+1. INPUT_LOST: the completed source is unavailable, older than80ms, changes
+   player/weapon/ammo/body/tracking/request identity, or is disallowed. Before
+   the first completed wrist, the original fixed500ms native-pose join window
+   applies. That window never renews a tracked pose or invents an input sample.
+2. Native action removal/replacement, unknown root membership, stop, foreign
+   speed ownership, failed qualified write/readback, or unsupported retail data.
+3. Missing/unsupported native clip metadata; queued/awaiting-clip over1s.
+4. CLOCK_UNSUPPORTED: the exact native clock cannot be qualified, controller or
+   character scales disagree, fields are invalid, or controller dt is<=0 or>80ms.
+5. GEOMETRY_UNAVAILABLE: the current spatial snapshot fails identity/freshness,
+   the measured mechanism/rail is invalid, or the exact string/lever pose fails
+   to join for500ms while the clock is paused. No pose means no stroke credit.
+6. PHYSICAL_BINDING_LOST: a captured real tool or bolt no longer matches.
+   Missing presentation readback now has a narrow pause described below. It
+   still falls back when there is no previous successful receipt, that receipt
+   is older than80ms, or the native clock was not already paused.
+7. A native scan crosses an unearned event interval, or native completion arrives
+   before the physical milestone. These remain failures rather than fabricated
+   cocking, ammunition, load or completion events.
+8. Mode/context/tracking withdrawal. Holding a stale pose indefinitely is not a
+   fix for this case. Real owner loss must stop hand-driven writes.
+
+The artificial failures already corrected
+Positive-source refresh no longer briefly advertises absent input. The body and
+reload source now share one immutable completed packet. Same paused-clock
+publication rollover retries once, carrying its fresh receipt into the final
+owner check. Animated relative socket offsets no longer discard an otherwise
+unchanged held bolt/tool or heavy-tool calibration. The changed packet does not
+invalidate the whole body merely because auxiliary reload preparation fails.
+
+The remaining artificial handover was split
+Span and PlaceBolt used to combine an actual native binding change with a
+missing toolPoseReady/boltPoseReady readback and immediately restore native
+speed. R93R4 keeps those separate. Exact identity loss still restores immediately.
+For the SAME captured native binding only, a missing readback can retain an
+already-owned zero native speed for at most80ms from its last actual successful
+placement. The original receipt tick is carried from the renderer; it is not
+replaced by the current controller/source tick or the first failed attempt.
+There is no gesture progress, event permission or frozen hand pose during that
+wait. The hand constraint is cleared; a release consumes the grasp without nock
+credit. Valid readback can resume the same reload. Expiry or a nonzero prior rate
+still falls back. The legacy non-hand-driven route is unchanged.
+
+First attachment is different: Setup still waits for the actual first successful
+native tool/bolt placement before acquiring it. No first-placement receipt is
+invented. The new80ms recovery applies only AFTER a genuine successful placement.
+If there was never one, this repair does not pretend that the object was in hand.
+
+Another hard boundary remains when the native clock truly advances during body
+preparation. The retry accepts only identical clock/clip/binding/constraint data.
+Old copied joints are never relabeled with a newer native clock. A matching new
+native pose is required. The existing logs do not isolate every such failure.
+
+Evidence and tested scope
+Newest rich capture: Nov3 22:57–23:28, KCD2VR.log SHA256
+01c50a3f7f4f557dc5d71c60711d8fab62eb5c83f77da391f60af3afc2340dc5.
+Seven class14 admissions lost ownership30–63ms later, before useful hand pulling.
+The printed original admission age is not current tracking age. The latest20
+available main/diagnostic files were compared; paired logs are not claimed as
+separate headset sessions.
+R93R3 checks:75 debug+75 optimized packet/owner tests;273 production pipeline
+checks;111 all-class/second-cycle checks; native transition adapter;11 publisher
+loss/recovery cases. Native API effects, renderer scheduling and headset results
+remain explicit test limits. R93R4 adds122 debug+122 optimized actual native-adapter cases covering
+same-item loss/recovery, all three bolt classes, both tool classes, original80ms
+expiry despite fresh input, entity/socket replacement, absent initial receipt,
+source withdrawal, a nonzero previous rate and release/regrip with one nock.
+The source timestamp comes from the actual placement receipt; native rendering
+and effects remain explicit fixture leaves.
+
+Relevant source
+src/subsystems/ranged_reload/crossbow_native_xr34.h: Client::tick/restore/interval
+src/subsystems/ranged_reload/reload_passenger_xr34.inl: atomic completed source
+src/subsystems/ranged_reload/crossbow_rifle_request_h21.inl: gesture request,
+  native entity placement and spatial receipts
+src/subsystems/ranged_reload/crossbow_mechanism_d78.inl: measured string/tool pose

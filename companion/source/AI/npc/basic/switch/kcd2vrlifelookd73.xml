@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<BehaviorTrees>
+  <BehaviorTree name="switch_kcd2vr_lifeLookD73" is_function="1">
+    <Variables>
+      <Variable name="lookTarget" type="_wuid" values="" isPersistent="0" form="single" />
+    </Variables>
+    <Root OneTimeOnly="false" FailState="Recoverable" saveVersion="2">
+      <Behavior canSkip="1">
+        <While doFail="false" propagateChildFail="false" condition="true">
+          <LinkGate from="$this.id" to="" tag="'kcd2vr_lifeLookD73'" amount="AtLeastOne" presence="Present" RunLogic="Halt">
+            <Sequence>
+              <GraphSearch Origin="" Borders="" depth="1" selection="true" SearchPattern="Depth" EdgePruning="'parent,inventory'" AllowedEdges="" SubGraph="" AllowSubtraph="false" includeOrigin="false" excludeOrigin="false" failOnEmpty="true" SetOperationChoice="Intersection|And" errorOnEmpty="false" shortCircuit="false" skipTraversed="true">
+                <LinkTagFilter tag="'kcd2vr_lifeLookD73'" prune="true" negprune="unknown" Parent="" Child="$lookTarget" Data="" />
+              </GraphSearch>
+              <ForceLook LookTarget="$lookTarget" DisableVariations="false">
+                <Parallel successMode="Any" failureMode="Any">
+                  <Wait duration="'-1'" timeType="GameTime" doFail="false" variation="" />
+                  <Selector>
+                    <Sequence>
+                      <LuaGate code="return KCD2VR_LifeD73 and KCD2VR_LifeD73.CanAnimate(entity,false)" saveVersion="2">
+                        <Then canSkip="1">
+                          <PlayAdditiveAnimation Fragment="'GreetingsUpperBody'" Tags="'nod'" />
+                        </Then>
+                        <Else canSkip="1">
+                          <Success />
+                        </Else>
+                      </LuaGate>
+                      <Wait duration="'-1'" timeType="GameTime" doFail="false" variation="" />
+                    </Sequence>
+                    <Wait duration="'-1'" timeType="GameTime" doFail="false" variation="" />
+                  </Selector>
+                </Parallel>
+              </ForceLook>
+            </Sequence>
+          </LinkGate>
+        </While>
+      </Behavior>
+    </Root>
+    <ForestContainer />
+  </BehaviorTree>
+</BehaviorTrees>
