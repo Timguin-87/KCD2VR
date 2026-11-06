@@ -26,6 +26,7 @@
 #include "subsystems/ranged_reload/ranged_draw_policy_d72.h"
 #include "subsystems/ranged_reload/weapon_draw_scope_d75.h"
 #include "subsystems/ranged_reload/draw_guard_r120.h" // R120: drawn weapon hidden until our first VR placement
+#include "subsystems/ranged_reload/entity_hide_pin_r125.h" // R125: CEntity::Hide pin, hook tolerant, checked every call
 #include "subsystems/masterstrike_combos/paired_hands_d72.h"
 #include "subsystems/ranged_reload/bow_physical_aim_d65c.h"
 #include "vrik/gesture_recovery_h30.h"
@@ -725,7 +726,8 @@ static kcd2vr::core::SnapshotMailbox<ImpalePin178r15> g_impale_pin178r15;
 // C40: the impaled victim's own entity/body while a C40 latch holds the blade in him. Added ONLY to our physical blade's
 // ray-query skip list (the native RayWorldIntersection skip-entities argument of THIS query), so the simulated blade is
 // not pushed out of the wound. No native collision flag, part flag or entity state is changed; stale (>200 ms) = gone.
-struct ImpaleSkip40 {std::uintptr_t entity=0,body=0;std::uint64_t tick=0;};
+// R128: hangR128 = a CORPSE hanging on the blade (VrImpaleFullDepthR128); only that one is read (npc_contact172.inl).
+struct ImpaleSkip40 {std::uintptr_t entity=0,body=0;std::uint64_t tick=0;std::uint32_t target=0;bool hangR128=false;};
 static kcd2vr::core::SnapshotMailbox<ImpaleSkip40> g_impale_skip40;
 static thread_local bool g_kick_query40=false; // C40: the R3 kick foot query still sees the impaled victim
 static std::atomic<int> g_f4_contact_gate178r26{0};          // V66.178R26 (see SetF4ContactGate178r26)
@@ -5567,7 +5569,7 @@ int WeaponControlMode() noexcept { return WeaponControlModeImpl(); }
 void WeaponControlTick() noexcept {
     ServiceBridges168();ServiceLifecycle165();ServiceReloadDiagnostics175();
     if(const auto until=g_lifecycle_until165.load();until&&(GetTickCount64()>=until||!diagnostics::capture168::active(diagnostics::capture168::Domain::Interaction,GetTickCount64())))
-        EndLifecycle165(GetTickCount64()>=until?"TIME_LIMIT":"RECORDER_OFF"); NativeService104(); ServiceAlignVetoReceipts25(); ServiceCombatCapture101(); animation_filter::ServiceAliasCatalog(g_arm_capture_active66100.load()||g_census_mode.load()>=2||g_weapon_control_mode.load()>=4); ServiceFingerReferenceIo6694(); ServiceCalibrationIo66100(); WeaponControlTickImpl(); }
+        EndLifecycle165(GetTickCount64()>=until?"TIME_LIMIT":"RECORDER_OFF"); NativeService104(); ServiceAlignVetoReceipts25(); ServiceRootMotionArm125(); ServiceCombatCapture101(); animation_filter::ServiceAliasCatalog(g_arm_capture_active66100.load()||g_census_mode.load()>=2||g_weapon_control_mode.load()>=4); ServiceFingerReferenceIo6694(); ServiceCalibrationIo66100(); WeaponControlTickImpl(); }
 
 // F5 exact actor action/target observer; signature includes the fifth stack float
 // at entry RSP+0x28, confirmed in +0x702288. Opaque return bits are passed unchanged.

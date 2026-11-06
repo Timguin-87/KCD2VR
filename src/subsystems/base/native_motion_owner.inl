@@ -26,6 +26,11 @@ static std::atomic<std::uint64_t> g_alignment_skips112{0},g_trajectory_writes112
 static std::array<std::atomic<std::uint64_t>,8> g_trajectory_reject112{};
 static std::atomic<std::uintptr_t> g_motion_contract112{0};
 
+// R125: Henry attack root-motion veto (see RootMotionMid125 below).
+static std::optional<DetourModKit::hook::Hook> g_root_motion_hook125;
+static std::atomic<std::uintptr_t> g_root_motion_contract125{0};
+static std::atomic<std::uint64_t> g_root_motion_frames125{0};
+
 // D42 selection changes no native eligibility or target policy. Existing
 // ordinary-action and Henry ownership proofs still decide the actual veto.
 static bool NativeNoTurnSelectedD42() noexcept {
@@ -507,6 +512,131 @@ static bool __fastcall NativeAlignmentDetour112(void* manager) noexcept {kcd2vr:
     kcd2vr::hookcost178r22::Scope policy{kcd2vr::hookcost178r22::AlignmentPolicy}; // R22C1: policy part separate from the game's query
     return NativeAlignmentResult112(manager,caller,original);
 }
+// R125 (Miki R124 6 Nov: "henry was still moving forward too ... it is recurring bug", VrCombatNoStep=true).
+// R124 F3 log: the late alignment query WAS vetoed on Henry's slashes (C24 vetoed=49..128 per attack, for example
+// key=5 18:00:27.987 vetoed=53/53 phaseSeen=0x1C) and the queued position command too (C36 count 1..16, one per
+// attack), and Henry still travelled C38 forwardCm=45..126 (18:00:16.170 61.6, 18:00:27.672 66.8, 18:00:33.860
+// 126.0 = 100 cm in the 200 ms hit window, 5 m/s - no walk is that fast). that is the attack clip's own root
+// motion: the attack fragments run CAnimatedCharacter (vft 3A49468, C_Player+268) with an animation-driven
+// movement control method, so CalculateWantedEntityMovement 839FF4 hands the clip's root translation (MergeMCM
+// D73724, plus any ForceMovement +1B8/+1BC) to the physics request 8A3188. nothing of that passes the alignment
+// or the command queue we veto.
+// change: at 83A1A0 (the common exit, after merge/clamp/forced movement) for Henry ONLY, while the existing
+// no-step owner proofs pass (same NativeMotionContext112 as the alignment veto: F4 contact mode, Henry manager
+// identity, protected-body census, tracking) AND his live main action is an ordinary slash/thrust (or a punch
+// with fists) in phase 4/8/16, the horizontal part of the wanted movement becomes the game's own requested
+// entity movement (+67C, the movement controller / stick request). rotation and height stay native, so turning,
+// slopes, feet and gravity are untouched; deliberate walking (stick, roomscale) is the requested movement and
+// still moves him. kicks, clinch, masterstrike, paired and hit reactions fail CurrentOrdinaryMotion59c3 or the
+// body census and keep the clip motion. "Attack step veto" OFF = native. evaluated every frame, no latch.
+static bool RootMotionOwned125(std::uintptr_t animated,int& phase) noexcept {
+    phase=0;const auto b=WhBase();
+    if(!b||!animated||!g_no_step55.load(std::memory_order_relaxed))return false;
+    std::uintptr_t vft=0;void* entity=nullptr;void* back=nullptr;void* player=nullptr;
+    const auto a=reinterpret_cast<const unsigned char*>(animated);
+    if(!Read(a,vft)||vft!=b+0x3A49468||!Read(a+0x38,entity)||!entity||
+       entity!=g_last_player_entity.load(std::memory_order_acquire))return false;
+    PhysFrame6698 seed{};FistOwner101 hands{};
+    if(g_phys_frame6698.read(seed)&&seed.player&&Read(static_cast<const unsigned char*>(seed.player)+0x268,back)&&
+       back==reinterpret_cast<void*>(animated))player=seed.player;
+    else if(FistReadOwner101(hands)&&hands.player&&Read(static_cast<const unsigned char*>(hands.player)+0x268,back)&&
+       back==reinterpret_cast<void*>(animated))player=hands.player;
+    NativeOwner104 resolved{};void* manager=nullptr;nc104::Observed early{};
+    // cheap phase test before the full owner proof: outside phase 4/8/16 nothing is evaluated further.
+    if(!player||!NativeResolve104(player,resolved)||!NativeObserve104(resolved,early)||
+       !kcd2vr::free_targeting_d42::attackPhase(early.phase)||!Read(static_cast<const unsigned char*>(resolved.actor)+0x250,manager)||!manager)return false;
+    PhysFrame6698 f{};NativeOwner104 owner{};
+    if(!NativeMotionContext112(f,owner,manager)||owner.player!=player)return false;
+    nc104::Observed state{};
+    if(!NativeObserve104(owner,state)||!kcd2vr::free_targeting_d42::attackPhase(state.phase))return false;
+    if(!CurrentOrdinaryMotion59c3(owner,nullptr,FistSelected101()))return false;
+    phase=state.phase;return true;
+}
+static void RootMotionMid125(DetourModKit::hook::MidContext& c) noexcept {
+    using namespace DetourModKit::hook;
+    const auto b=g_root_motion_contract125.load(std::memory_order_acquire);
+    const auto animated=gpr(c,Gpr::Rdi),out=gpr(c,Gpr::Rbx);
+    void* entity=nullptr;
+    // cheap NPC rejection first: this exit runs for every animated character every frame.
+    if(!b||!animated||!out||!Read(reinterpret_cast<const unsigned char*>(animated)+0x38,entity)||
+       !entity||entity!=g_last_player_entity.load(std::memory_order_relaxed))return;
+    ReadScope101R2 scope;
+    int phase=0;unsigned char noMovement=1;float wanted[2]{},request[2]{};
+    const bool owned=Read(reinterpret_cast<const unsigned char*>(animated)+0x708,noMovement)&&!noMovement&&
+        RootMotionOwned125(animated,phase)&&Read(reinterpret_cast<const unsigned char*>(out)+0x10,wanted)&&
+        Read(reinterpret_cast<const unsigned char*>(animated)+0x68C,request)&&
+        std::isfinite(wanted[0])&&std::isfinite(wanted[1])&&std::isfinite(request[0])&&std::isfinite(request[1]);
+    if(owned){
+        // `out` is the caller's stack QuatT (839FF4 rdx) about to go to 8A3188: q +0, t +10.
+        std::memcpy(reinterpret_cast<unsigned char*>(out)+0x10,request,sizeof(request));
+        g_root_motion_frames125.fetch_add(1,std::memory_order_relaxed);
+    }
+    // F3 recorder only: one row per attack window with the removed clip travel (proof for the next log).
+    static std::uint64_t seen=0,frames=0,first=0;static unsigned lines=0,mask=0;static double removed=0,kept=0;
+    const auto now=std::uint64_t(GetTickCount64());
+    if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now)){frames=0;return;}
+    const auto session=diagnostics::capture168::gate.session[unsigned(diagnostics::capture168::Domain::Combat)].load();
+    if(session!=seen){seen=session;lines=0;frames=0;}
+    if(owned){
+        if(!frames){first=now;removed=0;kept=0;mask=0;}
+        ++frames;mask|=unsigned(phase);
+        const double dx=double(wanted[0])-request[0],dy=double(wanted[1])-request[1];
+        removed+=100.0*std::sqrt(dx*dx+dy*dy);
+        kept+=100.0*std::sqrt(double(request[0])*request[0]+double(request[1])*request[1]);
+        return;
+    }
+    if(frames&&lines<64){
+        ++lines;char m[240]{};std::snprintf(m,sizeof(m),
+            "R125 ROOT_MOTION_VETO frames=%llu ms=%llu removedClipCm=%.1f keptRequestCm=%.1f phases=0x%X total=%llu owner=HENRY_ORDINARY_ATTACK",
+            (unsigned long long)frames,(unsigned long long)(now-first),removed,kept,mask,
+            (unsigned long long)g_root_motion_frames125.load(std::memory_order_relaxed));
+        diagnostic_trace::Write(m);
+    }
+    frames=0;
+}
+// exact bytes of 839FF4 (CalculateWantedEntityMovement), its single caller 83A7A2, the requested-movement
+// QuatT (+67C, reset at 83A72B), the MergeMCM call 83A0D6, the hooked exit 83A1A0 and ForceMovement 8447B0.
+static bool NativeRootMotionContract125(std::uintptr_t b) noexcept {
+    if(!SupportedWhBuild(b)||!retail_build112::Ready(b))return false;
+    const unsigned char entry[20]{0x48,0x89,0x5c,0x24,0x20,0x55,0x56,0x57,0x48,0x8d,0x6c,0x24,0xb9,0x48,0x81,0xec,0xe0,0x00,0x00,0x00};
+    const unsigned char noMove[10]{0x80,0xb9,0x08,0x07,0x00,0x00,0x00,0x49,0x8b,0xf0};
+    const unsigned char request[19]{0x4c,0x8d,0x81,0x7c,0x06,0x00,0x00,0x4c,0x8b,0xce,0x48,0x8d,0x55,0xb7,0xe8,0x46,0x01,0x00,0x00};
+    const unsigned char merge[5]{0xe8,0x49,0x96,0x53,0x00};
+    const unsigned char exitBytes[21]{0x0f,0x11,0x03,0xf2,0x0f,0x11,0x4b,0x10,0x89,0x4b,0x18,0x48,0x8b,0xc3,0x48,0x8b,0x4d,0x37,0x48,0x33,0xcc};
+    const unsigned char caller[5]{0xe8,0x4d,0xf8,0xff,0xff};
+    const unsigned char reset[21]{0x4c,0x89,0x89,0x8c,0x06,0x00,0x00,0x44,0x89,0x89,0x84,0x06,0x00,0x00,0x4c,0x89,0x89,0x7c,0x06,0x00,0x00};
+    const auto pin=[b](std::uintptr_t rva,const auto& expected){
+        unsigned char actual[sizeof(expected)]{};
+        return Read(reinterpret_cast<void*>(b+rva),actual)&&!std::memcmp(actual,expected,sizeof(actual));
+    };
+    std::uintptr_t force=0;
+    return pin(0x839FF4,entry)&&pin(0x83A016,noMove)&&pin(0x83A06B,request)&&pin(0x83A0D6,merge)&&
+        pin(0x83A195,exitBytes)&&pin(0x83A7A2,caller)&&pin(0x83A72B,reset)&&
+        Read(reinterpret_cast<void*>(b+0x3A49468+0x2F0),force)&&force==b+0x8447B0;
+}
+// optional like D40: a failed arm never revokes the alignment/position hooks and is retried on the next arm call.
+static bool NativeRootMotionArm125(std::uintptr_t b) noexcept {
+    if(!b||g_motion_contract112.load(std::memory_order_acquire)!=b)return false;
+    if(g_root_motion_contract125.load(std::memory_order_acquire)==b)return true;
+    if(!NativeRootMotionContract125(b))return false;
+    if(!g_root_motion_hook125){
+        using namespace DetourModKit::hook;Options options{};options.fail_if_already_hooked=true;
+        auto h=mid_at(MidRequest{"kcd2vr_r125_henry_attack_root_motion",Target{DetourModKit::Address{b+0x83A1A0}},options},RootMotionMid125);
+        if(!h)return false;
+        g_root_motion_hook125=std::move(*h);
+    }
+    g_root_motion_contract125.store(b,std::memory_order_release);
+    if(!g_root_motion_hook125->enable()){g_root_motion_contract125.store(0,std::memory_order_release);return false;}
+    diagnostic_trace::Write("R125 ROOT_MOTION_VETO armed: Henry ordinary attack phases 4/8/16 keep the requested horizontal movement, clip root translation removed (Attack step veto)");
+    return true;
+}
+// R125: service tick retry of the optional root-motion arm every 2 s until it holds (no session latch;
+// returns at once when armed or while the no-step core is not armed).
+static void ServiceRootMotionArm125() noexcept {
+    static std::uint64_t retry=0;const auto now=std::uint64_t(GetTickCount64());
+    if(now-retry<2000)return;
+    retry=now;(void)NativeRootMotionArm125(WhBase());
+}
 static bool NativeMotionContract112(std::uintptr_t b) noexcept {
     if(!SupportedWhBuild(b)||!retail_build112::Ready(b))return false;
     const unsigned char query[16]{0x48,0x89,0x5c,0x24,0x08,0x57,0x48,0x83,0xec,0x20,0x48,0x8b,0x41,0x08,0x48,0x8b};
@@ -568,7 +698,7 @@ static bool NativeRotationArmD40(std::uintptr_t b) noexcept {
 
 static bool NativeMotionArm112() noexcept {
     const auto b=WhBase();
-    if(g_motion_contract112.load()==b&&b){(void)NativeRotationArmD40(b);return true;}
+    if(g_motion_contract112.load()==b&&b){(void)NativeRotationArmD40(b);(void)NativeRootMotionArm125(b);return true;}
     // Retain any partially installed trampoline for process lifetime. A failed
     // arm stays native-only (contract remains0), never hot-recreates a hook.
     if(g_alignment_hook112||g_position_hook36||!NativeMotionContract112(b))return false;
@@ -581,7 +711,7 @@ static bool NativeMotionArm112() noexcept {
     if(!position36)return false;
     g_position_hook36=std::move(*position36);g_position_original36=g_position_hook36->original<NativePositionCommand36>();
     if(!g_alignment_original112||!g_position_original36||!g_alignment_hook112->enable()||!g_position_hook36->enable())return false;
-    g_motion_contract112.store(b,std::memory_order_release);(void)NativeRotationArmD40(b);return true;
+    g_motion_contract112.store(b,std::memory_order_release);(void)NativeRotationArmD40(b);(void)NativeRootMotionArm125(b);return true;
 }
 
 struct NativeTrajectoryLease112 {

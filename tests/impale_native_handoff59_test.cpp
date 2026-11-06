@@ -61,7 +61,7 @@ namespace diagnostic_trace{static std::vector<std::string>lines;static void Writ
 struct PhysFrame6698{ph::Input input{};ph::Output output{};std::array<ph::Profile,2>profiles{};std::uint64_t request=3;float world[8]{0,0,0,1,0,0,0,1};double publishWorldDeltaM122=0,publishWorldDeltaRad122=0;};
 static kcd2vr::core::SnapshotMailbox<PhysFrame6698>g_phys_frame6698;
 struct ImpalePin178r15{bool valid=false;std::uint64_t serial=0,tick=0;float x=0,y=0,z=0;int mode40=0;float depth40=0;};
-struct ImpaleSkip40{A entity=0,body=0;std::uint64_t tick=0;};
+struct ImpaleSkip40{A entity=0,body=0;std::uint64_t tick=0;std::uint32_t target=0;bool hangR128=false;};
 static kcd2vr::core::SnapshotMailbox<ImpalePin178r15>g_impale_pin178r15;static kcd2vr::core::SnapshotMailbox<ImpaleSkip40>g_impale_skip40;
 static unsigned corpseReads=0,drives=0,constraints=0;static bool nativeWeapon=true;
 static std::atomic<bool>g_combat_experiment175{true},g_combat_integrated178r22c2{false},g_physical_combat177{true},g_combat_full178r10{true},g_impale_enabled178r15{true};
@@ -250,7 +250,7 @@ namespace diagnostic_trace{static std::vector<std::string> lines;static void Wri
 struct PhysFrame6698{ph::Input input{};ph::Output output{};std::array<ph::Profile,2> profiles{};std::uint64_t request=0;float world[8]{};double publishWorldDeltaM122=0,publishWorldDeltaRad122=0;};
 static kcd2vr::core::SnapshotMailbox<PhysFrame6698> g_phys_frame6698;
 struct ImpalePin178r15{bool valid=false;std::uint64_t serial=0,tick=0;float x=0,y=0,z=0;int mode40=0;float depth40=0;};
-struct ImpaleSkip40{std::uintptr_t entity=0,body=0;std::uint64_t tick=0;};
+struct ImpaleSkip40{std::uintptr_t entity=0,body=0;std::uint64_t tick=0;std::uint32_t target=0;bool hangR128=false;};
 static kcd2vr::core::SnapshotMailbox<ImpalePin178r15> g_impale_pin178r15;
 static kcd2vr::core::SnapshotMailbox<ImpaleSkip40> g_impale_skip40;
 static int F4Rung178r10(){return 3;}

@@ -4450,6 +4450,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
     XrCompositionLayerQuad hud_quad{ XR_TYPE_COMPOSITION_LAYER_QUAD };
     dice_hud_depth_r92r3::Receipt diceHudReceiptR93{};
     const bool have_hud_quad=xr_hud.ok;
+    bool hudNormalR125=false; // R125: the ordinary head-locked / lagged HUD (not F2 world anchor, not dice depth)
     if(have_hud_quad){
         hud_quad.layerFlags=XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;hud_quad.eyeVisibility=XR_EYE_VISIBILITY_BOTH;hud_quad.subImage.swapchain=xr_hud.swapchain;hud_quad.subImage.imageRect.offset={0,0};hud_quad.subImage.imageRect.extent={xr_hud.width,xr_hud.height};
         ui_surface_geometry::Hud ui88_hud{};
@@ -4467,7 +4468,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
         const float fovH=ui88_hud.surface.valid?ui88_hud.surface.height:fovW*float(std::max(1,xr_hud.height))/float(std::max(1,xr_hud.width));
         const bool f2Menu=ui_layer_test_enabled_.load(std::memory_order_acquire)&&ui_layer_test_menu_active_.load(std::memory_order_acquire);
         if(f2Menu&&layer_frame.head_pose_valid){if(!ui_layer_test_anchor_valid_){ui_layer_test_anchor_pose_=layer_frame.head_pose;ui_layer_test_anchor_valid_=true;}const XrQuaternionf q=QGazeNoRoll(ui_layer_test_anchor_pose_.orientation);const V3f fw=QRotate(q,{0,0,-hudDistance});hud_quad.space=local_space_;hud_quad.pose.orientation=q;hud_quad.pose.position={ui_layer_test_anchor_pose_.position.x+fw.x,ui_layer_test_anchor_pose_.position.y+fw.y-0.02f,ui_layer_test_anchor_pose_.position.z+fw.z};hud_quad.size.width=fovW;hud_quad.size.height=fovH;{std::lock_guard<std::mutex>lk(ui_layer_test_mutex_);ui_layer_test_plane_pose_=hud_quad.pose;ui_layer_test_plane_width_=hud_quad.size.width;ui_layer_test_plane_height_=hud_quad.size.height;}}
-        else{ui_layer_test_anchor_valid_=false;hud_quad.space=view_space_;hud_quad.pose.orientation={0,0,0,1};hud_quad.pose.position={0,-0.02f,-hudDistance};hud_quad.size.width=fovW;hud_quad.size.height=fovH;
+        else{hudNormalR125=true;ui_layer_test_anchor_valid_=false;hud_quad.space=view_space_;hud_quad.pose.orientation={0,0,0,1};hud_quad.pose.position={0,-0.02f,-hudDistance};hud_quad.size.width=fovW;hud_quad.size.height=fovH;
             // C32: retain slow following but NEVER crop the combined native HUD
             // texture to its readable safe rectangle. Damage/fader pixels and
             // user-expanded lower bars live outside that rectangle too. Preserve
@@ -4848,6 +4849,41 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
     if(diceHudReceiptR93.valid&&!diceHudCurrentR93(diceHudReceiptR93.instance,
        diceHudReceiptR93.visit,diceHudReceiptR93.lifetime)){
         hud_quad=normalHudQuadR93;diceHudReceiptR93={};
+    }
+
+    // R125 HUD at infinity (VrHudInfinityR125, default ON). Miki 6 Nov: "the HUD is still slightly double, i need to
+    // look closer to see it". the one HUD quad at VrHudDistanceR110 (5 m in his ini) is seen by both eyes like a real
+    // board 5 m away: disparity IPD/D = 0.069/5 = 0.8 deg. while the eyes converge on the world further away that is
+    // outside fusion = double; to read it he has to converge on it. here the one HUD quad becomes two, LEFT eye only and
+    // RIGHT eye only, each moved sideways with its own eye (the eye position relative to the head, in the quad's space).
+    // seen from each eye every HUD pixel lies in exactly the same direction = zero disparity = optical infinity, so it
+    // fuses whatever the eyes look at. size, layout, safe box, palm reveal and the laser keep the same (angular) layout,
+    // the lag rotation keeps working. not used for the F2 world-anchored test plane and the dice-depth plane (those
+    // want depth). a frame without valid eye poses or without a free layer slot keeps the old single quad.
+    XrCompositionLayerQuad hudEyesR125[2]{hud_quad,hud_quad};
+    if(hudNormalR125&&!diceHudReceiptR93.valid&&ui_surface_geometry::hudInfinityR125.load(std::memory_order_acquire)&&
+       layer_frame.head_pose_valid&&layer_frame.stereo_views_valid){
+        int atR125=-1;
+        for(uint32_t i=0;i<layer_count;++i)if(layers[i]==reinterpret_cast<const XrCompositionLayerBaseHeader*>(&hud_quad))atR125=int(i);
+        const auto eyesR125=UiEyes(layer_frame); // eye position relative to the head, head (VIEW) axes
+        V3f offR125[2]{};bool okR125=atR125>=0&&layer_count<layerCapacityR105&&layer_count<13u;
+        for(int e=0;e<2&&okR125;++e){
+            const auto& p=eyesR125[e].position;
+            okR125=std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z)&&std::fabs(p.x)<0.10f&&std::fabs(p.y)<0.10f&&std::fabs(p.z)<0.10f;
+            const auto& ep=layer_frame.eye_pose[e].position;const auto& hp=layer_frame.head_pose.position;
+            offR125[e]=hud_quad.space==view_space_?V3f{p.x,p.y,p.z}:V3f{ep.x-hp.x,ep.y-hp.y,ep.z-hp.z}; // lag path: LOCAL axes
+        }
+        okR125=okR125&&std::isfinite(offR125[0].x+offR125[0].y+offR125[0].z+offR125[1].x+offR125[1].y+offR125[1].z);
+        if(okR125){
+            for(int e=0;e<2;++e){
+                hudEyesR125[e].eyeVisibility=e==0?XR_EYE_VISIBILITY_LEFT:XR_EYE_VISIBILITY_RIGHT;
+                hudEyesR125[e].pose.position.x+=offR125[e].x;hudEyesR125[e].pose.position.y+=offR125[e].y;hudEyesR125[e].pose.position.z+=offR125[e].z;
+            }
+            for(uint32_t i=layer_count;i>uint32_t(atR125)+1u;--i)layers[i]=layers[i-1];
+            layers[atR125]=reinterpret_cast<const XrCompositionLayerBaseHeader*>(&hudEyesR125[0]);
+            layers[atR125+1]=reinterpret_cast<const XrCompositionLayerBaseHeader*>(&hudEyesR125[1]);
+            ++layer_count;
+        }
     }
 
     XrFrameEndInfo end_info{ XR_TYPE_FRAME_END_INFO };

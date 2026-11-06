@@ -765,12 +765,20 @@ static bool PhysEntityIdentity135(void* entity,std::uint32_t id) noexcept {
 static bool EntityHiddenFlag59c14(void* entity,bool& hidden) noexcept {
     unsigned flags=0;if(!Read(static_cast<unsigned char*>(entity)+8,flags))return false;hidden=(flags&0x10)!=0;return true;
 }
+static bool EntityHidePinR125() noexcept {
+    // R125: checked on every call, no session latch. The old one-time static saw the F2
+    // recorder's D77 mid hook on 0x87963C (a jmp over the first instruction), refused, and
+    // kept refusing for the whole session: R124 log, all R120 STOWED_ENTITY rows
+    // HIDE_PIN_REFUSED. Identity = CEntity vtable slot 0x1F8 (.rdata) + original bytes or our
+    // detour over the first instruction (entity_hide_pin_r125.h).
+    namespace ep=::kcd2vr::entity_hide_pin_r125;
+    const auto b=WhBase();std::uintptr_t slot=0;unsigned char actual[16]{};
+    return b&&retail_build112::Ready(b)&&Read(reinterpret_cast<const void*>(b+ep::kEntityVftRva+ep::kHideSlot),slot)&&
+        Read(reinterpret_cast<const void*>(b+ep::kHideRva),actual)&&ep::accept(b,slot,actual);
+}
 static bool EntityHide59c14(void* entity,bool hidden,bool* invoked=nullptr) noexcept {
     if(invoked)*invoked=false;
-    static int pinned=-1;
-    if(pinned<0){constexpr unsigned char hide[]{0x48,0x89,0x5C,0x24,0x18,0x55,0x56,0x57,0x48,0x81,0xEC,0xB0,0,0,0,0x48};
-        unsigned char actual[16]{};pinned=(retail_build112::Ready(WhBase())&&Read(reinterpret_cast<const void*>(WhBase()+0x87963C),actual)&&!std::memcmp(actual,hide,sizeof(hide)))?1:0;}
-    if(pinned!=1)return false;
+    if(!entity||!EntityHidePinR125())return false; // refused = asked again on the next call
     __try{if(invoked)*invoked=true;reinterpret_cast<void(__fastcall*)(void*,bool)>(WhBase()+0x87963C)(entity,hidden);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }

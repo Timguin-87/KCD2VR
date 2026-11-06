@@ -27,6 +27,8 @@
         d40.mediumCrossbowHandPullR117=ranged_options_d65c::mediumCrossbowHandPullR117.load(std::memory_order_acquire); // R117
         d40.controllerLayoutR118=kcd2vr::controller_layout_r118::Get(); // R118
         d40.quickSlotFadeR112=kcd2vr::ui_hud_r112::quickSlotFade.load(std::memory_order_acquire); // R112
+        d40.hudInfinityR125=kcd2vr::ui_surface_geometry::hudInfinityR125.load(std::memory_order_acquire); // R125
+        d40.combatCrossR125=kcd2vr::ui_hud_r112::combatCrossR125.load(std::memory_order_acquire); // R125
         d40.alchemyViewSelectR116=kcd2vr::subsystems::alchemy::head_select_r116::enabled.load(std::memory_order_acquire); // R116
         d40.swingWhooshR116=kcd2vr::swing_whoosh_r116::enabled.load(std::memory_order_acquire); // R116
         d40.corpseSqueezeSearchR90=lab58::corpseSqueezeSearchR90.load(std::memory_order_acquire); // R90
@@ -41,6 +43,7 @@
         d40.meleeGripR123=kcd2vr::melee_grip_r123::enabled.load(std::memory_order_acquire); // R123
         d40.propImpactSoundR124=kcd2vr::prop_impact_sound_r124::enabled.load(std::memory_order_acquire); // R124
         d40.impaleFastDeathR106=kcd2vr::impale_death_speed_r106::enabled.load(std::memory_order_acquire); // R106
+        d40.impaleFullDepthR128=kcd2vr::gore32::impaleFullDepthR128.load(std::memory_order_acquire); // R128
         d40.cinematicBarsR107=kcd2vr::cinematic_bars_r107::enabled.load(std::memory_order_acquire); // R107
         d40.dodgeWindowD70=dodge_window_d70::Factor();
         d40.hudWalkoffD70=claude_d70::HudWalkoff();
@@ -139,6 +142,8 @@
         ranged_options_d65c::mediumCrossbowHandPullR117.store(d40.mediumCrossbowHandPullR117,std::memory_order_release); // R117
         kcd2vr::controller_layout_r118::Set(d40.controllerLayoutR118); // R118: live, read on the next X press
         kcd2vr::ui_hud_r112::quickSlotFade.store(d40.quickSlotFadeR112,std::memory_order_release); // R112
+        kcd2vr::ui_surface_geometry::hudInfinityR125.store(d40.hudInfinityR125,std::memory_order_release); // R125: live, next XR frame
+        kcd2vr::ui_hud_r112::combatCrossR125.store(d40.combatCrossR125,std::memory_order_release); // R125: live, next HUD update
         kcd2vr::subsystems::alchemy::head_select_r116::enabled.store(d40.alchemyViewSelectR116,std::memory_order_release); // R116: live
         kcd2vr::swing_whoosh_r116::enabled.store(d40.swingWhooshR116,std::memory_order_release); // R116: live, next swing
         lab58::corpseSqueezeSearchR90.store(d40.corpseSqueezeSearchR90,std::memory_order_release); // R90
@@ -153,6 +158,7 @@
         kcd2vr::melee_grip_r123::enabled.store(d40.meleeGripR123,std::memory_order_release); // R123: live, next grip sample
         kcd2vr::prop_impact_sound_r124::enabled.store(d40.propImpactSoundR124,std::memory_order_release); // R124: live, next impact
         kcd2vr::impale_death_speed_r106::enabled.store(d40.impaleFastDeathR106,std::memory_order_release); // R106
+        kcd2vr::gore32::impaleFullDepthR128.store(d40.impaleFullDepthR128,std::memory_order_release); // R128: live, next killing stab
         kcd2vr::cinematic_bars_r107::enabled.store(d40.cinematicBarsR107,std::memory_order_release); // R107
         dodge_window_d70::SetFactor(d40.dodgeWindowD70);
         claude_d70::SetHudWalkoff(d40.hudWalkoffD70);
@@ -240,6 +246,8 @@
     ok=wb("VrMediumCrossbowHandPullR117",ranged_options_d65c::mediumCrossbowHandPullR117.load(std::memory_order_acquire))&&ok; // R117
     ok=wi("VrControllerLayoutR118",kcd2vr::controller_layout_r118::Get())&&ok; // R118: 0 OPENXR, 1 STEAMVR, 2 PS VR2
     ok=wb("VrHudQuickSlotFadeR112",kcd2vr::ui_hud_r112::quickSlotFade.load(std::memory_order_acquire))&&ok; // R112
+    ok=wb("VrHudInfinityR125",kcd2vr::ui_surface_geometry::hudInfinityR125.load(std::memory_order_acquire))&&ok; // R125
+    ok=wb("VrCombatCrossR125",kcd2vr::ui_hud_r112::combatCrossR125.load(std::memory_order_acquire))&&ok; // R125
     ok=wb("VrAlchemyViewSelectR116",kcd2vr::subsystems::alchemy::head_select_r116::enabled.load(std::memory_order_acquire))&&ok; // R116
     ok=wb("VrSwingWhooshR116",kcd2vr::swing_whoosh_r116::enabled.load(std::memory_order_acquire))&&ok; // R116
     ok=wb("VrCorpseSearchSqueezeR89",lab58::corpseSqueezeSearchR90.load(std::memory_order_acquire))&&ok; // R90
@@ -254,6 +262,7 @@
     ok=wb(kcd2vr::melee_grip_r123::kKey,kcd2vr::melee_grip_r123::enabled.load(std::memory_order_acquire))&&ok; // R123
     ok=wb(kcd2vr::prop_impact_sound_r124::kKey,kcd2vr::prop_impact_sound_r124::enabled.load(std::memory_order_acquire))&&ok; // R124
     ok=wb("VrImpaleFastDeathR106",kcd2vr::impale_death_speed_r106::enabled.load(std::memory_order_acquire))&&ok; // R106
+    ok=wb("VrImpaleFullDepthR128",kcd2vr::gore32::impaleFullDepthR128.load(std::memory_order_acquire))&&ok; // R128
     ok=wb("VrCinematicBarsR107",kcd2vr::cinematic_bars_r107::enabled.load(std::memory_order_acquire))&&ok; // R107
     ok=wb("VrHudWalkoffD70",claude_d70::HudWalkoff())&&ok;
     ok=wb("VrNativeRoomscale1to1D76",roomscale_d76::Enabled())&&ok;
@@ -350,6 +359,10 @@
     kcd2vr::controller_layout_r118::Set(ReadIniIntExplicit(explicit_ini,"Settings","VrControllerLayoutR118",0));
     // R112: quick weapon/potion selectors fade 3 s after the last quick-access input (true, default) or stay shown (false).
     kcd2vr::ui_hud_r112::quickSlotFade.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHudQuickSlotFadeR112",true),std::memory_order_release);
+    // R125: HUD at optical infinity, one quad per eye (true, default); false = one quad at VrHudDistanceR110.
+    kcd2vr::ui_surface_geometry::hudInfinityR125.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHudInfinityR125",false),std::memory_order_release);
+    // R125: combat direction cross art shown (true) or hidden with lock/perfect-block/master-strike icons kept (false, default).
+    kcd2vr::ui_hud_r112::combatCrossR125.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatCrossR125",false),std::memory_order_release);
     // R116: alchemy selection follows the headset view (idle hands) and the reaching hand (true, default); false = R115 selection.
     kcd2vr::subsystems::alchemy::head_select_r116::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrAlchemyViewSelectR116",true),std::memory_order_release);
     // R116: weapon whoosh at the physical release, the native clip's later whoosh skipped (true, default); false = clip whoosh only.
@@ -382,6 +395,8 @@
     // metal, glass ...) when its velocity changes >= 1.2 m/s in one frame; OFF = silent props (R123). GEAR page 2.
     kcd2vr::prop_impact_sound_r124::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings",kcd2vr::prop_impact_sound_r124::kKey,true),std::memory_order_release);
     kcd2vr::impale_death_speed_r106::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrImpaleFastDeathR106",true),std::memory_order_release); // R106
+    // R128: ON (default) = a killing-stab hang slides onto the blade to the guard; plate on the struck zone keeps it shallow. GEAR page 3.
+    kcd2vr::gore32::impaleFullDepthR128.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrImpaleFullDepthR128",true),std::memory_order_release); // R128
     kcd2vr::cinematic_bars_r107::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCinematicBarsR107",true),std::memory_order_release); // R107
     // R91 dlss: ON (default) = DLSS/FSR stereo start fallback to the D85 eye boundary when R4's
     // final-main transaction gives no pair for 1 s (D85R5: the only path that ever gave DLSS stereo).

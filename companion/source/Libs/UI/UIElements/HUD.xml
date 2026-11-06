@@ -741,6 +741,12 @@
       <MovieClip name="CombatCursorCross" instancename="cccursor.actioncursor.CombatCursorCross" />
       <MovieClip name="CursorCrossPBSlot" instancename="cccursor.actioncursor.CombatCursorCross.pbslot" />
       <MovieClip name="CursorCrossOpponentLock" instancename="cccursor.actioncursor.CombatCursorCross.lock" />
+      <!-- R125: combat direction cross art (hidden by default; lock + pbslot icons stay) -->
+      <MovieClip name="CombatCrossState1" instancename="cccursor.actioncursor.CombatCursorCross.state1" />
+      <MovieClip name="CombatCrossState2" instancename="cccursor.actioncursor.CombatCursorCross.state2" />
+      <MovieClip name="CombatCrossState3" instancename="cccursor.actioncursor.CombatCursorCross.state3" />
+      <MovieClip name="CombatCrossState6" instancename="cccursor.actioncursor.CombatCursorCross.state6" />
+      <MovieClip name="CombatCrossState7" instancename="cccursor.actioncursor.CombatCursorCross.state7" />
 
 	    <MovieClip name="CompassStrip" instancename="tc.compass.compassStrip" />
       <MovieClip name="CompassMarksOver" instancename="tc.compass.compassMarkersOver" />

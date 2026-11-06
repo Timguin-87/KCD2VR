@@ -44,6 +44,8 @@ static void ImpalePartTick59c7g() noexcept {
  static std::uint64_t acquiredLivingSerial40=0; // a retired display cannot reselect a joint from its same old request
  // H18: original native lethal-victim wait, at most4500ms/20Hz. A successor
  // requires a NEW current contact; old body/rawPart are never transferred.
+ // R128: plate armour on the struck zone of THIS killing thrust (captured at admission; the verdict mailbox is overwritten by later hits)
+ static bool plateR128=false,plateKnownR128=false;static double plateStabR128=-1;static int plateZoneR128=-1;
  namespace i47=kcd2vr::impale47;static i47::RagdollWait wait47;static const char* why47="";static bool waitLogged47=false,gaveUp47done=false;static std::uint64_t refusalSeen47=0;
  auto now=std::uint64_t(GetTickCount64());PhysFrame6698 frame{};
  static kcd2vr::impale_observe_h7::Schedule observeH7;unsigned observationH7=0;
@@ -60,7 +62,7 @@ static void ImpalePartTick59c7g() noexcept {
  const auto gaveUp47=[&](const char* reason){
   if(!candidate.serial||anchor.active||gaveUp47done)return;gaveUp47done=true;char e[200]{};std::snprintf(e,sizeof(e),"reason=%s waitedMs=%llu polls=%u lastRoot=%s",reason,
    (unsigned long long)wait47.waitedMs(std::uint64_t(GetTickCount64())),wait47.polls,why47&&*why47?why47:"NONE");log47("GAVE_UP",e);
-  SayImpale61(i47::gaveUpText(reason));}; // I10: a lethal stab that started an impale and then gave up says why, once
+  char t128[96]{};SayImpale61(i47::gaveUpLine(reason,t128,sizeof(t128)));}; // I10: a lethal stab that started an impale and then gave up says why, once (R128: with the reason code; log only unless F2 records)
  const auto log40=[&](const char* by,double depth){
   if(anchor.active){char e[200]{};std::snprintf(e,sizeof(e),"reason=%s heldMs=%llu depthLeft=%.2f mode=%s",by,(unsigned long long)(hang.since&&now>=hang.since?now-hang.since:0),depth,mode40==1?"STUCK":mode40==2?"HANG40":"HANG");log47("RELEASED",e);}
   if(!mode40||!latched40)return;char line[260]{};std::snprintf(line,sizeof(line),"C40 IMPALE_RELEASE serial=%llu target=%u part=%d mode=%s by=%s heldMs=%llu depthLeft=%.2f through=%d nativeWrites=%s",
@@ -76,7 +78,8 @@ static void ImpalePartTick59c7g() noexcept {
  };
  const auto reset=[&](){kcd2vr::impale_death_speed_r106::End();dropHold60();bodyOwnerD40::claims.release(motorD40);keepMotorD40=false;kcd2vr::blood49::partWound55.publish({});anchor.clear();candidate={};tries=0;hang={};side=-1;entryBlood=false;mode40=0;depth40=0;through40=false;stuck40={};latched40=death40=0;followR101.clear();shapeR101.reset();
   victimWaitH18={};successorAnchorH18=firstPinPublishedH18=false;lastWitnessSampleH18=0;successorRefusalsH18=0;
-  wait47={};why47="";waitLogged47=false;gaveUp47done=false;livingDisplay40=false;livingAnchor40={};livingSource40={};g_impale_pin178r15.publish({});g_impale_skip40.publish({});};
+  wait47={};why47="";waitLogged47=false;gaveUp47done=false;livingDisplay40=false;livingAnchor40={};livingSource40={};g_impale_pin178r15.publish({});g_impale_skip40.publish({});
+  plateR128=plateKnownR128=false;plateStabR128=-1;plateZoneR128=-1;};
  // H21: cleanup requires exact retained source/buddy and typed Absent; no raw retry.
  const auto readyH18=g_phys_ready_sample6698.load(std::memory_order_acquire);
  const bool copiedFrameR96R1=readyH18&&g_phys_frame6698.read(frame);
@@ -253,6 +256,10 @@ static void ImpalePartTick59c7g() noexcept {
       hit.key!=frame.profiles[out.impaleSide32].key||hit.generation!=frame.profiles[out.impaleSide32].generation||
       hit.epoch!=frame.input.bodyEpoch||hit.request!=frame.request)return;
    candidate={serial,hit.epoch,hit.request,hit.target,hit.targetIdentity,hit.collider,hit.rawPart};
+   if(lethal&&!mode40){ // R128: plate on the struck zone? (the game's per-zone stab defence of THIS hit, read by impale40n::Evaluate)
+    i40::Verdict v128{};if(!i40::verdict.read(v128))v128={};
+    const auto p128=i40::plateR128(v128,hit.serial,hit.target,hit.bodyMaterial,double(i40::hardArmour.load(std::memory_order_relaxed)));
+    plateR128=p128.plate;plateKnownR128=p128.known;plateStabR128=p128.stab;plateZoneR128=int(p128.zone);}
    tries=mode40==1?4:hangMode?22:3; // C32: the dead body may need ~1 s to become a ragdoll (weapon side waits 1200 ms)
    if(lethal&&hit.death==1&&mode40!=1)kcd2vr::impale_death_speed_r106::Begin(hit.target,now); // R106: his death clip runs faster until the ragdoll pin
    side=out.impaleSide32;local=out.impaleLocal32;
@@ -382,8 +389,19 @@ static void ImpalePartTick59c7g() noexcept {
    const double al=std::sqrt(axisL.x*axisL.x+axisL.y*axisL.y+axisL.z*axisL.z);
    double depth=al>1e-6?((pr.tip.x-local.x)*axisL.x+(pr.tip.y-local.y)*axisL.y+(pr.tip.z-local.z)*axisL.z)/al*ws:.15;
    if(mode40==2){backAlong(depth40);depth=depth40;} // C40: the corpse is drawn onto the blade by the modelled depth
+   const double pickDepthR128=depth;
+   if(!mode40){ // R128 (Miki 6 Nov: "the blade was not deep enough ... let it impale them on that fully, only plate armor makes this")
+    // the stuck point moves back along the blade to the guard (grip->tip length minus 8 cm, at most 1 m); the hang
+    // servo then draws the body onto it. Plate on the struck zone keeps the old shallow point.
+    const double full=g::fullDepthR128(depth,al*ws,plateR128,g::impaleFullDepthR128.load(std::memory_order_relaxed));
+    if(full>depth+.005){backAlong(full-depth);depth=full;}
+    if(plateR128&&g::impaleFullDepthR128.load(std::memory_order_relaxed)){char t[96]{};
+     std::snprintf(t,sizeof(t),"impale: plate armour on his %s (stab %.0f >= %.0f) - blade stays shallow",i40::name(i40::Zone(plateZoneR128)),plateStabR128,double(i40::hardArmour.load(std::memory_order_relaxed)));SayImpale61(t);}
+   }
    hang.start(now,depth);
-   {char e[160]{};std::snprintf(e,sizeof(e),"mode=HANG depth=%.2f massKg=%.0f releases=PULL_OUT|KICK|HAND_PUSH",hang.depth,double(g::clampHangMass44(g::hangMassKg.load(std::memory_order_relaxed))));log47("LATCHED",e);}
+   {char e[300]{};std::snprintf(e,sizeof(e),"mode=HANG depth=%.2f pickDepth=%.2f fullDepth=%d plate=%d armourKnown=%d zone=%s zoneStab=%.1f massKg=%.0f releases=PULL_OUT|KICK|HAND_PUSH|SWING_OFF|GRIP|30S",
+     hang.depth,pickDepthR128,g::impaleFullDepthR128.load(std::memory_order_relaxed)?1:0,plateR128?1:0,plateKnownR128?1:0,i40::name(i40::Zone(plateZoneR128)),plateStabR128,
+     double(g::clampHangMass44(g::hangMassKg.load(std::memory_order_relaxed))));log47("LATCHED",e);}
   }
   if(anchor.active&&mode40==1)stuck40.start(now,depth40);
   if(anchor.active&&mode40){latched40=now;char line[260]{};std::snprintf(line,sizeof(line),"C40 IMPALE_LATCHED serial=%llu target=%u part=%d mode=%s depth=%.2f through=%d ownBladeSkipsVictim=1 nativeCollision=UNCHANGED",
@@ -401,6 +419,10 @@ static void ImpalePartTick59c7g() noexcept {
  // C32 (review): an old visual latch alive when hang mode was switched on has no hang -> let it go, never a pin without a driver
  if(hangNow&&!hang.active&&mode40!=1){log40("NO_HANG_STATE",depth40);anchor.clear();candidate={};tries=0;side=-1;reset();return;}
  if(mode40)g_impale_skip40.publish({candidate.entity,candidate.body,now});
+ // R128: the corpse hanging on the blade (not a living STUCK victim) is skipped by OUR blade queries while the
+ // full-depth option is on, so the blade stays in him (npc_contact172.inl PrepareNpcQuery172 checks it again).
+ if(mode40!=1&&hangNow&&hang.active&&g::impaleFullDepthR128.load(std::memory_order_relaxed))
+  g_impale_skip40.publish({candidate.entity,candidate.body,now,candidate.target,true});
  if((mode40==1||hangNow)&&side>=0&&side<2){
   const auto& pr=frame.profiles[side];const auto& wp=out.weapons[side];
   const auto tipW=ph::point(hw,ph::point(wp,pr.tip)*ws),gripW=ph::point(hw,ph::point(wp,pr.grip[side].p)*ws);
@@ -465,10 +487,10 @@ static void ImpalePartTick59c7g() noexcept {
    if(frame.input.tick!=lastBladeTick60||lastBladeSerial60!=serial){lastBlade60=bladePoint60;lastBladeTick60=frame.input.tick;lastBladeSerial60=serial;}
    if(!blade60.gripHeld){log40("GRIP_RELEASED",depth40);reset();return;}
    auto o=hang.step(in);
-   if(bladeMotion60){feelState60.exitDepth=float(1.0-std::clamp(o.depth/std::max(.01,depth40>0?depth40:.3),0.0,1.0));
-    const auto feel=feel60::plan({},blade60,feelState60,now);
-    if(feel.valid&&o.drive){const double axial=g::dot(o.velocity,axis),scale60=feel.slideFactor*(1.0-.5*feel.exitTug);
-     o.velocity=(o.velocity-axis*axial+axis*(axial*scale60))*feel.dragScale;}}
+   // R128: the DS-F108 feel layer (impale_feel60.h) is NOT applied to the velocity servo any more. It multiplied
+   // every hang velocity by ragdollDrag 35 % (and the along-blade part by another 47.5 %): the servo REPLACES the
+   // part's velocity each frame, so only a third of the hold was left and gravity won ("slided down from the blade").
+   // It was written for the constraint hold's motor (F9 lab), which keeps its own path.
 
    // Blood/material callbacks above can reenter native code. Recheck the exact
    // successor/source immediately before a corpse write; no retry on refusal.

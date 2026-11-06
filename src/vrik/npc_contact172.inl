@@ -83,6 +83,16 @@ static bool PrepareNpcQuery172() noexcept {
         void* heldBody=kcd2vr::static_grab_r89::heldBodyR103[heldSide].load(std::memory_order_acquire);
         if(heldEntity&&heldBody&&kcd2vr::static_grab_r89::heldEntityR94[heldSide].load(std::memory_order_acquire))(void)q.skip.add(heldEntity,heldBody);
     }
+    // R128 (Miki 6 Nov: blade "not deep enough"): the dead body hanging on our blade (VrImpaleFullDepthR128 ON) is
+    // not a wall for our own blade queries, else the blade is pushed back out of him. Only a corpse hang (never the
+    // living STUCK victim - C42), published within 200 ms, the same entity id still alive and its current physics
+    // body is the hung one. Optional like the props: a full list keeps the old query.
+    {ImpaleSkip40 hung{};
+     if(kcd2vr::gore32::impaleFullDepthR128.load(std::memory_order_relaxed)&&g_impale_skip40.read(hung)&&hung.hangR128&&
+        hung.entity&&hung.body&&hung.target&&now>=hung.tick&&now-hung.tick<=200){
+      void* hungEntity=EntityById6694(hung.target);void* hungBody=nullptr;
+      if(hungEntity&&hungEntity!=henry&&reinterpret_cast<std::uintptr_t>(hungEntity)==hung.entity&&
+         NpcBodyRead172(hungEntity,hungBody)&&reinterpret_cast<std::uintptr_t>(hungBody)==hung.body)(void)q.skip.add(hungEntity,hungBody);}}
     q.gate=npc172::Gate::HenryIdentity;
     if(henry!=g_last_player_entity.load())return false;
     q.gate=npc172::Gate::Ready;q.ready=true;return true;

@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cwchar>
 namespace kcd2vr::release_menu_r92 {
-enum class Row { Vignette,Turn,Alchemy,Smith,Crouch,Hud,Glyphs,Dialogue,Enemies,ActivityPad,Roomscale,FastBlock,PointingTalk,Impale,BodyHeight,Gore,BlockIndicator,None };
+enum class Row { Vignette,Turn,Alchemy,Smith,Crouch,Hud,Glyphs,Dialogue,Enemies,ActivityPad,Roomscale,FastBlock,PointingTalk,Impale,BodyHeight,Gore,BlockIndicator,HudInfinity,CombatCross,None };
 struct Entry {Row id;const wchar_t* title;const wchar_t* detail;};
 inline constexpr std::array<Entry,8> pages[3]{{{
  {Row::Vignette,L"Comfort vignette",L"Darken peripheral vision while moving."},
@@ -30,7 +30,10 @@ inline constexpr std::array<Entry,8> pages[3]{{{
 }},{{
  // R124 (Miki: "everybody should have an option to make block message show or not, developer and non developer")
  {Row::BlockIndicator,L"BLOCK message",L"Show BLOCK / SHIELD BLOCK in the view while the game holds your block."},
- {Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""}
+ // R125 (Miki: "the HUD is still slightly double" / "hard disable the combat cursor, leave only the icons")
+ {Row::HudInfinity,L"HUD depth",L"INF: each eye its own HUD copy, flat and never double. DISTANCE: one HUD at the VR HUD distance."},
+ {Row::CombatCross,L"Combat direction cross",L"HIDDEN: only the lock / perfect block / master strike icons show in a fight."},
+ {Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""}
 }}};
 inline constexpr unsigned kPages=3;
 inline constexpr const auto& rows(unsigned page) noexcept{return pages[page<kPages?page:0];}
@@ -50,6 +53,8 @@ template<class S> bool advance(S& s,Row row) noexcept {
  case Row::Roomscale:s.roomscale_mode=(std::clamp(s.roomscale_mode,0,3)+1)%4;s.live_d39.nativeRoomscaleD76=s.roomscale_mode==1||s.roomscale_mode==2;break;
  case Row::FastBlock:s.fast_block_r92=!s.fast_block_r92;break;
  case Row::BlockIndicator:s.show_block_indicator_h24=!s.show_block_indicator_h24;break; // R124: same VrShowBlockIndicator key as COMBAT
+ case Row::HudInfinity:s.live_d39.hudInfinityR125=!s.live_d39.hudInfinityR125;break; // R125: VrHudInfinityR125
+ case Row::CombatCross:s.live_d39.combatCrossR125=!s.live_d39.combatCrossR125;break; // R125: VrCombatCrossR125
  case Row::PointingTalk:s.gesture_talk=!s.gesture_talk;break;
  case Row::Impale:s.impale_hang=combat_menu49::impaleToggle(s.impale_hang,s.impale_hang_on45);break;
  case Row::Gore:{const int next=((s.decapitation||s.dismemberment_d80?2:s.bloody_fights49?1:0)+1)%3;s.bloody_fights49=next>=1;s.decapitation=next==2;s.dismemberment_d80=next==2;break;} // R98: OFF -> BLOOD x2 (VrBloodyFights) -> + VrDecapitation + VrDismemberment
@@ -72,6 +77,8 @@ template<class S> const wchar_t* value(const S& s,Row row) noexcept {
  case Row::Roomscale:return s.roomscale_mode==1?L"WALK":s.roomscale_mode==2?L"WALK + DODGE":s.roomscale_mode==3?L"DODGE":L"OFF";
  case Row::FastBlock:return s.fast_block_r92?L"ON":L"OFF";
  case Row::BlockIndicator:return s.show_block_indicator_h24?L"SHOWN":L"HIDDEN";
+ case Row::HudInfinity:return s.live_d39.hudInfinityR125?L"INF":L"DISTANCE";
+ case Row::CombatCross:return s.live_d39.combatCrossR125?L"SHOWN":L"HIDDEN";
  case Row::PointingTalk:return s.gesture_talk?L"ON":L"OFF";
  case Row::Impale:return s.impale_hang?L"ON":L"OFF";
  case Row::Gore:return s.decapitation&&s.dismemberment_d80?(s.bloody_fights49?L"BLOOD x2 + HEADS + LIMBS":L"HEADS + LIMBS"):s.decapitation?L"HEADS ONLY":s.dismemberment_d80?L"LIMBS ONLY":s.bloody_fights49?L"BLOOD x2":L"OFF";

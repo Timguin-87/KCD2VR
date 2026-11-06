@@ -15,6 +15,7 @@
 #include <functional>
 #include <utility>
 #include <string>
+#include <cmath>
 #define __fastcall
 static std::uintptr_t callerD40=0;
 #define _ReturnAddress FixtureReturnAddressD40
@@ -109,9 +110,9 @@ namespace kcd2vr::hookcost178r22{enum Kind{Alignment,AlignmentPolicy};struct Sco
 namespace DetourModKit{
 struct Address{std::uintptr_t value;};
 namespace hook{
-struct Target{Address address;};struct Options{};
+struct Target{Address address;};struct Options{bool fail_if_already_hooked=false;};
 struct InlineRequest{const char* name;Target target;Options options;};
-static unsigned installsD40=0,enablesD40=0;
+static unsigned installsD40=0,enablesD40=0,midInstallsD125=0,midEnablesD125=0;
 static std::uintptr_t failedTargetD40=0,failedEnableD40=0;
 struct Hook{
     std::uintptr_t address=0;
@@ -120,14 +121,25 @@ struct Hook{
         if(address==baseD37+0x14095E8)return reinterpret_cast<T>(&PositionLeafD40);
         return reinterpret_cast<T>(&AlignmentLeafD40);
     }
-    bool enable(){++enablesD40;return address!=failedEnableD40;}
+    bool enable(){if(address==baseD37+0x83A1A0){++midEnablesD125;return address!=failedEnableD40;}++enablesD40;return address!=failedEnableD40;}
     bool disable(){return true;}
 };
 template<class T>std::optional<Hook> inline_at(InlineRequest&& req,T){
     ++installsD40;if(req.target.address.value==failedTargetD40)return {};
     return Hook{req.target.address.value};
 }
+// R125 mid hook leaf: the register file the production callback reads (rdi = CAnimatedCharacter, rbx = out QuatT).
+enum class Gpr{Rax,Rbx,Rcx,Rdx,Rsi,Rdi,Rbp};
+struct MidContext{std::uintptr_t r[7]{};};
+static std::uintptr_t gpr(MidContext& c,Gpr g){return c.r[int(g)];}
+struct MidRequest{const char* name;Target target;Options options;};
+static void (*midCallbackD125)(MidContext&)=nullptr;
+static std::optional<Hook> mid_at(MidRequest&& req,void (*fn)(MidContext&)){
+    ++midInstallsD125;if(req.target.address.value==failedTargetD40)return {};
+    midCallbackD125=fn;return Hook{req.target.address.value};
+}
 }}
+namespace diagnostic_trace{static unsigned linesD125=0;static std::string lastD125;static void Write(const char* m){++linesD125;lastD125=m;}}
 #include "generated_combat_no_turn_d40.inc"
 static void ck(bool ok,const char* name){++checksD40;if(!ok)++failuresD40;std::printf("%s %u: %s\n",ok?"PASS":"FAIL",checksD40,name);}
 static void RotationAtQueueD40(void* manager,const void* command,std::uintptr_t caller){
@@ -330,8 +342,15 @@ int main(){
         g_alignment_hook112.reset();g_position_hook36.reset();g_rotation_hook_d40.reset();
         g_alignment_original112=nullptr;g_position_original36=nullptr;g_rotation_original_d40=nullptr;
         g_motion_contract112=0;g_rotation_contract_d40=0;installsD40=enablesD40=0;failedTargetD40=failedEnableD40=0;
+#if D125_HAS_ROOT_MOTION
+        g_root_motion_hook125.reset();g_root_motion_contract125=0;midInstallsD125=midEnablesD125=0;
+#endif
     };
     resetHooks();ck(NativeMotionArm112()&&CombatNoTurnReadyD40()&&installsD40==3&&enablesD40==3,"actual arm routine installs core plus optional verified rotation hook");
+#if D125_HAS_ROOT_MOTION
+    ck(g_root_motion_contract125==baseD37&&midInstallsD125==1&&midEnablesD125==1,"R125 arm installs the verified root-motion exit hook with the core");
+    ck(NativeMotionArm112()&&midInstallsD125==1,"R125 repeated arm reuses the root-motion hook");
+#endif
     ck(NativeMotionArm112()&&installsD40==3,"repeated arm reuses installed hooks");
     auto* rotationEntry=static_cast<CodeSegmentD40*>(nullptr);for(auto& b:codeD40)if(b.rva==0x14097F0)rotationEntry=&b;
     ck(rotationEntry!=nullptr,"independent DLL fixture includes rotation entry");
@@ -343,6 +362,12 @@ int main(){
     failedEnableD40=0;const auto partial=installsD40;
     ck(NativeMotionArm112()&&!CombatNoTurnReadyD40()&&installsD40==partial,"partial optional trampoline is retained without hot recreation");
     resetHooks();retailD40=false;ck(!NativeMotionArm112()&&installsD40==0&&!CombatNoTurnReadyD40(),"unverified retail never installs any motion hook");retailD40=true;
+#if D125_HAS_ROOT_MOTION
+    ck(midInstallsD125==0&&g_root_motion_contract125==0,"R125 unverified retail never installs the root-motion hook");
+    resetHooks();failedEnableD40=baseD37+0x83A1A0;
+    ck(NativeMotionArm112()&&g_motion_contract112==baseD37&&g_root_motion_contract125==0,"R125 root-motion enable failure keeps no-step/turn hooks");
+    failedEnableD40=0;ck(NativeRootMotionArm125(baseD37)&&g_root_motion_contract125==baseD37&&midInstallsD125==1,"R125 failed enable is retried later on the same hook (no latch)");
+#endif
 #else
     ck(NativeMotionContract112(baseD37),"D39 legacy motion contract still verifies against actual DLL bytes");
 #endif
@@ -415,6 +440,58 @@ int main(){
     ck(kcd2vr::free_targeting_d42::rotationRefused[kcd2vr::align24::GameContext].load()>0,"refusal retains exact first failing owner gate");
     kcd2vr::diagnostics::capture168::gate.select(kcd2vr::diagnostics::capture168::Domain::Combat,false,1000);
     kcd2vr::free_targeting_d42::set(false);
+#endif
+#if D125_HAS_ROOT_MOTION
+    {
+    // R125 (R124 log: alignment vetoed 49..128x and position command vetoed per attack, Henry still C38 forwardCm
+    // 45..126): the exit of CalculateWantedEntityMovement keeps Henry's requested horizontal movement in his ordinary
+    // attack phases 4/8/16 and drops the clip/forced root translation. Rotation and height stay native.
+    g_motion_contract112=baseD37;g_combat_experiment175=true;g_physical_combat177=true;liveActionD40=true;
+    kcd2vr::free_targeting_d42::set(false);g_no_step55=true;
+    AreaD37<0x800> animated;AreaD37<0x40> out;
+    animated.put(0,baseD37+0x3A49468);animated.put(0x38,entity.ptr());animated.put(0x708,std::uint8_t(0));
+    animated.put(0x68C,.01f);animated.put(0x690,-.02f);animated.put(0x694,.5f);
+    player.put(0x268,animated.ptr());
+    const auto prime=[&](){out.put(0,.1f);out.put(4,.2f);out.put(8,.3f);out.put(12,.9f);out.put(0x10,.30f);out.put(0x14,.40f);out.put(0x18,-.05f);};
+    const auto fire=[&](std::uintptr_t a){DetourModKit::hook::MidContext c{};c.r[int(DetourModKit::hook::Gpr::Rdi)]=a;c.r[int(DetourModKit::hook::Gpr::Rbx)]=out.address();RootMotionMid125(c);};
+    const auto f32=[&](std::size_t o){float v=0;std::memcpy(&v,out.bytes.data()+o,4);return v;};
+    const auto vetoed=[&](){return f32(0x10)==.01f&&f32(0x14)==-.02f&&f32(0x18)==-.05f&&f32(0)==.1f&&f32(12)==.9f;};
+    const auto untouched=[&](){return f32(0x10)==.30f&&f32(0x14)==.40f&&f32(0x18)==-.05f&&f32(0)==.1f&&f32(12)==.9f;};
+    const auto expectRoot=[&](bool veto,const char* label,std::uintptr_t a=0){prime();fire(a?a:animated.address());ck(veto?vetoed():untouched(),label);};
+    g_root_motion_contract125=baseD37;
+    for(int kind:{0,1})for(int p:{4,8,16}){melee(kind);phase(p);expectRoot(true,"R125 ordinary slash/thrust phase 4/8/16: horizontal = requested movement, clip translation removed, rotation and height native");}
+    melee(0);
+    for(int p:{0,1,2,32,64,128,256}){phase(p);expectRoot(false,"R125 guard/after-strike/stagger/block phases keep native movement");}phase(8);
+    for(int kind:{4,5,8,35,55,62}){type.put(8,kind);expectRoot(false,"R125 kick/clinch/masterstrike/special row keeps native clip motion");}type.put(8,0);
+    expectRoot(true,"R125 baseline restored");
+    g_no_step55=false;expectRoot(false,"R125 Attack step veto OFF = native clip motion");g_no_step55=true;
+    expectRoot(true,"R125 switch back ON works again at once (no latch)");
+    bodyRequiredD37=true;expectRoot(false,"R125 protected paired/masterstrike body census keeps native motion");bodyRequiredD37=false;
+    animation_filter::nativeBodyOwned112=true;expectRoot(false,"R125 native body owner keeps native motion");animation_filter::nativeBodyOwned112=false;
+    g_ctx_menu=true;expectRoot(false,"R125 menu context keeps native motion");g_ctx_menu=false;
+    g_combat_experiment175=false;expectRoot(false,"R125 F4 off keeps native motion");g_combat_experiment175=true;
+    animated.put(0x708,std::uint8_t(1));expectRoot(false,"R125 native no-movement (identity) path untouched");animated.put(0x708,std::uint8_t(0));
+    AreaD37<0x800> npc;AreaD37<0x50> npcEnt;npc.put(0,baseD37+0x3A49468);npc.put(0x38,npcEnt.ptr());
+    expectRoot(false,"R125 NPC animated character keeps its native attack motion",npc.address());
+    animated.put(0,baseD37+0x3A49470);expectRoot(false,"R125 wrong animated-character vtable stays native");animated.put(0,baseD37+0x3A49468);
+    player.put(0x268,npc.ptr());expectRoot(false,"R125 animated character not linked from Henry's player stays native");player.put(0x268,animated.ptr());
+    animated.put(0x68C,NAN);expectRoot(false,"R125 non-finite requested movement stays native");animated.put(0x68C,.01f);
+    g_root_motion_contract125=0;expectRoot(false,"R125 unverified contract cannot write");g_root_motion_contract125=baseD37;
+    selectedD37=true;bindPunch(0,0,5);phase(8);expectRoot(true,"R125 tracked ordinary punch phase 8 also loses the clip step");
+    type.put(8,8);expectRoot(false,"R125 kick with fists keeps its native step");type.put(8,5);
+    selectedD37=false;melee(0);phase(8);
+    ck(NativeRootMotionContract125(baseD37),"R125 root-motion pins match bytes read from the supplied DLL");
+    for(auto& block:codeD40){
+        if(block.rva!=0x839FF4&&block.rva!=0x83A016&&block.rva!=0x83A06B&&block.rva!=0x83A0D6&&block.rva!=0x83A195&&block.rva!=0x83A7A2&&block.rva!=0x83A72B&&block.rva!=0x3A49468+0x2F0)continue;
+        block.bytes[0]^=1;ck(!NativeRootMotionContract125(baseD37),"R125 each root-motion pin fails closed when changed");block.bytes[0]^=1;
+    }
+    kcd2vr::diagnostics::capture168::gate.select(kcd2vr::diagnostics::capture168::Domain::Combat,true,1000);
+    const auto lines=diagnostic_trace::linesD125;
+    expectRoot(true,"R125 F3 recorder ON: identical decision");expectRoot(true,"R125 F3 second frame");
+    phase(32);expectRoot(false,"R125 window closes at phase 32");phase(8);
+    ck(diagnostic_trace::linesD125==lines+1&&diagnostic_trace::lastD125.find("R125 ROOT_MOTION_VETO frames=2")==0,"R125 one F3 row per attack window with the removed travel");
+    kcd2vr::diagnostics::capture168::gate.select(kcd2vr::diagnostics::capture168::Domain::Combat,false,1000);
+    }
 #endif
     std::printf("D40 actual queued-rotation adapter: %u checks, %u failures; feature_present=%d; native/Windows/headset execution NOT_RUN\n",checksD40,failuresD40,D40_HAS_ROTATION);
     return failuresD40?1:0;

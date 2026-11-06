@@ -2,6 +2,7 @@
 #include "subsystems/base/startup_graphics_d80.h"
 #include "subsystems/dice/selection_marker_r92.h"
 #include "vr_menu.h"
+#include "ui_surface_geometry.h" // R127: HUD convergence range
 #include "subsystems/hud_ui_controls/prompt_policy_d80.h"
 #include "subsystems/experimental/claude_options_h8.h"
 #include "subsystems/experimental/deepseek_options_h29.h"
@@ -379,6 +380,7 @@ constexpr UiRect kV4ElemLowerScale{620,330,1038,354};
 constexpr UiRect kV4ElemLowerY{620,378,1038,402};
 constexpr UiRect kV4ElemLowerSpread{620,426,1038,450};
 constexpr UiRect kCombatCrosshairR112{620,474,1038,498}; // R112 big directional combat crosshair size
+constexpr UiRect kCombatCrossR125{620,508,1038,532}; // R125 ELEMENT CONTROLS: combat direction cross on/off (VrCombatCrossR125)
 constexpr UiRect kV4ElemBack{620,542,806,574};
 constexpr UiRect kV4ElemSave{818,542,1038,574};
 // Stats controls are retained in state but intentionally not exposed on this compact page.
@@ -1550,7 +1552,14 @@ void VrMenu::HandleDrag(int x, int y)
     case DragControl::ProjectionPitchTrim: s.projection_pitch_trim_deg=-15.0f+t(kV4CenterY)*30.0f; s.projection_pitch_trim_deg=std::round(s.projection_pitch_trim_deg*10.0f)/10.0f; break;
     case DragControl::CorrectedPlanarY: s.presentation_center_y=-0.20f+t(kV4CenterY)*0.40f; s.presentation_center_y=std::round(s.presentation_center_y*1000.0f)/1000.0f; break;
     case DragControl::FlatScreenScale: s.flat_screen_scale=0.45f+t(kV4FlatScale)*2.55f; s.flat_screen_scale=std::round(s.flat_screen_scale*100.0f)/100.0f; break;
-    case DragControl::HudDistanceR110: s.hud_distance_r110=std::round((1.0f+t(kHudDistanceR110)*4.0f)*10.0f)/10.0f; break;
+    case DragControl::HudDistanceR110:{ // R127 HUD convergence: 0.75..10 m log scale on the first 90 %, the last 10 % = INF (VrHudInfinityR125)
+        namespace g=kcd2vr::ui_surface_geometry;
+        const float tt=t(kHudDistanceR110);s.live_d39.hudInfinityR125=tt>=0.92f;
+        if(!s.live_d39.hudInfinityR125){
+            const float d=g::kHudConvergenceMinR127*std::pow(g::kHudConvergenceMaxR127/g::kHudConvergenceMinR127,std::min(tt/0.90f,1.0f));
+            s.hud_distance_r110=d<2.0f?std::round(d*20.0f)/20.0f:std::round(d*10.0f)/10.0f; // 5 cm steps below 2 m, 10 cm above
+        }
+        break;}
     case DragControl::CombatCrosshairR112: s.combat_crosshair_scale_r112=std::round((0.25f+t(kCombatCrosshairR112)*1.25f)*20.0f)/20.0f; break; // R112 25..150 %, 5 % steps
     case DragControl::PassiveFullFrameScale: s.passive_full_frame_scale=1.00f+t(kCinematicSizeR107)*1.00f; s.passive_full_frame_scale=std::round(s.passive_full_frame_scale*100.0f)/100.0f; break;
     case DragControl::PauseOverlaySize: s.pause_overlay_size=0.45f+t(kPauseOverlay124)*0.70f; s.pause_overlay_size=std::round(s.pause_overlay_size*100.0f)/100.0f; break;
@@ -1711,6 +1720,7 @@ void VrMenu::CommitDrag(DragControl released)
     VrMenuState s{}; ReadState(s);
     auto save=[&](){ if(callbacks_.save_settings) (void)callbacks_.save_settings(callbacks_.context); };
     if(released==DragControl::StabSpeedD67||released==DragControl::StabTravelD67){ApplyState(s);save();return;}
+    if(released==DragControl::HudDistanceR110){ApplyState(s);save();return;} // R125: distance / INF saved on release
     if(released>=DragControl::M1DifficultyR109&&released<=DragControl::M3KillEnergyR109){ApplyState(s);save();return;} // R109 MISC sliders: apply + save on release
     if(released==DragControl::NpcDifficulty||released==DragControl::NpcDefenseSpeed||released==DragControl::NpcUnarmedSpacing){ApplyState(s);save();return;}
     if(released==DragControl::BladeAxisH41||released==DragControl::FistTravelH41||released==DragControl::GuardDistanceD56||released==DragControl::GuardDepthD61||released==DragControl::GuardWidthH41||released==DragControl::GuardHeightH41||released==DragControl::GuardEntryH41||released==DragControl::GuardReleaseH41||released==DragControl::ShieldBoxR120||released==DragControl::PbWindowH41||released==DragControl::MsWindowH41||released==DragControl::H29TravelR8||released==DragControl::FingerMiddleShiftH31||released==DragControl::FingerMiddleMedialH31||released==DragControl::H29Cut||released==DragControl::H29Stab||released==DragControl::H29Punch||released==DragControl::H29Block||released==DragControl::FingerMiddleLateralC54){ApplyState(s);save();return;}
@@ -1956,10 +1966,10 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
         const auto selectedPage=liveGroupD39_.load();
         const auto selected=live::group(selectedPage);
         if(selected==live::Group::Body||selected==live::Group::MotionD67||selected==live::Group::Combat||selected==live::Group::Hands||selected==live::Group::Objects||selected==live::Group::Gear){
-            const bool second=selectedPage==live::kGearPage2R118||selectedPage==live::kBodyPage2D76||live::motionPage2D69(selectedPage)||selectedPage==live::kCombatPage2D70||selectedPage==live::kHandsPage2D71||selectedPage==live::kObjectsPage2D72;
+            const bool second=selectedPage==live::kGearPage3R125||selectedPage==live::kGearPage2R118||selectedPage==live::kBodyPage2D76||live::motionPage2D69(selectedPage)||selectedPage==live::kCombatPage2D70||selectedPage==live::kHandsPage2D71||selectedPage==live::kObjectsPage2D72;
             const bool body=selected==live::Group::Body,combat=selected==live::Group::Combat,hands=selected==live::Group::Hands,objects=selected==live::Group::Objects,gear=selected==live::Group::Gear;
             DrawButton(dc,font_small_,ED39(live::kMotionPrevD69),L"< PAGE 1",second?kPanel2:kAccent);
-            Text(dc,font_small_,gear?(second?L"Controller 2 / 2":L"Gear 1 / 2"):body?(second?L"Body trials 2 / 2":L"Body controls 1 / 2"):objects?(second?L"INSTANT 2 / 2":L"Objects 1 / 2"):hands?(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"):combat?(second?L"Combat trial 2 / 2":L"Combat controls 1 / 2"):(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"),786,88,156,24,kMuted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            Text(dc,font_small_,gear?(selectedPage==live::kGearPage3R125?L"HUD + impale 3 / 3":second?L"Controller 2 / 3":L"Gear 1 / 3"):body?(second?L"Body trials 2 / 2":L"Body controls 1 / 2"):objects?(second?L"INSTANT 2 / 2":L"Objects 1 / 2"):hands?(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"):combat?(second?L"Combat trial 2 / 2":L"Combat controls 1 / 2"):(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"),786,88,156,24,kMuted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
             DrawButton(dc,font_small_,ED39(live::kMotionNextD69),L"PAGE 2 >",second?kAccent:kPanel2);
         }
         for(unsigned n=0;n<live::kTabs.size();++n)DrawButton(dc,font_small_,ED39(live::kTabs[n]),live::kTabsText[n],unsigned(selected)==n?kAccent:kPanel2);

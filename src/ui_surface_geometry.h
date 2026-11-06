@@ -18,9 +18,20 @@ struct Hud {Surface surface{};Rect safe{};};
 // R110 (Miki: "eye strain, i must refocus on the HUD all the time - far away but the same size"): the readable HUD
 // plane distance in metres (was a fixed 1.55). The surface is computed AT this distance to cover the same eye frusta,
 // so width/height grow with the distance = the same angular size, only the focus/vergence depth changes.
-// Slider: VR HUD > INTERACTION / PROMPTS page "HUD distance", INI VrHudDistanceR110 (1.0..5.0, default 3.0).
+// Slider: VR HUD > INTERACTION / PROMPTS page "HUD convergence", INI VrHudDistanceR110 (0.75..10.0, default 3.0).
+// R127 (Miki: "is it then like convergence? a slider for HUD convergence"): yes - the size is angular, so this value only
+// sets where both eyes meet on the HUD (vergence). range widened from 1..5 to 0.75..10 m, log scale on the slider.
+inline constexpr float kHudConvergenceMinR127=0.75f,kHudConvergenceMaxR127=10.0f;
 inline std::atomic<float> hudDistanceR110{3.0f};
-inline float HudDistanceR110() noexcept {const float d=hudDistanceR110.load(std::memory_order_relaxed);return std::isfinite(d)?std::clamp(d,1.0f,5.0f):3.0f;}
+inline float HudDistanceR110() noexcept {const float d=hudDistanceR110.load(std::memory_order_relaxed);return std::isfinite(d)?std::clamp(d,kHudConvergenceMinR127,kHudConvergenceMaxR127):3.0f;}
+// R125 (Miki 6 Nov: "the HUD is still slightly double, i need to look closer to see it ... it should look like in
+// infinity, flat"). one quad seen by both eyes at D metres has a disparity of IPD/D (69 mm / 5 m = 0.8 deg): while you
+// look at the world further away the HUD is out of fusion = double, you must converge on it to read it. ON = xr_manager
+// submits two copies of the HUD quad, LEFT eye only and RIGHT eye only, each moved sideways with its own eye, so every
+// HUD pixel is in the same direction for both eyes = zero disparity = optical infinity. size, layout, palm reveal and
+// the laser stay the same (the angular layout does not change). OFF = the old single quad at the slider distance.
+// INI VrHudInfinityR125 (default false since R126: INF gave Miki more eye strain), VR HUD > INTERACTION / PROMPTS distance slider end "INF", Experiments GEAR 3.
+inline std::atomic<bool> hudInfinityR125{false};
 inline Vec Rotate(Quat q,Vec p) noexcept {
     const Vec t{2*(q.y*p.z-q.z*p.y),2*(q.z*p.x-q.x*p.z),2*(q.x*p.y-q.y*p.x)};
     return {p.x+q.w*t.x+q.y*t.z-q.z*t.y,p.y+q.w*t.y+q.z*t.x-q.x*t.z,p.z+q.w*t.z+q.x*t.y-q.y*t.x};

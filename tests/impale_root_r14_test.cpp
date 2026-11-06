@@ -22,6 +22,10 @@ int main(){
     ck(std::strstr(i::gaveUpText("ORIGINAL_VICTIM_WAIT_EXPIRED"),"ragdoll")!=nullptr,"expired text");
     ck(!*i::gaveUpText("SUPERSEDED_BY_NEW_THRUST"),"superseded silent");
     ck(!*i::gaveUpText(""),"empty silent");ck(!*i::gaveUpText(nullptr),"null silent");
-    ck(std::strstr(i::gaveUpText("VICTIM_ADMISSION_INVALID"),"C47")!=nullptr,"other reasons generic");
+    ck(std::strstr(i::gaveUpText("VICTIM_ADMISSION_INVALID"),"gave up")!=nullptr,"other reasons generic");
+    {char b[96]{};ck(!std::strcmp(i::gaveUpLine("VICTIM_ADMISSION_INVALID",b,sizeof(b)),"impale: gave up (VICTIM_ADMISSION_INVALID)"),"R128 reason in the line");
+     ck(std::strstr(i::gaveUpLine("BLADE_WITHDRAWN",b,sizeof(b)),"pulled out")!=nullptr,"R128 specific text kept");
+     ck(!*i::gaveUpLine("SUPERSEDED_BY_NEW_THRUST",b,sizeof(b)),"R128 superseded silent");
+     ck(std::strlen(i::gaveUpLine("NO_EXACT_RAGDOLL_OR_NEW_CORPSE_CONTACT_IN_ORIGINAL_WAIT",b,sizeof(b)))<=96,"R128 fits the status line");}
     ck(!std::strstr(i::gaveUpText("BLADE_WITHDRAWN_X"),"pulled"),"exact match only");
     std::printf("impale_root_r14 %d/%d\n",checks-fails,checks);return fails?1:0;}

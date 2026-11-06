@@ -30,6 +30,11 @@ ROTATION_FUNCTIONS = (
     "NativeRotationCommandOwnedD40", "NativeRotationDispatchD40", "NativeRotationDetourD40",
     "NativeRotationContractD40", "NativeRotationArmD40",
 )
+# R125: Henry attack root-motion veto at CalculateWantedEntityMovement's exit 83A1A0.
+ROOT_MOTION_FUNCTIONS = (
+    "RootMotionOwned125", "RootMotionMid125", "NativeRootMotionContract125", "NativeRootMotionArm125",
+)
+ROOT_MOTION_RDATA = {0x3A49468 + 0x2F0: 8}
 PUBLIC_FUNCTIONS = (
     "SetCombatNoStep55", "CombatNoStep55", "SetCombatNoTurnD40", "CombatNoTurnD40",
     "CombatNoTurnReadyD40", "CombatNoTurnVetoCountD40",
@@ -53,8 +58,8 @@ def function(text, name, static=True):
     return text[start:end] + "\n"
 
 
-def rotation_pins(source_text, pe):
-    body = function(source_text, "NativeRotationContractD40")
+def rotation_pins(source_text, pe, contract="NativeRotationContractD40"):
+    body = function(source_text, contract)
     arrays = {}
     for name, size, data in re.findall(r"const unsigned char (\w+)\[(\d+)\]\{([^}]+)\};", body):
         values = bytes(int(x.strip(), 0) for x in data.split(",") if x.strip())
@@ -88,6 +93,10 @@ def run(source, out, pe, native_pins, sanitize):
     generated += "\n".join(function(text, n) for n in COMMON_FUNCTIONS)
     if present:
         generated += "\n".join(function(text, n) for n in ROTATION_FUNCTIONS)
+    has_root = "static bool RootMotionOwned125(" in text
+    generated += f"#define D125_HAS_ROOT_MOTION {int(has_root)}\n"
+    if has_root:
+        generated += "\n".join(function(text, n) for n in ROOT_MOTION_FUNCTIONS)
     generated += function(text, "NativeMotionArm112")
     public_path = source / "src/frik_pose_probe.cpp"
     if present:
@@ -97,6 +106,9 @@ def run(source, out, pe, native_pins, sanitize):
     (out / "generated_combat_no_turn_d40.inc").write_text(generated)
     pins = dict(LEGACY_PINS)
     pins.update((int(row["rva"], 0), row["length"]) for row in native_pins)
+    if "static bool NativeRootMotionContract125(" in text:
+        pins.update((int(row["rva"], 0), row["length"]) for row in rotation_pins(text, pe, "NativeRootMotionContract125"))
+        pins.update(ROOT_MOTION_RDATA)
     segments = []
     for rva, size in sorted(pins.items()):
         actual = pe.read(rva, size)
@@ -162,7 +174,10 @@ def main():
     if sha != EXPECTED_DLL:
         raise SystemExit("Supplied DLL is not the exact verified retail binary; no native pins accepted.")
     source = args.source.resolve()
-    pins = rotation_pins((source / "src/subsystems/base/native_motion_owner.inl").read_text(), pe)
+    owner_text = (source / "src/subsystems/base/native_motion_owner.inl").read_text()
+    pins = rotation_pins(owner_text, pe)
+    if "static bool NativeRootMotionContract125(" in owner_text:
+        pins += rotation_pins(owner_text, pe, "NativeRootMotionContract125")
     contract = {"dll_sha256": sha, "timestamp": hex(pe.stamp), "image_base": hex(pe.base),
                 "pins": pins, "all_match": bool(pins) and all(p["matches"] for p in pins),
                 "native_execution": False}

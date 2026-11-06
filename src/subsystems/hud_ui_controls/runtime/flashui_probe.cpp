@@ -2442,12 +2442,44 @@ void ServiceDiceMarkerR92() noexcept {
     }
 }
 
+// R125: the big combat direction cross (CombatCursorCross) without its direction art (ui_hud_r112::combatCrossR125).
+// hide=true: state1/2/3/6/7 of cccursor.actioncursor.CombatCursorCross are set invisible (HUD.xml CombatCrossState*),
+// lock + pbslot (opponent lock, perfect block / master strike icon) and the parent stay native, so the game keeps
+// showing and moving them. Written again on every HUD generation and every 500 ms (the cross is driven by the game's
+// ActionScript, a native re-show lasts at most 0.5 s). hide=false gives the art back once. Nothing latches: a clip not
+// found yet (HUD not loaded, old companion HUD.xml) is simply tried again on the next call.
+void UpdateCombatCrossArtR125(bool hide,std::uint64_t now) noexcept {
+    static bool hidden=false;static std::uint64_t generation=0,last=0;static unsigned loggedMask=~0u;
+    const auto& names=ui_hud_r112::kCombatCrossArtR125;
+    const bool hudReady=g_hud_repair_ready175.load(std::memory_order_acquire)&&retail_build112::Ready(WhBase());
+    const auto current=HudGeneration();
+    std::lock_guard<std::recursive_mutex> drawLock(g_hud_draw_mutex162r1);
+    if(!hide){
+        if(!hidden)return;
+        if(current!=generation){hidden=false;return;} // a new HUD movie starts with the native art
+        if(!hudReady)return;
+        bool all=true;for(const char* n:names)all=SetHudMovieClipVisible(n,true,current)&&all;
+        if(all){hidden=false;loggedMask=~0u;diagnostic_trace::Write("R125 COMBAT_CROSS art=NATIVE (VrCombatCrossR125=1)");}
+        return;
+    }
+    if(!hudReady||!current)return;
+    if(hidden&&current==generation&&now>=last&&now-last<500ull)return;
+    last=now;unsigned mask=0;
+    for(unsigned i=0;i<names.size();++i)if(SetHudMovieClipVisible(names[i],false,current))mask|=1u<<i;
+    hidden=mask!=0;generation=current;
+    if(mask!=loggedMask){loggedMask=mask;char m[220]{};
+        std::snprintf(m,sizeof(m),"R125 COMBAT_CROSS art=HIDDEN mask=%02X/1F lock+pbslot=NATIVE%s",mask,
+            mask==0x1Fu?"":" (missing clips = old companion HUD.xml or HUD not loaded, retried every 0.5 s)");
+        diagnostic_trace::Write(m);}
+}
+
 void Uninstall() noexcept {
     dice_marker_r92::flatOwnerReady.store(false);
     (void)dice_marker_r92::hidden.publish({});
     ui_hud_visibility175::Key diceKey{};
     if(DiceKeyR92(diceKey))(void)SetHudMovieClipVisible("DiceCursor",g_diceNativeVisibleR92.load(),diceKey.generation);
     (void)SetHudMovieClipVisible("DiceCursorRing",true,0); // R98: never leave the native dice ring hidden after unload
+    for(const char* n:ui_hud_r112::kCombatCrossArtR125)(void)SetHudMovieClipVisible(n,true,0); // R125: cross art back
     (void)g_diceKeyR92.publish({});
     RemovePageObserver19();
     g_hud_repair175.store(false,std::memory_order_release);

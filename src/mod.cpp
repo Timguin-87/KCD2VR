@@ -2472,7 +2472,7 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     vr_flat_screen_scale_.store(flat_screen_scale, std::memory_order_release);
     vr_passive_full_frame_scale_.store(passive_full_frame_scale, std::memory_order_release);
-    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::isfinite(state.hud_distance_r110)?std::clamp(state.hud_distance_r110,1.0f,5.0f):3.0f,std::memory_order_release); // R110
+    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::isfinite(state.hud_distance_r110)?std::clamp(state.hud_distance_r110,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127):3.0f,std::memory_order_release); // R110
     kcd2vr::ui_hud_r112::combatCrosshairScale.store(std::isfinite(state.combat_crosshair_scale_r112)?std::clamp(state.combat_crosshair_scale_r112,kcd2vr::ui_hud_r112::kCombatCrosshairMin,kcd2vr::ui_hud_r112::kCombatCrosshairMax):kcd2vr::ui_hud_r112::kCombatCrosshairDefault,std::memory_order_release); // R112
     vr_pause_overlay_size_.store(pause_overlay_size, std::memory_order_release);
     vr_transient_zoom_retain_.store(transient_zoom_retain, std::memory_order_release);
@@ -4294,7 +4294,7 @@ bool Mod::LoadConfig()
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     vr_flat_screen_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrFlatScreenScale", kcd2vr::view_defaults_b2::Get("VrFlatScreenScale", 1.70f)),0.45f,3.00f), std::memory_order_relaxed);
     vr_passive_full_frame_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrPassiveFullFrameScale", kcd2vr::view_defaults_b2::Get("VrPassiveFullFrameScale", 1.20f)),1.00f,2.00f), std::memory_order_relaxed);
-    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrHudDistanceR110",3.0f),1.0f,5.0f),std::memory_order_relaxed); // R110: HUD far away, same size
+    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrHudDistanceR110",3.0f),kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127),std::memory_order_relaxed); // R110: HUD far away, same size
     // R112: size of the big directional combat crosshair (CombatCursorCross), 0.25..1.50, default 0.50 (native was 1.00 = far too big in VR).
     kcd2vr::ui_hud_r112::combatCrosshairScale.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrCombatCrosshairScaleR112",kcd2vr::ui_hud_r112::kCombatCrosshairDefault),kcd2vr::ui_hud_r112::kCombatCrosshairMin,kcd2vr::ui_hud_r112::kCombatCrosshairMax),std::memory_order_relaxed);
     vr_pause_overlay_size_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrPauseOverlaySize", 0.98f),0.45f,1.15f), std::memory_order_relaxed);
@@ -7262,6 +7262,9 @@ void Mod::Run()
         // the prompts above; outside it (menus, loading, Theater) the native size is given back.
         flashui_probe::UpdateCombatCrosshairR112(centered_safe_should_be_on&&(hud_layout_owner==HudLayoutOwner::WholeReadable||hud_layout_owner==HudLayoutOwner::UniformReadable)&&
             !matrix_active&&!native_ui_snapshot.Open(ui_native_state::Loading)&&!native_ui_snapshot.Open(ui_native_state::Progress),now_ms);
+        // R125: the combat direction cross art hidden (VrCombatCrossR125=false, default) in every HUD mode (immersive palm HUD
+        // or the normal one), lock + perfect block / master strike icons stay native. Re-asserted every 0.5 s, no latch.
+        flashui_probe::UpdateCombatCrossArtR125(!kcd2vr::ui_hud_r112::combatCrossR125.load(std::memory_order_acquire),now_ms);
         g_stallCp178r30[1]=std::uint64_t(GetTickCount64()); // R30 checkpoint: HUD apply done
         // V66.162R1: native visibility/animations own the ordinary full HUD.
         // Contextual visibility changes only at palm/settings/lifecycle transitions.
@@ -9384,6 +9387,7 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
     if(vrik_probe_installed) frik_pose_probe::Uninstall();
     if(animation_filter_installed) animation_filter::Uninstall();
     flashui_probe::UpdateCombatCrosshairR112(false,GetTickCount64()); // R112: native crosshair size back
+    flashui_probe::UpdateCombatCrossArtR125(false,GetTickCount64()); // R125: native cross art back
     flashui_probe::UpdateQuickSlotFadeR112(false,false,GetTickCount64()+1000); // R112: native selector alpha back
     (void)flashui_probe::SetHudRepair175(false);
     {AdaptiveHudBackend57c1 io;g_adaptive_hud57c1.Update(io,false,~std::uint64_t{0});}

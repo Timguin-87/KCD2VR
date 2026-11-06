@@ -37,6 +37,16 @@ public:
     }
 };
 
+// ---- R125: the combat direction cross art ----
+// Miki 6 Nov: "in normal mode we need to hard disable the combat cursor and leave only the icons saying parry,
+// masterstrike window etc." hud.gfx (companion/reference/D63/hud_native.gfx, sprite 670) CombatCursorCross children:
+// lock (opponent lock icon), pbslot (perfect block / master strike timing icon), state1/2/3/6 (the attack direction
+// arms, each with its red 'failed' overlay) and state7 (centre art). false (default) = the five direction art clips
+// are set invisible, lock + pbslot stay native. true = the native cross. The names are our HUD.xml entries
+// (companion HUD.xml + hud_xml_base.inc). INI VrCombatCrossR125, VR HUD > ELEMENT CONTROLS, release page 3, GEAR 3.
+inline std::atomic<bool> combatCrossR125{false};
+inline constexpr std::array<const char*,5> kCombatCrossArtR125{{"CombatCrossState1","CombatCrossState2","CombatCrossState3","CombatCrossState6","CombatCrossState7"}};
+
 // ---- 2. quick weapon/potion selector fade ----
 inline std::atomic<bool> quickSlotFade{true};
 // Last time (GetTickCount64 ms) the D-pad left/right quick-access state was sent to the game; 0 = never.

@@ -56,6 +56,18 @@ struct Verdict {
     float stab[4]{},slash[4]{},smash[4]{};unsigned items=0;
 };
 inline core::SnapshotMailbox<Verdict> verdict;
+// R128: "only plate armor makes this" (the shallow impale). Plate on the struck zone = the game's own stab defence of
+// that zone (Verdict.stab, the flow armour aggregate the game computes for the armour UI, read once per killing
+// thrust) at/above VrImpaleHardArmour (default 60). The aggregate is a per-zone SUM of every worn layer; the item
+// material itself is not read (not proven), so thick padding + mail can also reach the threshold. A verdict of
+// another hit, an unread armour or a bad value = not plate (the blade goes in fully). Unknown zone = body.
+struct PlateR128 {bool known=false,plate=false;Zone zone=Zone::Unknown;double stab=-1;};
+inline PlateR128 plateR128(const Verdict& v,std::uint64_t serial,std::uint32_t target,int material,double hard) noexcept {
+    PlateR128 p{};p.zone=zoneFromMaterial(material);
+    if(!serial||v.serial!=serial||!target||v.target!=target||v.armour!=ArmourStatus::Read)return p;
+    const int zi=p.zone==Zone::Unknown?int(Zone::Body):int(p.zone);
+    const double s=v.stab[zi];if(!std::isfinite(s)||s<0)return p;
+    p.known=true;p.stab=s;p.plate=std::isfinite(hard)&&hard>0&&s>=hard;return p;}
 
 // ---------------------------------------------------------------- eligibility (native outcome stays native)
 // Same identity/freshness contract as contact58c1::lethalThrust, minus the death requirement. The native game

@@ -72,10 +72,13 @@ struct Settings {
     bool hideAtStationsR121=true; // R121: VrHideStowedAtStations, every stowed weapon hidden at alchemy/smithing (was INI only)
     bool eyeRayR121=true; // R121: VrInteractionEyeRayR121, the look/selection ray starts at the eye you see from
     bool meleeGripR123=true; // R123: VrMeleeAuthoredGripR123, sword/axe/mace held at the weapon's own hand socket (no learned clip pose)
+    bool hudInfinityR125=false; // R125: VrHudInfinityR125, HUD at optical infinity (one quad per eye, zero disparity)
+    bool combatCrossR125=false; // R125: VrCombatCrossR125, false = combat direction cross art hidden, lock/perfect-block/master-strike icons stay
     bool propImpactSoundR124=true; // R124: VrPropImpactSoundR124, our loose props play the game's put-down sound when they hit something
     bool sceneryPropSwapR100=true; // R100: VrSceneryPropSwapR100, level-brush props become loose copies on Grip
     bool propFirmHoldR116=true; // R116: VrPropFirmHoldR116, held small props follow the hand every frame (no weight/drag budget)
     bool cinematicBarsR107=true; // R107: VrCinematicBarsR107, cutscene/dialogue screen shows only the 16:9 band
+    bool impaleFullDepthR128=true; // R128: VrImpaleFullDepthR128, killing-stab hang goes in to the guard (plate on the zone = shallow) + own blade passes the hung corpse
     bool impaleFastDeathR106=true; // R106: VrImpaleFastDeathR106, the impaled man's death clip plays 3x until the ragdoll pin
     bool npcLifeD73=true;
     bool npcGazeHmdD52=true,npcGazeReadyD52=false,npcGazeSceneD52=false;
@@ -102,7 +105,7 @@ enum class Id:unsigned {
     PickupReachD40,PropRightD40,PropLeftD40,CombatNoStepD40,CombatNoTurnD40,CombatTurnStatusD40,
     ClinchModeD40,ClinchDistanceD40,NpcTouchD40,LivingTouchD40,LivingImpactD40,CorpseDragD40,ClinchStatusD40,
     NpcContactReactionD41,NpcStaminaReactionD41,FinisherCandidateD41,FreeTargetingD42,ArrowHoldD48,ElbowSolverD48,FistStrokeD49,NativePairedBackupD51,NpcGazeD52,PickupCameraBridgeD55,AlchemyToolContactD55,
-    PetGestureD59,WashGestureD59,AlchemyTransferD59,TimingLocationD64,MapSizeD64,MapSupportD64,TwoHandBiasD65,TwoHandPrimaryBiasD65,BowAimD65,CrossbowReloadD65,AlchemySpeedD65,PickupClockD65,CrankTravelD66,KnifeRightHipD66,GripAnchorD67,ArcCoverageD67,SupportReleaseD67,ContactFairnessD67,ElbowContinuityD67,MotionTrialD67,ElbowOutwardD67,ElbowBackD67,SmithRecoveryD67,SmithSemiD67,HandLeadD69,HandLeadMsD69,WeaponSameFrameD69,RigidGripD69,ElbowHysteresisD69,StabFixD77,UnarmedFixD77,MasterstrikeFixD77,FinisherUpperPlayerD83,FinisherUpperNpcD83,BladeZoneD84,UpCutLowD84,StabStartD84,HudWalkoffD70,LeanHeightD70,DodgeWindowD70,ContactContinuityD71,ItemHandoverD71,InstantActivitiesD72,InstantInteractionsD72,InstantCraftingD72,InstantReloadsD72,InstantCombatD72,MapNativePaperM43,NpcLifeD73,NativeRoomscaleD76,NpcListeningD76,RidingVrikD76,DiceHandsD85,StaticGrabR89,CrossbowHandOnlyR90,CorpseSqueezeSearchR90,TwoHandWeightR90,WeaponKickR96,SceneryPropSwapR100,ImpaleFastDeathR106,CinematicBarsR107,EyeSrgbR114,KnifeChestZoneR109,HeavyCrossbowHandPullR111,VrikOnStartR111,StartHenryEyesR111,QuickSlotFadeR112,AlchemyViewSelectR116,PropFirmHoldR116,SwingWhooshR116,MediumCrossbowHandPullR117,ControllerLayoutR118,QuickAccessFaceTouchR118,ShieldBlockBoxR120,HideBackWeaponsR121,HideAtStationsR121,EyeRayR121,MeleeGripR123,PropImpactSoundR124
+    PetGestureD59,WashGestureD59,AlchemyTransferD59,TimingLocationD64,MapSizeD64,MapSupportD64,TwoHandBiasD65,TwoHandPrimaryBiasD65,BowAimD65,CrossbowReloadD65,AlchemySpeedD65,PickupClockD65,CrankTravelD66,KnifeRightHipD66,GripAnchorD67,ArcCoverageD67,SupportReleaseD67,ContactFairnessD67,ElbowContinuityD67,MotionTrialD67,ElbowOutwardD67,ElbowBackD67,SmithRecoveryD67,SmithSemiD67,HandLeadD69,HandLeadMsD69,WeaponSameFrameD69,RigidGripD69,ElbowHysteresisD69,StabFixD77,UnarmedFixD77,MasterstrikeFixD77,FinisherUpperPlayerD83,FinisherUpperNpcD83,BladeZoneD84,UpCutLowD84,StabStartD84,HudWalkoffD70,LeanHeightD70,DodgeWindowD70,ContactContinuityD71,ItemHandoverD71,InstantActivitiesD72,InstantInteractionsD72,InstantCraftingD72,InstantReloadsD72,InstantCombatD72,MapNativePaperM43,NpcLifeD73,NativeRoomscaleD76,NpcListeningD76,RidingVrikD76,DiceHandsD85,StaticGrabR89,CrossbowHandOnlyR90,CorpseSqueezeSearchR90,TwoHandWeightR90,WeaponKickR96,SceneryPropSwapR100,ImpaleFastDeathR106,CinematicBarsR107,EyeSrgbR114,KnifeChestZoneR109,HeavyCrossbowHandPullR111,VrikOnStartR111,StartHenryEyesR111,QuickSlotFadeR112,AlchemyViewSelectR116,PropFirmHoldR116,SwingWhooshR116,MediumCrossbowHandPullR117,ControllerLayoutR118,QuickAccessFaceTouchR118,ShieldBlockBoxR120,HideBackWeaponsR121,HideAtStationsR121,EyeRayR121,MeleeGripR123,PropImpactSoundR124,HudInfinityR125,CombatCrossR125,ImpaleFullDepthR128
 };
 struct Row {Id id;const wchar_t* title;const wchar_t* detail;bool session=false,readOnly=false;};
 inline constexpr std::array<std::array<Row,8>,12> kRows{{
@@ -271,11 +274,17 @@ inline constexpr std::array<Row,8> kGearTrialsR118{{
     {Id::EyeRayR121,L"Look selection from your eye",L"What you look at is selected from where you see, also after leaning at a table. OFF: from Henry's eye."}, // R121
     {Id::ShieldBlockBoxR120,L"Shield block box",L"Shield blocks only inside its box (COMBAT > BLOCK > SHIELD BOX). OFF: old wide rule, block almost always on."} // R120
 }};
-inline constexpr unsigned kMotionPage2D69=static_cast<unsigned>(Group::Count),kCombatPage2D70=kMotionPage2D69+1,kHandsPage2D71=kCombatPage2D70+1,kObjectsPage2D72=kHandsPage2D71+1,kBodyPage2D76=kObjectsPage2D72+1,kGearPage2R118=kBodyPage2D76+1;
+// R125: GEAR page 3 = HUD look (pages 1 and 2 are full).
+inline constexpr std::array<Row,8> kGearTrialsR125{{
+    {Id::HudInfinityR125,L"HUD at infinity (flat, never double)",L"Each eye gets its own HUD copy: no depth, eyes stay parallel. OFF: one HUD at the VR HUD distance."}, // R125
+    {Id::CombatCrossR125,L"Combat direction cross",L"OFF: the big direction arms are hidden, only lock / perfect block / master strike icons show."}, // R125
+    {Id::ImpaleFullDepthR128,L"Impale: blade goes in fully",L"Killing stab: he slides onto the blade up to the guard. Plate armour there: stays shallow. OFF: old shallow point."} // R128
+}};
+inline constexpr unsigned kMotionPage2D69=static_cast<unsigned>(Group::Count),kCombatPage2D70=kMotionPage2D69+1,kHandsPage2D71=kCombatPage2D70+1,kObjectsPage2D72=kHandsPage2D71+1,kBodyPage2D76=kObjectsPage2D72+1,kGearPage2R118=kBodyPage2D76+1,kGearPage3R125=kGearPage2R118+1;
 inline constexpr Rect kMotionPrevD69{694,88,782,112},kMotionNextD69{946,88,1038,112};
-constexpr Group group(unsigned n) noexcept {return n==kGearPage2R118?Group::Gear:n==kBodyPage2D76?Group::Body:n==kObjectsPage2D72?Group::Objects:n==kHandsPage2D71?Group::Hands:n==kCombatPage2D70?Group::Combat:n==kMotionPage2D69?Group::MotionD67:n<static_cast<unsigned>(Group::Count)?Group(n):Group::Body;}
+constexpr Group group(unsigned n) noexcept {return n==kGearPage3R125||n==kGearPage2R118?Group::Gear:n==kBodyPage2D76?Group::Body:n==kObjectsPage2D72?Group::Objects:n==kHandsPage2D71?Group::Hands:n==kCombatPage2D70?Group::Combat:n==kMotionPage2D69?Group::MotionD67:n<static_cast<unsigned>(Group::Count)?Group(n):Group::Body;}
 constexpr bool motionPage2D69(unsigned n) noexcept {return n==kMotionPage2D69;}
-constexpr const std::array<Row,8>& rows(unsigned n) noexcept {return n==kGearPage2R118?kGearTrialsR118:n==kBodyPage2D76?kBodyTrialsD76:n==kObjectsPage2D72?kInstantActivitiesD72:n==kHandsPage2D71?kHandTrialsD71:n==kCombatPage2D70?kCombatTrialsD70:motionPage2D69(n)?kMotionTrialsD69:kRows[unsigned(group(n))];}
+constexpr const std::array<Row,8>& rows(unsigned n) noexcept {return n==kGearPage3R125?kGearTrialsR125:n==kGearPage2R118?kGearTrialsR118:n==kBodyPage2D76?kBodyTrialsD76:n==kObjectsPage2D72?kInstantActivitiesD72:n==kHandsPage2D71?kHandTrialsD71:n==kCombatPage2D70?kCombatTrialsD70:motionPage2D69(n)?kMotionTrialsD69:kRows[unsigned(group(n))];}
 inline constexpr const wchar_t* kTabsText[]{L"BODY",L"VRIK",L"ALCHEMY",L"SMITH",L"GEAR",L"VIEW",L"OBJECTS",L"NPCS",L"COMBAT",L"REPAIRS",L"VRIK+",L"CRAFT+"};
 constexpr bool layoutValid() noexcept {
     for(unsigned i=0;i<kTabs.size();++i){
@@ -429,6 +438,9 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::EyeRayR121:d.eyeRayR121=!d.eyeRayR121;break; // R121: never refused
     case Id::MeleeGripR123:d.meleeGripR123=!d.meleeGripR123;break; // R123: never refused
     case Id::PropImpactSoundR124:d.propImpactSoundR124=!d.propImpactSoundR124;break; // R124: never refused
+    case Id::HudInfinityR125:d.hudInfinityR125=!d.hudInfinityR125;break; // R125: never refused
+    case Id::CombatCrossR125:d.combatCrossR125=!d.combatCrossR125;break; // R125: never refused
+    case Id::ImpaleFullDepthR128:d.impaleFullDepthR128=!d.impaleFullDepthR128;break; // R128: never refused
     case Id::SwingWhooshR116:d.swingWhooshR116=!d.swingWhooshR116;break; // R116: never refused
     case Id::NpcLifeD73:d.npcLifeD73=!d.npcLifeD73;break;
     case Id::NpcGazeD52:d.npcGazeHmdD52=!d.npcGazeHmdD52;break;
@@ -592,6 +604,9 @@ template<class S> void label(const S& s,const Row& row,wchar_t* out,std::size_t 
     case Id::EyeRayR121:value=on(d.eyeRayR121);break; // R121
     case Id::MeleeGripR123:value=on(d.meleeGripR123);break; // R123
     case Id::PropImpactSoundR124:value=on(d.propImpactSoundR124);break; // R124
+    case Id::HudInfinityR125:value=d.hudInfinityR125?L"ON (INF)":L"OFF (distance)";break; // R125
+    case Id::CombatCrossR125:value=d.combatCrossR125?L"SHOWN":L"HIDDEN (icons only)";break; // R125
+    case Id::ImpaleFullDepthR128:value=d.impaleFullDepthR128?L"ON (to the guard)":L"OFF (shallow)";break; // R128
     case Id::SwingWhooshR116:value=on(d.swingWhooshR116);break; // R116
     case Id::NpcLifeD73:value=on(d.npcLifeD73);break;
     case Id::NpcGazeD52:value=!d.npcGazeHmdD52?L"NATIVE":!d.npcGazeReadyD52?L"FOLLOW HMD / UNAVAILABLE":d.npcGazeSceneD52?L"FOLLOW HMD / ADMITTED":L"FOLLOW HMD / WAITING";break;
@@ -625,6 +640,8 @@ template<class S,class Apply,class Save> Click dispatch(unsigned& selected,int x
     for(unsigned n=0;n<kTabs.size();++n)if(inside(kTabs[n],x,y)){selected=n;return Click::Changed;}
     if(group(selected)==Group::Body||group(selected)==Group::MotionD67||group(selected)==Group::Combat||group(selected)==Group::Hands||group(selected)==Group::Objects||group(selected)==Group::Gear){
         const bool body=group(selected)==Group::Body,combat=group(selected)==Group::Combat,hands=group(selected)==Group::Hands,objects=group(selected)==Group::Objects,gear=group(selected)==Group::Gear;
+        if(gear&&selected==kGearPage3R125&&inside(kMotionPrevD69,x,y)){selected=kGearPage2R118;return Click::Changed;} // R125: GEAR 3 < 2 < 1
+        if(gear&&(selected==kGearPage2R118||selected==kGearPage3R125)&&inside(kMotionNextD69,x,y)){selected=kGearPage3R125;return Click::Changed;} // R125: GEAR 2 > 3
         if(inside(kMotionPrevD69,x,y)){selected=unsigned(gear?Group::Gear:body?Group::Body:objects?Group::Objects:hands?Group::Hands:combat?Group::Combat:Group::MotionD67);return Click::Changed;}
         if(inside(kMotionNextD69,x,y)){selected=gear?kGearPage2R118:body?kBodyPage2D76:objects?kObjectsPage2D72:hands?kHandsPage2D71:combat?kCombatPage2D70:kMotionPage2D69;return Click::Changed;}
     }

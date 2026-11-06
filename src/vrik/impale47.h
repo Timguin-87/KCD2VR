@@ -18,6 +18,8 @@
 #include <cmath>
 #include <atomic>
 #include <cstdint>
+#include <cstddef>
+#include <cstdio>
 
 namespace kcd2vr::impale47 {
 // H18: original lethal-victim wait only. These do not extend the current pose,
@@ -40,7 +42,15 @@ inline const char* gaveUpText(const char* reason) noexcept {
     if(is("WEAPON_RELEASED_OR_TRACKING_LOST"))return "impale: weapon let go before he fell";
     if(is("ORIGINAL_VICTIM_WAIT_EXPIRED"))return "impale: his body never turned to a ragdoll in time";
     if(is("SUPERSEDED_BY_NEW_THRUST"))return "";
-    return "impale: gave up (see log C47 GAVE_UP)";}
+    return "impale: gave up";}
+// R128: the 6 Nov 19:20:24 line said "see log C47 GAVE_UP" but that row is written only while F3 records, so the
+// quiet log never said why. The status line (log only - the headset shows it only while F2 records) now carries the
+// reason code itself: "impale: gave up (NO_EXACT_RAGDOLL_OR_NEW_CORPSE_CONTACT_IN_ORIGINAL_WAIT)".
+inline const char* gaveUpLine(const char* reason,char* buf,std::size_t n) noexcept {
+    const char* t=gaveUpText(reason);if(!buf||n<2)return t;
+    const char* g="impale: gave up";const char* a=t;const char* b=g;while(*a&&*b&&*a==*b){++a;++b;}
+    if(*a||*b){std::snprintf(buf,n,"%s",t);return buf;} // a specific text (or empty)
+    std::snprintf(buf,n,"impale: gave up (%s)",reason);return buf;}
 // ---------------------------------------------------------------- weapon side: where the body sits on the blade
 enum class Pick : int {Contact=0,BladeLine=1,TipFar=2,OffBlade=3,Invalid=4};
 inline const char* name(Pick p) noexcept {

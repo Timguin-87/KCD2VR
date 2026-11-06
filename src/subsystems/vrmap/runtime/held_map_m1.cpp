@@ -6,6 +6,7 @@
 #include "held_map_feed_t2.h"
 #include "frik_pose_probe.h"
 #include "retail_build112.h"
+#include "subsystems/ranged_reload/entity_hide_pin_r125.h" // R125
 #include "native_stereo_outer_lab.h"
 #include "diagnostic_trace.h"
 #include "combat_diag_probe.h"
@@ -30,6 +31,11 @@ bool Copy(std::uintptr_t from,void* to,std::size_t n) noexcept {
 }
 bool Pin(std::uintptr_t rva,const unsigned char* bytes,unsigned n) noexcept {
  unsigned char actual[16]{};return n<=sizeof(actual)&&Copy(base+rva,actual,n)&&!std::memcmp(actual,bytes,n);
+}
+// R125: CEntity::Hide may carry the F2 recorder's D77 mid hook; same identity rule as EntityHide59c14.
+bool HidePinR125() noexcept {
+ namespace ep=::kcd2vr::entity_hide_pin_r125;std::uintptr_t slot=0;unsigned char actual[16]{};
+ return Copy(base+ep::kEntityVftRva+ep::kHideSlot,&slot,8)&&Copy(base+ep::kHideRva,actual,16)&&ep::accept(base,slot,actual);
 }
 void* FindRawD72(PrintedRegion region,unsigned* refusal=nullptr) noexcept {
  if(refusal)*refusal=0;
@@ -144,12 +150,11 @@ bool Install() noexcept {
  if(ready.load())return held_map_feed_t2::Install();
  base=reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll"));
  constexpr unsigned char find[]{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x18,0x48,0x89,0x54,0x24,0x10,0x56};
- constexpr unsigned char hide[]{0x48,0x89,0x5C,0x24,0x18,0x55,0x56,0x57,0x48,0x81,0xEC,0xB0,0,0,0,0x48};
  constexpr unsigned char prs[]{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x57,0x48,0x83,0xEC,0x20,0x45};
  constexpr unsigned char staticSlotM41[]{0x40,0x53,0x48,0x83,0xec,0x20,0x8b,0xda,0x33,0xd2,0xe8,0x79,0x52,0xde,0xff,0x4c};
  constexpr unsigned char staticFileM41[]{0x48,0x8b,0x81,0xa0,0x0,0x0,0x0,0xc3,0xcc,0xcc,0xcc,0xcc,0xcc,0xcc,0xcc,0xcc};
  constexpr unsigned char byIdD81[]{0x48,0x89,0x5c,0x24,0x08,0x57,0x48,0x83,0xec,0x20,0x8b,0xfa,0x48,0x8b,0xd9,0xb8};
- const bool ok=retail_build112::Verify(base)&&Pin(0x4B4F98,byIdD81,sizeof(byIdD81))&&Pin(0xA6D6F4,find,sizeof(find))&&Pin(0x87963C,hide,sizeof(hide))&&Pin(0x509810,prs,sizeof(prs))&&Pin(0x7F1E3C,staticSlotM41,sizeof(staticSlotM41))&&Pin(0x1A81E20,staticFileM41,sizeof(staticFileM41))&&native_stereo_outer_lab::EnsurePhysicalFramePump6698()&&held_map_feed_t2::Install();
+ const bool ok=retail_build112::Verify(base)&&Pin(0x4B4F98,byIdD81,sizeof(byIdD81))&&Pin(0xA6D6F4,find,sizeof(find))&&HidePinR125()&&Pin(0x509810,prs,sizeof(prs))&&Pin(0x7F1E3C,staticSlotM41,sizeof(staticSlotM41))&&Pin(0x1A81E20,staticFileM41,sizeof(staticFileM41))&&native_stereo_outer_lab::EnsurePhysicalFramePump6698()&&held_map_feed_t2::Install();
  ready.store(ok);diagnostic_trace::Write(ok?"M41 STATIC_PAPER exact static placement/model readback ready; RIGHT socket; baked diffuse; no animation/UI surface":"T2 HELD_MAP unavailable: exact retail pins, native frame or script scheduler failed");return ok;
 }
 void NativeFrameTick() noexcept {

@@ -63,7 +63,9 @@ static i40::ArmourStatus ReadArmour40(std::uint32_t target,std::uint64_t now,i40
     return S::Read;
 }
 inline void Evaluate(const Pending& p,const kcd2vr::contact58c1::Receipt& r,std::uint64_t now) noexcept {
-    if(!i40::enabled()||!i40::wantsArmour(r))return;
+    // R128: also for every killing thrust while the full-depth hang is on (plate on the zone keeps the shallow point)
+    const bool fullDepthR128=r.death==1&&kcd2vr::gore32::impaleFullDepthR128.load(std::memory_order_relaxed)&&kcd2vr::gore32::impaleHang.load(std::memory_order_relaxed);
+    if(!(i40::enabled()||fullDepthR128)||!i40::wantsArmour(r))return;
     i40::Verdict v{};v.serial=r.serial;v.tick=r.tick?r.tick:now;v.target=r.target;v.identity=r.targetIdentity;
     v.energy=std::isfinite(p.powerRatio59c8)?p.powerRatio59c8:p.energy;v.damage=r.damage;v.death=r.death;v.kind=r.kind;v.material=r.bodyMaterial;
     v.armour=ReadArmour40(r.target,now,v);

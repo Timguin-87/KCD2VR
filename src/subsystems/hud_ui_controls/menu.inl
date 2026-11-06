@@ -164,6 +164,7 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         std::swprintf(v,128,L"%+.0f px",double(s.vr_ui_lower_y)); DrawSlider(dc,dense,kV4ElemLowerY,L"Quick-slot vertical",(s.vr_ui_lower_y+250.0f)/500.0f,v);
         std::swprintf(v,128,L"%+.0f px",double(s.vr_ui_lower_spread)); DrawSlider(dc,dense,kV4ElemLowerSpread,L"Quick-slot spread",(s.vr_ui_lower_spread+200.0f)/400.0f,v);
         std::swprintf(v,128,L"%.0f%%",double(s.combat_crosshair_scale_r112*100.0f)); DrawSlider(dc,dense,kCombatCrosshairR112,L"Combat crosshair size (fight directions)",(s.combat_crosshair_scale_r112-0.25f)/1.25f,v); // R112
+        DrawCheck(dc,dense,kCombatCrossR125,s.live_d39.combatCrossR125,L"Combat direction cross (OFF: only lock / block / MS icons)"); // R125
         DrawButton(dc,dense,kV4ElemBack,L"CORE UI",RGB(176,148,98)); DrawButton(dc,dense,kV4ElemSave,L"APPLY + SAVE",kAccent);
 
 #elif defined(KCD2VR_MENU_CLICK_VRHUDELEMENTCONTROLS)
@@ -175,6 +176,7 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         if(begin_drag(kV4ElemLowerY,DragControl::UiLowerY)) return;
         if(begin_drag(kV4ElemLowerSpread,DragControl::UiLowerSpread)) return;
         if(begin_drag(kCombatCrosshairR112,DragControl::CombatCrosshairR112)) return; // R112
+        if(PtIn(kCombatCrossR125,x,y)){s.live_d39.combatCrossR125=!s.live_d39.combatCrossR125;ApplyState(s);if(callbacks_.save_settings)(void)callbacks_.save_settings(callbacks_.context);MarkDirty();return;} // R125 VrCombatCrossR125
         if(PtIn(kV4ElemBack,x,y)){ GoToPage(MenuPage::VrHud,-1); return; }
         if(PtIn(kV4ElemSave,x,y)){ ApplyState(s); if(callbacks_.apply_vr_ui_layout) callbacks_.apply_vr_ui_layout(callbacks_.context,&s); save(); return; }
         return;
@@ -192,7 +194,9 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         std::swprintf(v,128,L"%.0f%%",double(s.vr_ui_control_prompt_scale*100.0f)); DrawSlider(dc,dense,kUiControlPromptScale,L"Control prompt size",(s.vr_ui_control_prompt_scale-0.30f)/1.20f,v);
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"X %+.0f px",double(s.vr_ui_control_prompt_x)); DrawSlider(dc,dense,kUiControlPromptX,L"Control prompt horizontal",(s.vr_ui_control_prompt_x+350.0f)/700.0f,v);}
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"Y %+.0f px",double(s.vr_ui_control_prompt_y)); DrawSlider(dc,dense,kUiControlPromptY,L"Control prompt vertical",(s.vr_ui_control_prompt_y+300.0f)/600.0f,v);}
-        std::swprintf(v,128,L"%.1f m",double(s.hud_distance_r110)); DrawSlider(dc,dense,kHudDistanceR110,L"HUD distance (same size, less refocusing)",(s.hud_distance_r110-1.0f)/4.0f,v); // R110
+        // R125: slider end = INF (VrHudInfinityR125): one HUD copy per eye, zero disparity, never double
+        if(s.live_d39.hudInfinityR125)std::swprintf(v,128,L"INF");else std::swprintf(v,128,s.hud_distance_r110<2.0f?L"%.2f m":L"%.1f m",double(s.hud_distance_r110));
+        DrawSlider(dc,dense,kHudDistanceR110,L"HUD convergence (where the eyes meet, size stays)",s.live_d39.hudInfinityR125?1.0f:std::log(std::clamp(s.hud_distance_r110,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127)/kcd2vr::ui_surface_geometry::kHudConvergenceMinR127)/std::log(kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127/kcd2vr::ui_surface_geometry::kHudConvergenceMinR127)*0.90f,v); // R110 + R125 + R127 log scale
         std::swprintf(v,128,L"%.0f%%",double(s.pause_overlay_size*100.0f)); DrawSlider(dc,dense,kPauseOverlay124,L"Pause / death overlay size",(s.pause_overlay_size-.45f)/.70f,v);
         DrawButton(dc,dense,kUiPanelBack,L"CORE UI",RGB(176,148,98)); DrawButton(dc,dense,kUiPanelApply,L"APPLY + SAVE",kAccent);
 

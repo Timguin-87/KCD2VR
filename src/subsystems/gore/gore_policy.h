@@ -28,6 +28,17 @@ inline std::atomic<float> impaleWeightKg{3.f};  // (C32 legacy, unused since C44
 //  - a point mass at the stuck point (a quarter of it: the ground carries most of a hanging body) = inertia/drag, and
 //  - a sag of the weapon target: the blade pivot drops and the tip droops by his weight until Henry lifts/tilts the hand up.
 inline std::atomic<float> hangMassKg{40.f};
+// R128 (Miki 6 Nov: "yes, let it impale them on that fully, only plate armor makes this"): VrImpaleFullDepthR128,
+// Experiments > GEAR page 3, default ON. ON = a killing stab that hangs the body draws it onto the blade until the
+// guard is kGuardMarginR128 from the wound (plate armour on the struck zone keeps the old shallow point), and our own
+// blade queries pass through the corpse that hangs on it (else the blade is pushed back out of him).
+inline std::atomic<bool> impaleFullDepthR128{true};
+inline constexpr double kGuardMarginR128=.08,kMaxFullDepthR128=1.0,kMaxHangDepthR128=1.20;
+// current: the stuck point's depth behind the tip (m). gripToTipM: the blade line length grip->tip (m).
+inline double fullDepthR128(double current,double gripToTipM,bool plate,bool on) noexcept {
+    if(!std::isfinite(current))current=.15;
+    if(!on||plate||!std::isfinite(gripToTipM)||gripToTipM<=kGuardMarginR128)return current;
+    return std::max(current,std::min(gripToTipM-kGuardMarginR128,kMaxFullDepthR128));}
 inline std::atomic<bool> decap{false};          // VrDecapitation (experiment, off until it looks right in the headset)
 inline std::atomic<float> decapMinPower{.9f};   // strike energy ratio needed (1.0 = proper full stroke)
 inline std::atomic<float> decapCorpseMinSpeed{2.5f}; // C41 VrDecapitationCorpseMinSpeed: blade speed (m/s) of a cut on a DEAD body (C43T corpse cut, dead-by-game list only)
@@ -254,10 +265,10 @@ inline bool detachedHeadPartD73(const char* name,const char* skin) noexcept {
 }
 
 // ---------------------------------------------------------------- impalement: the body hangs on the blade
-enum class Release {None,PullOut,Kick,HandPush,Stuck,Timeout,Lost};
+enum class Release {None,PullOut,Kick,HandPush,Stuck,Timeout,Lost,SwingOff};
 inline const char* name(Release r) noexcept {
-    constexpr const char* n[]{"NONE","PULL_OUT","KICK","HAND_PUSH","STUCK","TIMEOUT","LOST"};return n[unsigned(r)];}
-inline bool gush(Release r) noexcept {return r==Release::PullOut||r==Release::Kick||r==Release::HandPush;}
+    constexpr const char* n[]{"NONE","PULL_OUT","KICK","HAND_PUSH","STUCK","TIMEOUT","LOST","SWING_OFF"};return unsigned(r)<8?n[unsigned(r)]:"?";}
+inline bool gush(Release r) noexcept {return r==Release::PullOut||r==Release::Kick||r==Release::HandPush||r==Release::SwingOff;}
 
 struct HangTuning {
     double follow=10.0;       // 1/s: how fast the wound is pulled to the blade point
@@ -268,6 +279,10 @@ struct HangTuning {
     double stuckDistance=.50; // m: wound this far from the blade point ...
     std::uint64_t stuckMs=400;// ... for this long = the body got caught on something
     std::uint64_t maxMs=30000;
+    double swingSpeed=4.0;    // R128: m/s of the stuck point ACROSS the blade = a hard sideways swing throws him off ...
+    std::uint64_t swingMs=60; // ... for this long (one tracking spike is not a swing)
+    double holdKi=25.0;       // R128: 1/s^2 integral of the hold gap: a constant pull (the hanging ragdoll's weight) is
+    double holdIntegralMax=1.5; // ... cancelled instead of leaving a sag; its share of the drive is capped (m/s)
 };
 struct HangIn {
     std::uint64_t now=0;
@@ -279,10 +294,10 @@ struct HangIn {
 };
 struct HangOut {bool drive=false;V3 velocity{};Release release=Release::None;V3 releaseVelocity{};double depth=0;};
 struct Hang {
-    bool active=false;std::uint64_t since=0,last=0,farSince=0;double depth=0,initialDepth=0;
-    V3 lastBlade{},lastWound{};bool haveLast=false;
-    void start(std::uint64_t now,double penetration) noexcept {
-        *this={};active=true;since=last=now;depth=initialDepth=std::clamp(std::isfinite(penetration)?penetration:.15,.05,.60);}
+    bool active=false;std::uint64_t since=0,last=0,farSince=0,swingSince=0;double depth=0,initialDepth=0;
+    V3 lastBlade{},lastWound{},integral{};bool haveLast=false;
+    void start(std::uint64_t now,double penetration) noexcept { // R128: up to 1.2 m (full depth), was .60
+        *this={};active=true;since=last=now;depth=initialDepth=std::clamp(std::isfinite(penetration)?penetration:.15,.05,kMaxHangDepthR128);}
     HangOut step(const HangIn& in,const HangTuning& t={}) noexcept {
         HangOut o{};if(!active)return o;
         if(!in.now||in.now<last||!finite(in.bladePoint)||!finite(in.wound)||!finite(in.bladeAxis)){active=false;o.release=Release::Lost;return o;}
@@ -297,19 +312,34 @@ struct Hang {
             if(d<=t.pushRadius&&len(in.palmVelocity)>=t.pushSpeed&&dot(in.palmVelocity,to)>0)return end(Release::HandPush,in.palmVelocity*1.3);
         }
         // pulling straight back slides the blade out instead of dragging the body
-        const double along=dot(bladeVel-woundVel,in.bladeAxis);
         // C35: integrate SIGNED relative axial travel. Rectifying only the
         // backward half-wave converted zero-net tracking jitter into a pullout.
         // Forward recovery can restore only the original proven penetration;
         // it cannot invent deeper contact or a new impalement.
+        // R128: only the BLADE's own travel along its axis counts (and never more than the relative travel). Before,
+        // the body sliding toward the tip under gravity (blade still) counted as a pull-out and let him go.
+        const double rel=dot(bladeVel-woundVel,in.bladeAxis),own=dot(bladeVel,in.bladeAxis);
+        const double along=std::clamp(rel,std::min(own,0.0),std::max(own,0.0));
         if(std::fabs(along)>t.pullSpeed)depth=std::clamp(depth+along*dt,0.0,initialDepth);
         if(depth<=0)return end(Release::PullOut,woundVel);
-        // the wound follows the blade sideways/up/forward, never backward along it: pulling back slides the blade out
-        const V3 gapAll=in.bladePoint-in.wound;const V3 gap=gapAll-in.bladeAxis*dot(gapAll,in.bladeAxis);
+        // R128 (Miki 6 Nov: "the npc slided down from the blade with gravity"): the hold point is where the wound sits
+        // on the blade now (the stuck point moved toward the tip by what was pulled out). The wound is pulled to it in
+        // ALL directions, along the blade too. Before R128 the along-blade part of the gap was dropped, so a body on a
+        // blade that pointed a bit down slid off toward the tip.
+        const V3 hold=in.bladePoint+in.bladeAxis*(initialDepth-depth);
+        const V3 gapAll=hold-in.wound;const V3 gap=gapAll-in.bladeAxis*dot(gapAll,in.bladeAxis);
         if(len(gap)>t.stuckDistance){if(!farSince)farSince=in.now;else if(in.now-farSince>=t.stuckMs)return end(Release::Stuck,woundVel);}
         else farSince=0;
+        // R128: a hard swing across the blade throws him off (velocity = the swing)
+        const V3 sideVel=bladeVel-in.bladeAxis*dot(bladeVel,in.bladeAxis);
+        if(len(sideVel)>=t.swingSpeed){if(!swingSince)swingSince=in.now;else if(in.now-swingSince>=t.swingMs)return end(Release::SwingOff,sideVel*.8+V3{0,0,.3});}
+        else swingSince=0;
         if(in.now-since>t.maxMs)return end(Release::Timeout,woundVel);
-        V3 v=gap*t.follow+bladeVel*.9;const double ax=dot(v,in.bladeAxis);if(ax<0)v=v-in.bladeAxis*ax;
+        // the blade's own motion is passed on, except backward along it (pulling back slides the blade out, never drags him)
+        V3 ff=bladeVel*.9;const double ax=dot(ff,in.bladeAxis);if(ax<0)ff=ff-in.bladeAxis*ax;
+        // integrate only while holding (gap < 10 cm); during the full-depth draw it would wind up and overshoot the guard
+        if(t.holdKi>0)integral=len(gapAll)<.10?clampLen(integral+gapAll*dt,t.holdIntegralMax/t.holdKi):integral*.8;
+        const V3 v=gapAll*t.follow+integral*t.holdKi+ff;
         o.drive=true;o.velocity=clampLen(v,t.maxSpeed);o.depth=depth;return o;
     }
 };
