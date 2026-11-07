@@ -136,6 +136,7 @@ rifles reload is not finished (but holding LT reloads them and LT+RT shoots... y
 See the GitHub README's Known Issues section for the current list — it's kept more up to date there than here, there are extensive documentations and source builds, which will be regularly updated.
 
 **Reporting bugs**
+For excessive debugging we have F2 (bug report) and F3 (combat)
 Please post issues on Github rather than the Nexus comments if you can, it's much easier to track. If something crashes or does not work persistently, look in the log file before you post (you need to enable diagnostics or developer mode in the .ini). 
 It will be buggy now, probably, I only tried it on my PC and oculus via virtual desktop, steam and playstation VR... 
 But give me like 1-2 weeks first, I need a break right now from this all. 
