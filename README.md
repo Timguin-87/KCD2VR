@@ -1,12 +1,7 @@
 # KCD2VR
 
-Tracked hands, weapons and room movement for Kingdom Come: Deliverance II.
-The game owns combat results, inventory, recipes and interaction legality.
-The VR side supplies tracked movement and the presentation of those actions.
-
-<<<<<<< HEAD
 ## Current source: R105 — HUD, OpenXR recovery and native spanner grip
-=======
+
 ****KCD2VR - Medieval Immersion Simulator****
 
 adds OpenXR virtual reality support to Kingdom Come: Deliverance II. It features full 6DoF head tracking, full VRIK system, full combat system rework, separate options for minigames, comfort options, controller bindings for movement and combat, a dedicated in-headset VR menu. I wanted to make the best game I ever played fully playable in VR, that it feels like a native VR game as much as possible, but with working RPG systems and progression. 
