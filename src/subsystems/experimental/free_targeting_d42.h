@@ -4,12 +4,25 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include "free_targeting_plus_r133.h"
 namespace kcd2vr::free_targeting_d42 {
 inline std::atomic<bool> enabled{false},contextReady{false},cameraLeased{false};
 inline std::atomic<std::uint64_t> generation{1};
-inline void set(bool on) noexcept {
+// R133: the switch is a 3-way mode (free_targeting_plus_r133.h). enabled = mode 1 or 2: both keep the
+// D42/R103 camera lease and the queued-turn veto; mode 2 adds the view/body hold and the stick turn.
+inline void setMode(int m) noexcept {
+    namespace r=kcd2vr::free_targeting_r133;m=r::clampMode(m);
+    if(r::mode.exchange(m,std::memory_order_acq_rel)!=m)r::modeGeneration.fetch_add(1,std::memory_order_acq_rel);
+    const bool on=m!=r::Native;
     if(enabled.exchange(on,std::memory_order_acq_rel)!=on)
         generation.fetch_add(1,std::memory_order_acq_rel);
+}
+inline int mode() noexcept {return kcd2vr::free_targeting_r133::mode.load(std::memory_order_acquire);}
+// old bool API (tests, old callers): true -> 1 FREE, false -> 0 NATIVE. true keeps an already chosen 2.
+inline void set(bool on) noexcept {
+    if(!on)setMode(kcd2vr::free_targeting_r133::Native);
+    else if(mode()==kcd2vr::free_targeting_r133::Native)setMode(kcd2vr::free_targeting_r133::Free);
+    else if(!enabled.load(std::memory_order_acquire)){enabled.store(true,std::memory_order_release);generation.fetch_add(1,std::memory_order_acq_rel);}
 }
 // Cumulative counters only advance under F3 at the actual queued-command
 // boundary. No additional native reads, formatting or allocation in that hook.

@@ -457,7 +457,10 @@ int main(){
     const auto f32=[&](std::size_t o){float v=0;std::memcpy(&v,out.bytes.data()+o,4);return v;};
     const auto vetoed=[&](){return f32(0x10)==.01f&&f32(0x14)==-.02f&&f32(0x18)==-.05f&&f32(0)==.1f&&f32(12)==.9f;};
     const auto untouched=[&](){return f32(0x10)==.30f&&f32(0x14)==.40f&&f32(0x18)==-.05f&&f32(0)==.1f&&f32(12)==.9f;};
-    const auto expectRoot=[&](bool veto,const char* label,std::uintptr_t a=0){prime();fire(a?a:animated.address());ck(veto?vetoed():untouched(),label);};
+    // R139: the exit follows this frame's R112 decision, so every case first runs the game-thread alignment query
+    // (the same NativeAlignmentResult112 the 9E2D55 caller reaches), then the exit.
+    const auto query=[&](){(void)NativeAlignmentResult112(alignment.ptr(),baseD37+0x9E2D55,true);};
+    const auto expectRoot=[&](bool veto,const char* label,std::uintptr_t a=0){query();prime();fire(a?a:animated.address());ck(veto?vetoed():untouched(),label);};
     g_root_motion_contract125=baseD37;
     for(int kind:{0,1})for(int p:{4,8,16}){melee(kind);phase(p);expectRoot(true,"R125 ordinary slash/thrust phase 4/8/16: horizontal = requested movement, clip translation removed, rotation and height native");}
     melee(0);
@@ -480,6 +483,18 @@ int main(){
     selectedD37=true;bindPunch(0,0,5);phase(8);expectRoot(true,"R125 tracked ordinary punch phase 8 also loses the clip step");
     type.put(8,8);expectRoot(false,"R125 kick with fists keeps its native step");type.put(8,5);
     selectedD37=false;melee(0);phase(8);
+    // R139 (R138 log 08:51-08:53: practice sword, R112 vetoed every attack, R125 exit owned 0 frames, lunge 46..70 cm).
+    expectRoot(true,"R139 exit acts exactly when the R112 alignment veto of this frame acted");
+    {query();phase(32);(void)NativeAlignmentResult112(alignment.ptr(),baseD37+0x9E2D55,true);phase(8);prime();fire(animated.address());
+     ck(untouched(),"R139 an R112 refusal revokes the lease at once (no latch, no stale owner)");}
+    {query();nowD37+=kRootLeaseMs139+1;prime();fire(animated.address());ck(untouched(),"R139 a lease older than one query window is not used");nowD37-=kRootLeaseMs139+1;}
+    {query();prime();(void)NativeAlignmentResult112(alignment.ptr(),baseD37+0x9E2D55,false);fire(animated.address());
+     ck(vetoed(),"R139 a false native query answer neither publishes nor revokes");}
+    {AreaD37<0x100> npcActor,npcPlayer,npcAlign,npcEntity;npcActor.put(0,baseD37+0x3A80610);npcActor.put(0x1F8,npcPlayer.ptr());
+     npcPlayer.put(0,baseD37+0x3AA4B98);npcPlayer.put(0x38,npcEntity.ptr());npcAlign.put(0,baseD37+0x3A633B0);npcAlign.put(8,npcActor.ptr());
+     query();prime();(void)NativeAlignmentResult112(npcAlign.ptr(),baseD37+0x9E2D55,true);fire(animated.address());
+     ck(vetoed(),"R139 an NPC alignment query never revokes Henry's lease");}
+    {g_root_lease_tick139=0;prime();fire(animated.address());ck(untouched(),"R139 no alignment decision = native clip motion");}
     ck(NativeRootMotionContract125(baseD37),"R125 root-motion pins match bytes read from the supplied DLL");
     for(auto& block:codeD40){
         if(block.rva!=0x839FF4&&block.rva!=0x83A016&&block.rva!=0x83A06B&&block.rva!=0x83A0D6&&block.rva!=0x83A195&&block.rva!=0x83A7A2&&block.rva!=0x83A72B&&block.rva!=0x3A49468+0x2F0)continue;

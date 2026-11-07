@@ -100,6 +100,8 @@
         d40.combatNoStepD40=frik_pose_probe::CombatNoStep55();
         d40.combatNoTurnD40=frik_pose_probe::CombatNoTurnD40();
         d40.freeTargetingD42=free_targeting_d42::enabled.load(std::memory_order_acquire);
+        d40.freeTargetingModeR133=free_targeting_d42::enabled.load(std::memory_order_acquire)?free_targeting_d42::mode():0; // R133
+        d40.freeTargetingHoldR133=std::fabs(free_targeting_r133::offsetView.load(std::memory_order_acquire))>.0175f;
         d40.freeTargetingContextD42=free_targeting_d42::contextReady.load(std::memory_order_acquire);
         d40.freeTargetingLeaseD42=free_targeting_d42::cameraLeased.load(std::memory_order_acquire);
         d40.combatNoTurnReadyD40=frik_pose_probe::CombatNoTurnReadyD40();
@@ -213,7 +215,8 @@
         pickup_use19c3::setNearOnlyD40(d40.pickupNearOnlyD40);
         frik_pose_probe::SetCombatNoStep55(d40.combatNoStepD40);
         frik_pose_probe::SetCombatNoTurnD40(d40.combatNoTurnD40);
-        free_targeting_d42::set(d40.freeTargetingD42);
+        // R133: the 3-way mode is the owner; the old bool only matters if a caller changed just the bool.
+        free_targeting_d42::setMode(d40.freeTargetingD42?(d40.freeTargetingModeR133<=0?1:d40.freeTargetingModeR133):0);
         frik_pose_probe::SetClinchModeD40(d40.clinchModeD40);
         bodycombo59c7g::npcReactsToBlade.store(d40.npcContactReactionD41,std::memory_order_release);
         bodycombo59c7g::staminaHits.store(d40.npcStaminaReactionD41,std::memory_order_release);
@@ -313,7 +316,8 @@
     ok=wb("VrPickupNearOnlyD40",pickup_use19c3::nearOnlyD40.load(std::memory_order_acquire))&&ok;
     ok=wb("VrCombatNoStep",frik_pose_probe::CombatNoStep55())&&ok;
     ok=wb("VrCombatNoTurnD40",frik_pose_probe::CombatNoTurnD40())&&ok;
-    ok=wb("VrFreeTargeting",free_targeting_d42::enabled.load(std::memory_order_acquire))&&ok;
+    ok=wb("VrFreeTargeting",free_targeting_d42::enabled.load(std::memory_order_acquire))&&ok; // old builds still read this
+    ok=wi("VrFreeTargetingModeR133",free_targeting_d42::enabled.load(std::memory_order_acquire)?free_targeting_d42::mode():0)&&ok; // R133 0/1/2
     ok=wi("VrClinchModeD40",frik_pose_probe::ClinchModeD40())&&ok;
     // This existing preference loaded from INI but was missing from SaveMenuSettings.
     ok=wb("VrLabLivingTouch58",false)&&ok;
@@ -451,7 +455,12 @@
     npc_look_policy63::setFollowHmd(ReadIniBoolExplicit(explicit_ini,"Settings","VrDialogueNpcLookHmd",true));
     pickup_use19c3::setNearOnlyD40(ReadIniBoolExplicit(explicit_ini,"Settings","VrPickupNearOnlyD40",false));
     frik_pose_probe::SetCombatNoTurnD40(ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatNoTurnD40",true));
-    free_targeting_d42::set(ReadIniBoolExplicit(explicit_ini,"Settings","VrFreeTargeting",true));
+    {   // R133: VrFreeTargetingModeR133 0/1/2 wins; an old INI keeps working: VrFreeTargeting true -> 1, false -> 0.
+        const bool oldT=ReadIniBoolExplicit(explicit_ini,"Settings","VrFreeTargeting",true);
+        const bool oldF=ReadIniBoolExplicit(explicit_ini,"Settings","VrFreeTargeting",false);
+        free_targeting_d42::setMode(free_targeting_r133::resolveIni(
+            ReadIniIntExplicit(explicit_ini,"Settings","VrFreeTargetingModeR133",-1),oldT==oldF,oldT));
+    }
     frik_pose_probe::SetClinchModeD40(ReadIniIntExplicit(explicit_ini,"Settings","VrClinchModeD40",2));
 #else
 #error D40 live runtime requires an explicit owner contribution

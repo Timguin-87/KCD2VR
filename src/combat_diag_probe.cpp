@@ -4,6 +4,7 @@
 #include "subsystems/masterstrike_combos/paired_signals_d62c.h" // D62C blade contact / applied hit signals
 #include "subsystems/physics/runtime/native_weapon_contact_event_h24.h"
 #include "diagnostics/hmd_dodge_context_h24.h"
+#include "subsystems/experimental/free_targeting_plus_r133.h" // R133: Henry's opponent edge for FREE PLUS
 #include "vrik/direct_response36.h"
 #include "core/collab_test_h21.h"
 #include "vrik/direct_counter39.h" // C39 DIRECT counter candidate receipt (pure)

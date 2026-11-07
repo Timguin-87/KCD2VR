@@ -2,6 +2,7 @@
 #include "ui_back_hold135r2.h"
 #include "subsystems/throw_drop/hand_claim_t24.h"
 #include "controller_layout_r118.h" // R118: X hold = torch (OPENXR) or inventory (STEAMVR / PS VR2)
+#include "subsystems/experimental/free_targeting_plus_r133.h" // R133: the player's own turn input
 #include <windows.h>
 #include <algorithm>
 #include <atomic>
@@ -192,6 +193,9 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
     const bool qu=modifier&&l.thumb_y> kDigital;
     const bool qd=modifier&&l.thumb_y<-kDigital;
     const bool utility=ql||qr||qu||qd;
+    p.gameplay_r133=true;
+    // R133: FREE PLUS lets the player's own turns through (stick or snap pulse), only the game's turns are held.
+    if(r.active&&std::fabs(r.thumb_x)>0.35f)kcd2vr::free_targeting_r133::userTurnMs.store(now,std::memory_order_release);
     if(!utility){p.lx=Axis(l.thumb_x,kMoveDead);p.ly=Axis(l.thumb_y,kMoveDead);p.l3=l.thumbstick_down;}
     else {p.dpad_left=ql&&!g_talk_weapon_quarantineH4;p.dpad_right=qr&&!g_talk_weapon_quarantineH4;}
 

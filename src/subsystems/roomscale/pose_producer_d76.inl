@@ -56,7 +56,7 @@ static void PublishRoomscaleStepD76(void* character,const TrackingSnapshot& ts) 
     if(!delta.submit)return;
     ModelWorld6692 world{};
     if(!ReadModelWorld6692(character,world)){nr::CancelPending();return;}
-    const Q4 frame=QNormalize({g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()});
+    const Q4 frame=QNormalize(CalFrameR133());
     const V3 xr{float(delta.x),0,float(delta.z)};
     V3 forward=QRotateV(world.q,QRotateV(frame,V3{0,1,0}));
     const float horizontal=std::hypot(forward.x,forward.y);

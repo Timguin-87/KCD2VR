@@ -16,6 +16,26 @@ def sha(path):
         for chunk in iter(lambda:f.read(1024*1024),b''):h.update(chunk)
     return h.hexdigest()
 
+def member_bytes(path,row):
+    """R133: the reviewed bytes of a text member. a GitHub "Download ZIP" or a clone with other line-ending
+    settings gives the same file with LF instead of CRLF (or the other way round). the content is the same, so
+    accept it when the CRLF or LF form has the manifest hash, and restore exactly those reviewed bytes."""
+    data=Path(path).read_bytes()
+    if len(data)==row['bytes'] and hashlib.sha256(data).hexdigest()==row['sha256']:return data
+    if b'\0' not in data:
+        lf=data.replace(b'\r\n',b'\n')
+        for form in (lf.replace(b'\n',b'\r\n'),lf):
+            if len(form)==row['bytes'] and hashlib.sha256(form).hexdigest()==row['sha256']:return form
+    return None
+
+def atomic_write(data,dst):
+    dst.parent.mkdir(parents=True,exist_ok=True)
+    temp=dst.with_name(dst.name+'.restore.tmp')
+    try:
+        temp.write_bytes(data);os.replace(temp,dst)
+    finally:
+        if temp.exists():temp.unlink()
+
 def relative(name):
     p=PurePosixPath(name)
     if not name or p.is_absolute() or '\\' in name or ':' in name or any(v in ('','..','.') for v in name.split('/')):
@@ -50,11 +70,13 @@ def prepare(package,out):
     archive=package/relative(compressed['archive'])
     if sha(archive)!=compressed['archive_sha256']:raise ValueError('Compressed dependency archive hash mismatch')
     # Verify every source member before changing output. Preserve attribution.
+    members={}
     for row in rows:
         if row['path']==LIBRARY:continue
-        src=package/row['path']
-        if src.stat().st_size!=row['bytes'] or sha(src)!=row['sha256']:
+        data=member_bytes(package/row['path'],row)
+        if data is None:
             raise ValueError('Dependency source member hash mismatch: '+row['path'])
+        members[row['path']]=data
     for name in EXTRA:
         if not (package/name).is_file():raise ValueError('Missing dependency provenance: '+name)
     with zipfile.ZipFile(archive) as z:
@@ -72,8 +94,8 @@ def prepare(package,out):
                 if temp.exists():temp.unlink()
     for row in rows:
         if row['path']==LIBRARY:continue
-        src=package/row['path'];dst=out/row['path']
-        if not dst.is_file() or sha(dst)!=row['sha256']:atomic_copy(src,dst)
+        dst=out/row['path']
+        if not dst.is_file() or sha(dst)!=row['sha256']:atomic_write(members[row['path']],dst)
     for name in (*EXTRA,'DEPENDENCY_MANIFEST.json','COMPRESSED_LIBRARY.json'):
         src=package/name;dst=out/name
         if not dst.is_file() or sha(dst)!=sha(src):atomic_copy(src,dst)

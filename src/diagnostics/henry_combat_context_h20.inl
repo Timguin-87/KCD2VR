@@ -22,6 +22,13 @@ void PublishHenryCombatContextH20(const void* actor) noexcept {
         [](std::uintptr_t address,auto& value){return SehCopy146(reinterpret_cast<const void*>(address),&value,sizeof(value));});
     (void)kcd2vr::hmd_dodge_h24::published.publish(
         epochH24==frik_pose_probe::PoseEpochH24()&&entity==frik_pose_probe::LastPlayerEntity()?dodgeH24:kcd2vr::hmd_dodge_h24::Context{});
+    {   // R133: FREE PLUS holds the view only while Henry has a combat opponent (S_CombatActorState+0xCF8, the
+        // same field H24/D74 read). one bounded copy on this original-first update, no other native access.
+        std::uintptr_t opponentR133=0;
+        if(SehCopy146(static_cast<const unsigned char*>(hs)+0xCF8,&opponentR133,sizeof(opponentR133))&&opponentR133&&
+           opponentR133!=reinterpret_cast<std::uintptr_t>(actor)&&entity==frik_pose_probe::LastPlayerEntity())
+            kcd2vr::free_targeting_r133::opponentMs.store(now,std::memory_order_release);
+    }
     const int b=B(hs,kInCombat),v=b==0xFF?-1:(b?1:0);
     const int prev=g_henry_in_combat178r31.exchange(v,std::memory_order_relaxed);
     g_henry_seen178r31.store(now,std::memory_order_release);
