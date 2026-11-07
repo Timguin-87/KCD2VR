@@ -41,3 +41,7 @@ static std::atomic<std::uint64_t> g_cal_load_h46{0};
 
 // D76: numeric calibration and consumed tracking-origin generation travel together.
 std::atomic<std::uint64_t> g_cal_room_origin_d76{1};
+// R132: why an F8 T-pose capture failed (one KCD2VR.log row). counted by the tracking producer while the capture runs,
+// reset at each capture start. ok = admitted sample, blocked = tracking not allowed (game control/menu/dialogue),
+// lost = headset or a controller not tracked.
+std::atomic<std::uint32_t> g_cal_samples_ok_r132{0},g_cal_samples_blocked_r132{0},g_cal_samples_lost_r132{0};

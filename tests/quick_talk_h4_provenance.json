@@ -1,0 +1,10 @@
+{
+  "source": "src/subsystems/hud_ui_controls/host.inl",
+  "sha256": "fc818586437cfb8b3b120135ad3eefe6efde21744ff0fc9acf0758d54bf511a7",
+  "generatedSHA256": "f6283adaf5d74afd59a2db00254d8999bd03ebeefcd8ae9aa1ec9fac2bf8eace",
+  "actualModCallerOrdering": "PrepareGestureTalkH4 -> Build -> apply54 -> PublishGamepadState",
+  "modSHA256": "d86e4dc5b8c4d95674a1eec72aaa2672cfd8ae24d04cbdad5019f7fac7c5501b",
+  "equipmentOwnership": "Earlier Talk arbitrates before producer acquisition; actual ring-enqueued equipment is not re-arbitrated by later Talk. Issued pending FSM is observation-only.",
+  "nativeConsumerSHA256": "00246cf86418408e2b22c1af0de8c49fff5e4b583d7010bdfeb086bedf766c49",
+  "holsterProducerSHA256": "8cb8b453222072710c1edf63f29de45b6b2ece388a421db712d514f7e10ed31d"
+}

@@ -1,0 +1,10 @@
+{
+  "sourceInputs": {
+    "tests/native_held_capture63_test.cpp": "e0cbe081fc0c6d27056bca410f05c61eb2d444ddf86e6832e00ad1547c5617e4",
+    "src/subsystems/physics/native_held_owner_t4.inl": "c59ee9bc9697ba2d238071db1b731e695b94b1707d5860ad987436167d3414bf",
+    "tests/generated_held_capture63.inc": "17b8eac8316191329c67bba2018e72f485db9d08dc38d6852bfb4d8418fb3849",
+    "tests/generated_held_capture63_types.inc": "2ec19939942369fcf49cbe2a0bacb866c932c524671d5d247f928187453f8527"
+  },
+  "generatedCanonicalUtf8LfSha256": "ef013bc96c2f4a7b2e70a8d6249158950c948cec801fdb1883c30bad8464931e",
+  "scope": "NativeHeldCaptureT4 and NativeHeldBodyT4 are verbatim existing extraction. Reuse existing explicit native-memory providers; alias only suspended item/Henry body storage into actual typed phase providers. Remove duplicate backend public API stubs and redundant includes. Native leaves/OS/hook dispatch are substituted; production capture, session stamp, weapon owner and typed pair APIs are not rewritten."
+}

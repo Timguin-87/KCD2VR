@@ -24,6 +24,12 @@ void NotifyNavigation() noexcept;
 void WriteCursorSnapshot() noexcept;
 // Queue a bounded glyph-art refresh on the native VM owner. No console Lua.
 bool RequestFlashStyleD56(int device) noexcept;
+// R129: art style the companion movies last confirmed (2 Xbox / 4 PlayStation), 0 = none yet or the
+// last dispatch did not reach a movie. Re-set by the next dispatch, no latch.
+int AppliedGlyphStyleR129() noexcept;
+// R129: who asked for the next art dispatch (glyph_apply_r129::Path). The dispatch writes one KCD2VR.log
+// row when (style, applied) changes. override=false keeps an already noted menu/start path.
+void NoteGlyphPathR129(int path,bool override) noexcept;
 // Copied station/palm state only; native UI work runs on the existing VM client.
 void PublishMinigamePromptsD80(bool active,std::uint64_t lifetime,unsigned phase,
     bool openPalm,std::uint64_t now,bool alchemy) noexcept;

@@ -1,0 +1,155 @@
+[
+  {
+    "function": "static bool CopyDirectDoor54r1Locked(",
+    "source": "src/interaction_direct_door54r1.inl",
+    "lines": [
+      31,
+      44
+    ],
+    "sha256": "cfbc1b5e4fc89128a08b6a8764b2738b77c07c12448e9bf9064efa55f1c2755e"
+  },
+  {
+    "function": "static bool ReadExactDoor54r1(",
+    "source": "src/interaction_direct_door54r1.inl",
+    "lines": [
+      49,
+      57
+    ],
+    "sha256": "ffade237ecce19646016181e50904331a024600abb5cb9579555621b3a0c1727"
+  },
+  {
+    "function": "static void SelectionReceipt59c10(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      351,
+      367
+    ],
+    "sha256": "83be719ea91202a7409b8262a62076a8c281d0708c32239a043ca304e37f6e7c"
+  },
+  {
+    "function": "static void PublishHandCandidate178r16(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      369,
+      385
+    ],
+    "sha256": "3f6a79b95c750017a73816d89609ee9174677f295b743614d4e4f58ad724ed0e"
+  },
+  {
+    "function": "static void DoorCandidateObservation38(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      386,
+      402
+    ],
+    "sha256": "07051eb4cabe1999fb1cf321c969abfc920b21075043ca07963487a134daeef5"
+  },
+  {
+    "function": "char __fastcall OnScreenDetour(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      404,
+      529
+    ],
+    "sha256": "d252ba7dcf7c370b6de56c3fecde3eadf554cfde61073942eed368c6c40383c8"
+  },
+  {
+    "function": "void SetEnabled(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      693,
+      698
+    ],
+    "sha256": "473b6c04e9b3f17b3c451f4450903562e9da378eb4e9d60c6f2860087682bebf"
+  },
+  {
+    "function": "void SetVisualFallbackEnabled(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      702,
+      706
+    ],
+    "sha256": "7ba3c513f4207a7bc2785a1ce138734b057814a92730c10d055156dc3287897c"
+  },
+  {
+    "function": "void SetNativeActivityFallback5916c3(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      699,
+      701
+    ],
+    "sha256": "ad8bf8bd47fa45a7bf989982da4f54bbfc4fe7dd660f22229bf214248a9afdf4"
+  },
+  {
+    "function": "void SetHandRayWorld(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      711,
+      725
+    ],
+    "sha256": "56bea11b8200b66b55c3e707286de6b2da349d305d8efd900ab17948fa5b103f"
+  },
+  {
+    "function": "void ClearLegacyHandRayWorldH5(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      726,
+      735
+    ],
+    "sha256": "49221df0224460efd80d307369aa99aa231aad9ba06795a37da299e0129da488"
+  },
+  {
+    "function": "bool HandRayActive(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      785,
+      788
+    ],
+    "sha256": "002a8b0246661fc6ee011ae1168177c6f08a1f0261e6295ca0e6ab031336e9a2"
+  },
+  {
+    "function": "void SetPalmRays59c9(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      736,
+      738
+    ],
+    "sha256": "f1d23e0ce839f7cb60bd46cbc4ccf733268ef57d7e70074a281d2de37dbc4c39"
+  },
+  {
+    "function": "bool LastHandCandidate(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      739,
+      752
+    ],
+    "sha256": "7e7153ddba30c7c8e8df843954764eb275eaa3424500bb7283f5fa94b5e821b3"
+  },
+  {
+    "function": "bool ExactDoorCandidate38(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      758,
+      760
+    ],
+    "sha256": "f51e974466308c6b8b9d7a2ef4da81b8c7543f88dfba0c1a966e0d6795957417"
+  },
+  {
+    "function": "std::uint64_t DoorSourceGeneration38(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      761,
+      765
+    ],
+    "sha256": "246b42864a51324c7935a30787ddbe76a1820cc8ca94edd9877cbb18c4c9d64a"
+  },
+  {
+    "function": "bool DoorSourceCurrent38(",
+    "source": "src/interaction_alignment.cpp",
+    "lines": [
+      766,
+      768
+    ],
+    "sha256": "4e0753ac21b06c236f0cacf9f7eb616ae63e702388fd01b6f1018e7f8a4fbc72"
+  }
+]

@@ -80,8 +80,11 @@ void PublishTrackingSnapshot(const TrackingPose& head,bool hv,const TrackingPose
     const auto qvalid=[](const TrackingPose&p){const double n=double(p.qx)*p.qx+double(p.qy)*p.qy+double(p.qz)*p.qz+double(p.qw)*p.qw;return std::isfinite(n)&&n>.90&&n<1.10;};
     const bool calSample=allowed&&hv&&lv&&rv&&qvalid(head)&&qvalid(left)&&qvalid(right);
     if(guidedPose>0&&!g_guided_cal_lock.test_and_set(std::memory_order_acquire)){
-      if(!calSample){if(g_arm_capture_active66100.load())g_arm_window66100.moved=true;g_guided_cal_lock.clear(std::memory_order_release);}
+      if(!calSample){if(g_arm_capture_active66100.load())g_arm_window66100.moved=true;
+        (!allowed?g_cal_samples_blocked_r132:g_cal_samples_lost_r132).fetch_add(1,std::memory_order_relaxed); // R132: failure reason
+        g_guided_cal_lock.clear(std::memory_order_release);}
       else {
+        g_cal_samples_ok_r132.fetch_add(1,std::memory_order_relaxed);
         if(g_arm_capture_active66100.load())g_arm_window66100.add(cv(head),cv(left),cv(right),GetTickCount64());
         ++g_guided_cal_accum.n;
         g_guided_cal_accum.h.x+=head.px;g_guided_cal_accum.h.y+=head.py;g_guided_cal_accum.h.z+=head.pz;

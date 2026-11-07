@@ -7,4 +7,6 @@ void FirstRun() noexcept;
 // R118: write the built-in default KCD2VR.ini beside the mod when none exists (never over an existing file).
 // Returns core::default_ini_r118::Result as int. Called before ApplyPendingBeforeConfig / LoadConfig.
 int EnsureDefaultIniR118() noexcept;
+// R131: where the in-game setup window writes its KCD2VR.log rows (set by mod.cpp before FirstRun; null = silent).
+inline void (*setupLogSinkR131)(const char*) noexcept=nullptr;
 }

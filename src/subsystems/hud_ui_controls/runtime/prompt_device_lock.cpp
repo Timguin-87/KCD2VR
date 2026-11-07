@@ -4,6 +4,7 @@
 #include "ui_cursor_lease.h"
 #include "prompt_family_d49.h"
 #include "prompt_refresh_d56.h"
+#include "glyph_apply_r129.h"
 #include "../prompt_policy_d80.h"
 #include "flashui_probe.h"
 #include "native_script_t2.h"
@@ -31,6 +32,20 @@ std::atomic<bool> g_suspended{false};
 std::atomic<std::uint64_t> g_flash_request_d56{0},g_flash_done_d56{0};
 std::atomic<bool> g_flash_ready_d56{false};
 prompt_refresh_d56::State g_flash_state_d56;
+std::atomic<int> g_applied_style_r129{0},g_glyph_path_r129{0}; // R129: confirmed art style, path of the next dispatch
+// R129: one always-on KCD2VR.log row (WriteStatus, no screen text) per change of (style, applied).
+void ReportGlyphR129(int style,bool dispatched,const char* reply,unsigned attempts) noexcept {
+    namespace ga=glyph_apply_r129;static ga::Report report;
+    const auto path=ga::Path(g_glyph_path_r129.exchange(0,std::memory_order_acq_rel));
+    if(!report.take(style,dispatched))return;
+    char line[300]{};
+    if(dispatched)std::snprintf(line,sizeof(line),"R129 GLYPHS style=%s path=%s applied=1 reply=%.48s (button icons sent to the game's movies)",
+        ga::label(style),ga::name(path),reply?reply:"");
+    else std::snprintf(line,sizeof(line),"R129 GLYPHS style=%s path=%s applied=0 attempts=%u reply=%.48s reason=%s retry=NEXT_UI_CHANGE_OR_MENU_CLICK",
+        ga::label(style),ga::name(path),attempts,reply?reply:"",
+        !reply||!*reply?"GAME_SCRIPT_NOT_READY":"NO_MOVIE_TOOK_IT (KCD2VR.pak missing or old)");
+    diagnostic_trace::WriteStatus(line);
+}
 std::atomic<std::uint64_t> g_station_request_d80{0},g_station_done_d80{0};
 prompt_refresh_d56::State g_station_dispatch_d80;
 bool StationPromptWantedD80() noexcept {
@@ -152,6 +167,10 @@ void FlashServiceD56(const native_script_t2::Context& context) noexcept {
         output[n]>='1'&&output[n]<='8'&&output[n+1]==0;
     const bool finished=g_flash_state_d56.terminal(dispatched);
     if(finished)g_flash_done_d56.store(ticket,std::memory_order_release);
+    if(finished){ // R129: remember what the movies took; a failed one is re-sent on the next UI change / menu click
+        g_applied_style_r129.store(dispatched?glyph_apply_r129::style(style):0,std::memory_order_release);
+        ReportGlyphR129(style,dispatched,called?output:"",g_flash_state_d56.attempts);
+    }
     if((finished||g_flash_state_d56.attempts==1)&&PromptCaptureActiveD50()){
         char line[240]{};std::snprintf(line,sizeof(line),
             "D56 PROMPT_FLASH serial=%llu family=%d attempt=%u dispatched=%d reply=%.90s nativeVm=1 pixelReadback=NOT_OBSERVED",
@@ -454,6 +473,11 @@ bool RequestFlashStyleD56(int device) noexcept {
     auto before=g_flash_request_d56.load(std::memory_order_acquire);
     for(;;){const auto after=((before&~std::uint64_t(7))+8)|std::uint64_t(prompt_refresh_d56::family(device));
         if(g_flash_request_d56.compare_exchange_weak(before,after,std::memory_order_acq_rel))return true;}
+}
+int AppliedGlyphStyleR129() noexcept {return g_applied_style_r129.load(std::memory_order_acquire);}
+void NoteGlyphPathR129(int path,bool override) noexcept {
+    if(override){g_glyph_path_r129.store(path,std::memory_order_release);return;}
+    int none=0;(void)g_glyph_path_r129.compare_exchange_strong(none,path,std::memory_order_acq_rel);
 }
 void PublishMinigamePromptsD80(bool active,std::uint64_t lifetime,unsigned phase,bool openPalm,std::uint64_t now,bool alchemy) noexcept {
     static prompt_policy_d80::State state;

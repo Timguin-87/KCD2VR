@@ -1,0 +1,8 @@
+{
+  "source": "src/camera_hook.cpp",
+  "source_sha256": "20b46864c6e3bf7ff1319db7a67c3b347d695062ef3be7b5b2dcd43a6270ffb3",
+  "first_line": 286,
+  "extracted_sha256": "71a1a8f8aa817de04e18e17e7d0f56244eaa067e4d85f41206d685928976190d",
+  "scope": "Verbatim activity eye/cache function; clock, current state/body and diagnostic sink mocked; real SnapshotMailbox",
+  "native_execution": false
+}

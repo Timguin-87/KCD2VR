@@ -1,0 +1,6 @@
+{
+  "src/subsystems/vrik/host.inl": "125e02a4f8d3cd619a749eb08bba76adc1883f44b587a087d38eddc0431cafb8",
+  "src/combat_diag_probe.cpp": "5bacaddad6e79de264a50679223d1c3dd3e73e72c67f26e102f01efef8a16916",
+  "src/diagnostics/hmd_dodge_context_h24.h": "556d54f1a1df2720233aac15f3047f627a82bc4a05441418cab72c00c7422858",
+  "src/diagnostics/henry_combat_context_h20.inl": "df21346dc7c674f98159692ac88a2f65157694691e53f5fc365bc4b1d5dd5d91"
+}

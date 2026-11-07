@@ -1,0 +1,9 @@
+{
+  "source": "src\\diagnostics\\native_hit_probe134.inl",
+  "source_sha256": "e4fdd7e80adbeabfef09072072fb5db3a1b5c8ad18412f448cc0c162bb21503e",
+  "functions": [
+    "PhysCollisionProduceDetourH24",
+    "PhysCollisionDetour"
+  ],
+  "native_leaves": "Original callbacks/retail event/clock doubled; exact production wrapper bodies exercised"
+}

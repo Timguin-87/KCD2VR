@@ -1,0 +1,11 @@
+{
+  "source": "src/xr_manager.cpp",
+  "source_sha256": "0df7828d8978e87eaed5fed6d93dfabe3de39f8aaab143e74df2f8fd5f7c2a2d",
+  "meaning": "Actual production hit-test and panel-prefix extraction; not a headset/OpenXR execution proof",
+  "members": {
+    "generated_ui_laser_math_m1.inc": "bacf111b4335981fa63f0977e78d35aee90d095e758b0767437c488c6f3ac6af",
+    "generated_ui_laser_pointer_m1.inc": "0956964715800262fadb68e3f2f80134082079e78ee358da1434dfe2f876a99e",
+    "generated_ui_laser_panel_m1.inc": "5fc6618ca00cf6d13bf55cd55e76cc053712ac26ef431d4315a1ee029da1438e",
+    "generated_ui_laser_cancel_m1.inc": "c2929c3b1f9c0699df73f18d3cfb45c9d436fd0e601a1def87afaef27b1b05d9"
+  }
+}

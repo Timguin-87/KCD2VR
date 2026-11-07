@@ -1,0 +1,14 @@
+[
+  {
+    "source": "src/subsystems/hud_ui_controls/host.inl",
+    "line": 1218,
+    "sha256": "656bbb3abf80bdc207931575fc2d87c2fc57a9fd9b090eb590290bfd5144ab60",
+    "statement": "if(frik_pose_probe::MiscInteractionDiagMode()<2) interaction_alignment::ClearLegacyHandRayWorldH5();"
+  },
+  {
+    "source": "src/subsystems/hud_ui_controls/host.inl",
+    "line": 1223,
+    "sha256": "656bbb3abf80bdc207931575fc2d87c2fc57a9fd9b090eb590290bfd5144ab60",
+    "statement": "if(frik_pose_probe::MiscInteractionDiagMode()<2) interaction_alignment::ClearLegacyHandRayWorldH5();"
+  }
+]

@@ -1,0 +1,11 @@
+# D77 diagnostic observers: production PODs/adapters; native leaves are explicit fixtures.
+foreach(suite activity_links_d77 contact_links_d77 native_draw_d77 claude_split_d77)
+ add_executable(${suite}_test ${suite}_test.cpp)
+ target_compile_features(${suite}_test PRIVATE cxx_std_20)
+ target_include_directories(${suite}_test PRIVATE ../src)
+ target_compile_definitions(${suite}_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+ if(MSVC)
+  target_compile_options(${suite}_test PRIVATE /bigobj)
+ endif()
+ add_test(NAME ${suite} COMMAND ${suite}_test)
+endforeach()

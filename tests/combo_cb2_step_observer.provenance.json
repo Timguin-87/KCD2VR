@@ -1,0 +1,5 @@
+{
+  "source": "src/subsystems/masterstrike_combos/native_combo_observer.inl",
+  "sha256": "9d1959046515156c45d0fe672c573f557f1736131ed348dee8d0f4fb371cebfd",
+  "substitutions": "None; fixture models native original, read memory and diagnostic leaves"
+}

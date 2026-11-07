@@ -1,0 +1,52 @@
+{
+  "alias": "holditem_idle_sword_rhand",
+  "exception_layer": 4,
+  "protected_uses": [
+    {
+      "path": "Mannequin/ADB/kcd_male_database.adb",
+      "sha256": "bb93457d0cc9441024a9fb1e3ea772ed0c76cbba79588e6564e4e71ddd6fec6e",
+      "fragment": "HolsterWeapon",
+      "guid": "3049d84a-d411-4c7d-836a-c8cbcb55ef37",
+      "tags": "horse+l_torch+r_axe+player",
+      "anim_layer_index": 1,
+      "native_layer": 7
+    },
+    {
+      "path": "Mannequin/ADB/kcd_male_database.adb",
+      "sha256": "bb93457d0cc9441024a9fb1e3ea772ed0c76cbba79588e6564e4e71ddd6fec6e",
+      "fragment": "HolsterWeapon",
+      "guid": "3a5c66cc-39de-48f7-bb10-8e743d981894",
+      "tags": "horse+l_torch+r_longsword+player",
+      "anim_layer_index": 1,
+      "native_layer": 7
+    },
+    {
+      "path": "Mannequin/ADB/kcd_male_database.adb",
+      "sha256": "bb93457d0cc9441024a9fb1e3ea772ed0c76cbba79588e6564e4e71ddd6fec6e",
+      "fragment": "HolsterWeapon",
+      "guid": "7cd67c0e-342d-4a4b-b10e-7af14d7dfbcb",
+      "tags": "horse+l_torch+r_mace+player",
+      "anim_layer_index": 1,
+      "native_layer": 7
+    },
+    {
+      "path": "Mannequin/ADB/kcd_male_database.adb",
+      "sha256": "bb93457d0cc9441024a9fb1e3ea772ed0c76cbba79588e6564e4e71ddd6fec6e",
+      "fragment": "HolsterWeapon",
+      "guid": "91c4858e-6cd4-4160-af8e-c324f763bf1f",
+      "tags": "horse+l_torch+r_sword+player",
+      "anim_layer_index": 1,
+      "native_layer": 7
+    },
+    {
+      "path": "Mannequin/ADB/kcd_male_database.adb",
+      "sha256": "bb93457d0cc9441024a9fb1e3ea772ed0c76cbba79588e6564e4e71ddd6fec6e",
+      "fragment": "HolsterWeapon",
+      "guid": "957daacd-b43b-49dd-bc01-bfa1b62602ba",
+      "tags": "horse+l_torch+r_sabre+player",
+      "anim_layer_index": 1,
+      "native_layer": 7
+    }
+  ],
+  "controllerdefs_sha256": "37b96b1ff15e07060104020c0f9910f3ab38217598708147bbf79ebb3d7b04ee"
+}

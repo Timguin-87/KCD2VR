@@ -64,6 +64,7 @@ void BeginArmLengthCalibration() noexcept {
     // The worker remains its sole writer; unknown/protected clips still yield.
     while(g_guided_cal_lock.test_and_set(std::memory_order_acquire)){}
     g_arm_window66100={};g_guided_cal_lock.clear(std::memory_order_release);
+    g_cal_samples_ok_r132.store(0);g_cal_samples_blocked_r132.store(0);g_cal_samples_lost_r132.store(0); // R132
 }
 void CancelArmLengthCalibration() noexcept {
     g_guided_cal_pose=0;g_vrik_calibration_requested=false;g_arm_capture_active66100=false;
@@ -78,9 +79,20 @@ bool CompleteArmLengthCalibration() noexcept {
     a=g_guided_cal_accum;w=g_arm_window66100;g_guided_pose_result[1]=a;
     g_guided_cal_lock.clear(std::memory_order_release);
     kcd2vr::calibration_profile::Arms profile{};
-    if(!w.measure(profile,kcd2vr::tracking125::yaw_only({a.hqSum.x,a.hqSum.y,a.hqSum.z,a.hqSum.w}))||a.n!=w.count||!a.haveQ){CancelArmLengthCalibration();diagnostic_trace::Write("V66.100-CAL REJECTED needTrackedStableTPose=1 oldProfileRetained=1 autoRetry=0");return false;}
+    if(!w.measure(profile,kcd2vr::tracking125::yaw_only({a.hqSum.x,a.hqSum.y,a.hqSum.z,a.hqSum.w}))||a.n!=w.count||!a.haveQ){
+        { // R132 (7 Nov second log: three F8 captures ended ALL_VRIK_OFF with no reason in KCD2VR.log): say why, once per capture.
+          // the old V66.100-CAL REJECTED row below only reaches the log while a recorder runs.
+          const unsigned ok=g_cal_samples_ok_r132.load(),blocked=g_cal_samples_blocked_r132.load(),lost=g_cal_samples_lost_r132.load();
+          const char* why=blocked>ok?"the game had control (tracking not allowed: scripted scene, menu, dialogue or cutscene)":
+              lost>ok?"headset or a controller not tracked":
+              !w.count?"no tracked T-pose sample (arms not straight out to the sides at shoulder height)":
+              "you moved or the arms were not a T-pose for the full 2 s (hold still, arms straight out)";
+          char m[384]{};std::snprintf(m,sizeof(m),"R132 F8_CALIBRATION failed: %s - samples ok=%u blocked=%u lost=%u tposeSamples=%u; old calibration kept, press F8 again",
+              why,ok,blocked,lost,w.count);
+          diagnostic_trace::WriteStatus(m);} // KCD2VR.log only, no headset text
+        CancelArmLengthCalibration();diagnostic_trace::Write("V66.100-CAL REJECTED needTrackedStableTPose=1 oldProfileRetained=1 autoRetry=0");return false;}
     const V3 nativeHead{g_latest_native_head_x.load(),g_latest_native_head_y.load(),g_latest_native_head_z.load()};
-    if(!CommitGuidedCalibrationV6562(a,nativeHead)||!g_arm_profile66100.publish(profile)){CancelArmLengthCalibration();return false;}
+    if(!CommitGuidedCalibrationV6562(a,nativeHead)||!g_arm_profile66100.publish(profile)){diagnostic_trace::WriteStatus("R132 F8_CALIBRATION failed: T-pose measured but Henry's pose could not be matched (commit refused); old calibration kept, press F8 again");CancelArmLengthCalibration();return false;}
     g_cal_native_anchor_pending=!g_latest_native_head_valid.load();g_saved_arm_ready66100=true;g_arm_capture_active66100=false;g_cal_reanchor66100=false;
     g_arm_save_generation66100.fetch_add(1,std::memory_order_release);
     // C43: Henry's head at the T-pose is part of the calibration (persisted; re-seats keep it instead of the live stance head).

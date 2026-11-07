@@ -1,0 +1,27 @@
+add_executable(crafting_contract_d56_test crafting_contract_d56_test.cpp)
+target_compile_features(crafting_contract_d56_test PRIVATE cxx_std_20)
+add_test(NAME crafting_contract_d56 COMMAND crafting_contract_d56_test)
+add_executable(alchemy_input_d56_regression_test subsystems/alchemy/input67_test.cpp)
+target_compile_features(alchemy_input_d56_regression_test PRIVATE cxx_std_20)
+add_test(NAME alchemy_input_d56_regression COMMAND alchemy_input_d56_regression_test)
+add_executable(alchemy_work_d56_regression_test subsystems/alchemy/gesture_work67_test.cpp)
+target_compile_features(alchemy_work_d56_regression_test PRIVATE cxx_std_20)
+add_test(NAME alchemy_work_d56_regression COMMAND alchemy_work_d56_regression_test)
+if(NOT MSVC)
+  add_test(NAME station_entities_d56_production COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_stowed_attachments_d44.py"
+    --source "${CMAKE_CURRENT_SOURCE_DIR}/.." --out "${CMAKE_CURRENT_BINARY_DIR}/stowed_d56")
+endif()
+
+foreach(name smith_native_floor_d56 smith_support_lifecycle_d56 alchemy_tilt_d56)
+  add_executable(${name}_test ${name}_test.cpp)
+  target_compile_features(${name}_test PRIVATE cxx_std_20)
+  target_include_directories(${name}_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/syntax_shims" "${CMAKE_CURRENT_SOURCE_DIR}/openxr_sdk")
+  add_test(NAME ${name} COMMAND ${name}_test)
+endforeach()
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../tools/extract_smith_wrist_d52.py"
+  --out "${CMAKE_CURRENT_BINARY_DIR}/smith_d52" COMMAND_ERROR_IS_FATAL ANY)
+add_executable(smith_final_wrist_d52_test smith_final_wrist_d52_test.cpp)
+target_compile_features(smith_final_wrist_d52_test PRIVATE cxx_std_20)
+target_include_directories(smith_final_wrist_d52_test PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/smith_d52" "${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME smith_final_wrist_d52 COMMAND smith_final_wrist_d52_test)

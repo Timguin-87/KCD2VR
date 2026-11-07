@@ -1,0 +1,6 @@
+foreach(case pet_withdrawal_d60 pose_cost_d60 torch_offhand_d60)
+  add_executable(${case}_test ${case}_test.cpp)
+  target_compile_features(${case}_test PRIVATE cxx_std_20)
+  target_include_directories(${case}_test PRIVATE ../src)
+  add_test(NAME ${case} COMMAND ${case}_test)
+endforeach()

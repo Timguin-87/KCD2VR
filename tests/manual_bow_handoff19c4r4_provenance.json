@@ -1,0 +1,7 @@
+{
+  "source": "src/vrik/staged_reload596c2.inl",
+  "sha256": "8872f93ef36232321b1af00830488c4f4002e2a74a2a3e740c29f2dc3ce07508",
+  "actual_coherent_caller": "pi.epoch=preparedRequest169r2;\n            ManualNockInput19c4r4(pi,tx.physicalProfiles[1],g_phys_state6698.sample);",
+  "caller_connected": true,
+  "leaves": "none in readiness and one-use publication; exact native attachment producers covered separately"
+}

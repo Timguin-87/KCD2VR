@@ -1,0 +1,13 @@
+{
+  "baseline": "User V66.167R1, normalized LF hashes recorded before V168 delivery",
+  "reason": "This checkpoint does not redesign head tracking, stereo camera geometry, menu/HUD layout, pose math, or native trajectory/admission. Future intentional changes require an evidence-backed contract update, not silent assertion deletion.",
+  "files": {
+    "src/camera_hook.cpp": "07fd871b630b1f9523d52fb15afb3c04c960ed83acc52f5f256bf2ee05bda685",
+    "src/xr_input.cpp": "6dc058bbedf7a37756b39f6b10de972dc676c4e34400aa496fff2f6a0ec56fed",
+    "src/vr_menu.cpp": "dede90e8080fc940564c9d4c8234b74a48ece3ff9e86dc4c2b138dcaa027e391",
+    "src/ui_contextual_hud162r1.h": "9a337e271e75580665c2d15ac0867244b810581fb3bc6c4e6537a165e4540d5c",
+    "src/vrik/pose_math.h": "24e28c6599702f1af41c7ad90ad58514ce5bd3401fec631d28db75cda1d72ff8",
+    "src/vrik/native_admission147.h": "0863a4545d8c23f90e9036c719fc966e14f6b77e665694fe83759f7033a3e35b",
+    "src/vrik/native_motion112.inl": "3be5472fde5544865106148a13837e7940a868ccb90564a461f92ef149f6be85"
+  }
+}

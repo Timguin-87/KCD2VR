@@ -1,0 +1,10 @@
+# D62 actual gesture/floor adapters; native services remain explicit host leaves.
+foreach(name smith_height_retirement_d62 smith_floor_owner_d62)
+  add_executable(${name}_test ${name}_test.cpp)
+  target_compile_features(${name}_test PRIVATE cxx_std_20)
+  target_include_directories(${name}_test PRIVATE ../src ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME ${name} COMMAND ${name}_test)
+endforeach()
+add_executable(alchemy_work_permission_d62_test subsystems/alchemy/work_permission_d62_test.cpp)
+target_compile_features(alchemy_work_permission_d62_test PRIVATE cxx_std_20)
+add_test(NAME alchemy_work_permission_d62 COMMAND alchemy_work_permission_d62_test)

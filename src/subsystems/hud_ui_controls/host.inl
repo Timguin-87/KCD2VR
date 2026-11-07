@@ -916,44 +916,76 @@ bool ApplyControllerPromptPresentationV6477(int inputId) noexcept
 // src/mod.cpp: prompt_lease
 // M2_SLOT_BEGIN 5005
 static bool g_f7_prompt_active_d33=false;static int g_f7_prompt_style_d33=2; // D33: shared with RestyleF7PromptPresentationD33
-bool ApplyF7PromptPresentation(bool enabled, int flashStyle) noexcept
+static bool g_f7_have_restore_r129=false;static int g_f7_restore_preferred_r129=0; // the CVar value we restore at exit
+// R129: the wh_ui_PreferredInputDevice lease alone (preferred = 2, Xbox semantics for both art choices).
+// It used to be the gate in front of the art request; a miss at mod start (console not up yet) then kept the
+// saved PlayStation art and the UI-change re-send off. Now it is only retried next to each art request.
+static bool LeasePreferredInputR129() noexcept
 {
-    bool& active=g_f7_prompt_active_d33;
-    static bool have_restore=false;
-    static int restore_preferred=0;
-    if(enabled==active) return true;
-
+    if(g_f7_prompt_active_d33) return true;
     void* console=SafeGetCryConsole();
     void* preferred=console?SafeConsoleGetCVar(console,"wh_ui_PreferredInputDevice"):nullptr;
     if(!preferred) {
-        diagnostic_trace::Write("V65.11-F11 rung2 prompt CVar unavailable; fail-closed");
+        diagnostic_trace::Write("V65.11-F11 rung2 prompt CVar unavailable; lease retried on the next UI change, button art not blocked");
         return false;
     }
-
-    if(enabled) {
-        restore_preferred=SafeCVarGetInt(preferred,0);
-        have_restore=true;
-        const int preferred_id=2; // D68 Xbox semantics; PS is art only in the shared button movie.
-        const bool cvar_ok=SafeCVarSetInt(preferred,preferred_id);
-        const bool flash_ok=ApplyControllerPromptPresentationV6477(flashStyle==4?4:2);
-        if(!cvar_ok) { have_restore=false; return false; }
-        active=true;g_f7_prompt_style_d33=flash_ok?(flashStyle==4?4:2):0;
-        char m[320]{};
-        std::snprintf(m,sizeof(m),
-            "D56 GLYPH_ONLY preferred=%d flashId=%d flashQueued=%d transport=KEYBOARD_CONTEXTUAL edgeTriggered=1",
-            preferred_id,flashStyle==4?4:2,flash_ok?1:0);
-        diagnostic_trace::Write(m);
-        return flash_ok;
+    g_f7_restore_preferred_r129=SafeCVarGetInt(preferred,0);
+    g_f7_have_restore_r129=true;
+    if(!SafeCVarSetInt(preferred,2)) { g_f7_have_restore_r129=false; return false; }
+    g_f7_prompt_active_d33=true;
+    diagnostic_trace::Write("D56 GLYPH_ONLY preferred=2 transport=KEYBOARD_CONTEXTUAL edgeTriggered=1");
+    return true;
+}
+// R129: one apply of the saved/selected art (start, VR menu ApplyState from the release page AND the developer
+// CONTROLS page). The art request never waits for the CVar lease. Unchanged style + art already confirmed by the
+// movies = nothing to do (ApplyState runs for every menu click).
+static bool ApplyGlyphStyleR129(int requested,kcd2vr::glyph_apply_r129::Path path) noexcept
+{
+    namespace ga=kcd2vr::glyph_apply_r129;
+    const int style=ga::style(requested);
+    prompt_device_lock::SetForcedDevice(style);
+    const auto plan=ga::plan(g_f7_prompt_active_d33,style,prompt_device_lock::AppliedGlyphStyleR129());
+    if(plan.tryLease)(void)LeasePreferredInputR129();
+    else if(plan.setPreferred){
+        void* console=SafeGetCryConsole();
+        void* preferred=console?SafeConsoleGetCVar(console,"wh_ui_PreferredInputDevice"):nullptr;
+        if(preferred)(void)SafeCVarSetInt(preferred,2);
     }
-
-    bool ok=true;
-    if(have_restore) ok=SafeCVarSetInt(preferred,restore_preferred);
-    active=false;
-    have_restore=false;
+    if(!plan.queueArt) return true;
+    prompt_device_lock::NoteGlyphPathR129(int(path),true);
+    const bool queued=ApplyControllerPromptPresentationV6477(style);
+    if(queued) g_f7_prompt_style_d33=style;
+    else {
+        static ga::Report refused;
+        if(refused.take(style,false)){char m[220]{};std::snprintf(m,sizeof(m),
+            "R129 GLYPHS style=%s path=%s applied=0 reason=SCRIPT_TRANSPORT_NOT_INSTALLED retry=NEXT_UI_CHANGE_OR_MENU_CLICK",ga::label(style),ga::name(path));
+            diagnostic_trace::WriteStatus(m);}
+    }
+    return queued;
+}
+// R129: Run-loop native UI change (HUD recreated, save loaded, a game menu opened/closed). A recreated movie
+// starts with Xbox art, so the saved art is re-sent every time - no longer only while the CVar lease is held.
+static void ResendGlyphStyleOnUiChangeR129(int saved) noexcept
+{
+    const int style=kcd2vr::glyph_apply_r129::style(saved);
+    if(!g_f7_prompt_active_d33)(void)LeasePreferredInputR129();
+    prompt_device_lock::NoteGlyphPathR129(int(kcd2vr::glyph_apply_r129::Path::UiEdge),false);
+    if(prompt_device_lock::RequestFlashStyleD56(style)) g_f7_prompt_style_d33=style;
+}
+bool ApplyF7PromptPresentation(bool enabled, int flashStyle) noexcept
+{
+    if(enabled) return ApplyGlyphStyleR129(flashStyle,kcd2vr::glyph_apply_r129::Path::Startup); // R129: art + lease retry
+    if(!g_f7_prompt_active_d33) return true;
+    void* console=SafeGetCryConsole();
+    void* preferred=console?SafeConsoleGetCVar(console,"wh_ui_PreferredInputDevice"):nullptr;
+    bool ok=preferred!=nullptr;
+    if(preferred&&g_f7_have_restore_r129) ok=SafeCVarSetInt(preferred,g_f7_restore_preferred_r129);
+    g_f7_prompt_active_d33=false;
+    g_f7_have_restore_r129=false;
     char m[256]{};
     std::snprintf(m,sizeof(m),
         "V65.11-F11 GLYPH-ONLY OFF restoredPreferred=%d ok=%d edgeTriggered=1",
-        restore_preferred,ok?1:0);
+        g_f7_restore_preferred_r129,ok?1:0);
     diagnostic_trace::Write(m);
     return ok;
 }
@@ -962,22 +994,8 @@ bool ApplyF7PromptPresentation(bool enabled, int flashStyle) noexcept
 // Startup/shutdown retain the existing prompt lease and saved style.
 bool RestyleF7PromptPresentationD33(int flashStyle) noexcept
 {
-    const int style=flashStyle==4?4:2;
-    // A startup CVar/VM miss must not permanently disable later menu changes.
-    // Retry on this explicit style/UI event; never poll for presentation.
-    if(!g_f7_prompt_active_d33)return ApplyF7PromptPresentation(true,style);
-    if(style==g_f7_prompt_style_d33)return true;
-    void* console=SafeGetCryConsole();
-    void* preferred=console?SafeConsoleGetCVar(console,"wh_ui_PreferredInputDevice"):nullptr;
-    if(!preferred)return false;
-    const bool cvar_ok=SafeCVarSetInt(preferred,2);
-    const bool flash_ok=ApplyControllerPromptPresentationV6477(style);
-    // The style cache means queued successfully, not just native family written.
-    // Keep a failed queue pending so a later actual menu/UI event can retry it.
-    if(cvar_ok&&flash_ok)g_f7_prompt_style_d33=style;
-    char m[200]{};std::snprintf(m,sizeof(m),"D56 PROMPT_STYLE style=%s preferred=%d cvar=%d flashQueued=%d",style==4?"PLAYSTATION":"XBOX",2,cvar_ok?1:0,flash_ok?1:0);
-    diagnostic_trace::Write(m);
-    return cvar_ok&&flash_ok;
+    // R129: VR menu (release Button icons row + developer XBOX/PLAYSTATION buttons both land in ApplyState).
+    return ApplyGlyphStyleR129(flashStyle,kcd2vr::glyph_apply_r129::Path::VrMenu);
 }
 
 // M2_SLOT_END 5005

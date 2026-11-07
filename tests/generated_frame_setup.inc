@@ -1,0 +1,13 @@
+std::memcpy(image.data()+kFrameNexusRva,kFrameNexusPrologue,sizeof(kFrameNexusPrologue));
+std::memcpy(image.data()+kPhase7e8CallsiteRva,kPhase7e8Callsite,sizeof(kPhase7e8Callsite));
+std::memcpy(image.data()+kCameraHandoffCallsiteRva,kCameraHandoffCallsite,sizeof(kCameraHandoffCallsite));
+std::memcpy(image.data()+kRendererPhaseCallsiteRva,kRendererPhaseCallsite,sizeof(kRendererPhaseCallsite));
+std::memcpy(image.data()+kPhase7f8CallsiteRva,kPhase7f8Callsite,sizeof(kPhase7f8Callsite));
+std::memcpy(image.data()+kGetOrCreateRenderViewRva,kGetOrCreatePrologue,sizeof(kGetOrCreatePrologue));
+std::memcpy(image.data()+kCRenderViewCameraBuildRva,kCRenderViewCameraBuildPrologue,sizeof(kCRenderViewCameraBuildPrologue));
+std::memcpy(image.data()+kCRenderViewCameraPairBuildRva,kCRenderViewCameraPairBuildPrologue,sizeof(kCRenderViewCameraPairBuildPrologue));
+std::memcpy(image.data()+kCSystemRenderRva,kCSystemRenderPrologue,sizeof(kCSystemRenderPrologue));
+std::memcpy(image.data()+kCSystemRenderBeginRva,kCSystemRenderBeginPrologue,sizeof(kCSystemRenderBeginPrologue));
+std::memcpy(image.data()+kCSystemRenderBeginCallsiteRva,kCSystemRenderBeginCallsite,sizeof(kCSystemRenderBeginCallsite));
+std::memcpy(image.data()+kCSystemGetViewCameraRva,kCSystemGetViewCameraPrologue,sizeof(kCSystemGetViewCameraPrologue));
+std::memcpy(image.data()+kCSystemSetViewCameraRva,kCSystemSetViewCameraPrologue,sizeof(kCSystemSetViewCameraPrologue));

@@ -1,0 +1,26 @@
+[
+  {
+    "source": "src/hud_layer_v6664.cpp",
+    "output": "generated_hud_copy59c7.inc",
+    "line": 277,
+    "sha256": "d81d3db20895888077e19ed9b163b7ef1b7808c1dce18c8a68a19906c616dcc9"
+  },
+  {
+    "source": "src/flashui_probe.cpp",
+    "output": "generated_hud_trace59c7.inc",
+    "line": 942,
+    "sha256": "b15085e053d0d56883e916e72237f56cfa51dc082a7cab25caae7a2c8c2e996d"
+  },
+  {
+    "source": "src/flashui_probe.cpp",
+    "output": "generated_hud_elements59c7.inc",
+    "line": 1311,
+    "sha256": "e15e6cdd736ecd1e78d4e7995b1f54dfccb6cc9bff6d01dfd10833fdb3dc3470"
+  },
+  {
+    "source": "src/flashui_probe.cpp",
+    "output": "generated_hud_parent59c7.inc",
+    "line": 1200,
+    "sha256": "7ae61a2368436c16008e2f338de65101f9b99fc348a9becac416b5381aff78ea"
+  }
+]

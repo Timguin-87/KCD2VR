@@ -1,0 +1,36 @@
+{
+  "source": "src/subsystems/physics/native_held_owner_t4.inl",
+  "sourceRawSha256": "c59ee9bc9697ba2d238071db1b731e695b94b1707d5860ad987436167d3414bf",
+  "source_sha256": "349c0040fba68ef440226eb269db7efce574364b93b71ccfd263439e370dfdfb",
+  "types_sha256": "5dcd44efb115f1ce90e2bb41952590d40ffcc9ed2f0938f717d49a14ff998fe8",
+  "body_sha256": "089850f16ec77eca5c854a51dda92e8e285c9616da8865f258537951862d7b5b",
+  "production_decisions_rewritten": false,
+  "wrapperExpansion": {
+    "reader": "M2_OWNED_SOURCE-v1",
+    "requested": "src/vrik/native_held_owner_t4.inl",
+    "expanded_sha256": "349c0040fba68ef440226eb269db7efce574364b93b71ccfd263439e370dfdfb",
+    "origins": [
+      {
+        "path": "src/vrik/native_held_owner_t4.inl",
+        "raw_sha256": "c34650334c95afa828bccdf1779594896d5ae98aff79cb16b5dceec68ec42f0f",
+        "size": 78
+      },
+      {
+        "path": "src/subsystems/physics/native_held_owner_t4.inl",
+        "raw_sha256": "c59ee9bc9697ba2d238071db1b731e695b94b1707d5860ad987436167d3414bf",
+        "size": 18224
+      }
+    ],
+    "edges": [
+      {
+        "from": "src/vrik/native_held_owner_t4.inl",
+        "to": "src/subsystems/physics/native_held_owner_t4.inl"
+      }
+    ]
+  },
+  "generatedCanonicalUtf8LfSha256": {
+    "generated_held_capture63_types.inc": "2ec19939942369fcf49cbe2a0bacb866c932c524671d5d247f928187453f8527",
+    "generated_held_capture63.inc": "17b8eac8316191329c67bba2018e72f485db9d08dc38d6852bfb4d8418fb3849"
+  },
+  "scope": "Actual NativeHeldCaptureT4, NativeHeldBodyT4, profile/receipt structs and guard; explicit native leaves/readable memory providers; no WHGame execution. Prior wrapper extraction already resolved this same M2-owned producer."
+}

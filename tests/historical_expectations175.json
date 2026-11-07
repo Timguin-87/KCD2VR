@@ -1,0 +1,49 @@
+{
+  "policy": "USER_CONTRACT_CURRENT.md PROC-03; original Python assertions and protected_baseline171.json are retained verbatim and are still run, reported separately from the current behavioral gate.",
+  "tests": {
+    "test_calibration_wiring_v66100.Wiring.test_current_shift_f8_route": {
+      "reason": "Literal old SetCombatCensusMode(3) after calibration conflicts with the requested complete calibrated baseline, applied through ApplyUserMode175(Calibrated).",
+      "replacement": "user_controls175_test, calibration_bridge, diagnostic_modes175_bridge"
+    },
+    "test_integration168.Integration168Tests.test_accepted_boundaries_unchanged_from_user_baseline": {
+      "reason": "Historical V171 byte hashes already fail in untouched supplied V174R2. They remain historical evidence; authorized V175 source repairs cannot be byte-identical to V171.",
+      "replacement": "Pinned original V174R2 ZIP SHA256 and git ancestor; inspect current diff and production behavioral fixtures. No historical hash was rewritten."
+    },
+    "test_integration168.Integration168Tests.test_logging_is_not_guard_gameplay_switch": {
+      "reason": "Rejects any capture168::active token inside guard code, including legitimate diagnostic formatting gates. Actual guard ownership must run independently of those logging gates.",
+      "replacement": "native104_bridge exercises physical guard with recorder OFF and ON, manual LT, posture loss, native-state protections and balanced release."
+    },
+    "test_integration168.Integration168Tests.test_master_rejects_only_at_optin_qualified_factory": {
+      "reason": "Requires the retired FocusedTestMode167()!=2 source predicate. The user explicitly moved this gated experiment to F4; native factory pins/false branch are retained.",
+      "replacement": "bridges168_bridge, pose_adapter_test actual F4 caller, verify_native_bridges168.py retained provenance"
+    },
+    "test_v66135_wiring.V135.test_reload_observation_is_f3_read_only": {
+      "reason": "Requires an old F3 reload log prefix, superseded by the explicit F11 reload-only recorder.",
+      "replacement": "recorder_contract175_test, diagnostic_modes175_bridge, user_controls175_test and unchanged native reload milestone table"
+    },
+    "test_v66135r1_cleanup.Cleanup135R1.test_hotkey_cycles_are_short": {
+      "reason": "Requires obsolete multi-rung F10/F12 comparison expressions. Current user contract requests single explicit modes and no comparison ladder.",
+      "replacement": "user_controls175_test extracts and executes all current production key clauses."
+    },
+    "test_v66136r3_reload_wiring.V136R3Reload.test_attachment_observer_read_only": {
+      "reason": "Requires the retired F3-RELOAD and F3 missile-helper prefixes; F11 now owns these read-only observations.",
+      "replacement": "recorder_contract175_test, diagnostic_modes175_bridge, user_controls175_test; native ownership limitations in RELOAD_VISUAL_EVIDENCE175.md"
+    },
+    "test_v66136r3_reload_wiring.V136R3Reload.test_fifo_observer_read_only": {
+      "reason": "Requires the retired F3 reload-milestone prefix. Native timeline observations remain read-only under F11.",
+      "replacement": "recorder_contract175_test and diagnostic_modes175_bridge; unchanged milestone-table and no-native-action assertions remain in the historical run."
+    },
+    "test_v66159_contact_topology.ContactTopology159.test_marker": {
+      "reason": "Literal V174R2 binary marker cannot describe the new V175 source candidate.",
+      "replacement": "Current build_release.bat marker matches the two production startup markers; final delivery manifest records source commit and ZIP hash."
+    },
+    "test_companion_profile45.CompanionProfile45.test_shipped_pak_in_sync": {
+      "reason": "The current companion includes detailed native map resources and finite-stock Lua,69 members. The legacy26-member assertion is preserved unchanged and still executes.",
+      "replacement": "test_companion_profile_t2.CompanionProfileT2.test_expanded_pak_profile_and_protected_parent_payloads validates the complete69-member set, current source profile and all66 unrelated current C58R1 payload hashes."
+    },
+    "test_companion_profile45.CompanionProfile45.test_tool_preserves_other_members_and_is_deterministic": {
+      "reason": "The existing tool preserves all69 members; its historical test final report count26 is superseded by the authorized expanded companion. Original assertions and execution remain unchanged.",
+      "replacement": "test_companion_profile_t2.CompanionProfileT2.test_actual_profile_tool_preserves_all_expanded_payloads_deterministically runs the real profile tool three times, verifies every member byte/name/order, correct profile, report69 and identical archives."
+    }
+  }
+}

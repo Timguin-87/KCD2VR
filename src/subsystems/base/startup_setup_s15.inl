@@ -422,13 +422,14 @@ static LRESULT CALLBACK Proc(HWND w,UINT msg,WPARAM wp,LPARAM lp) noexcept {
   return msg==WM_CREATE?-1:0;
  }
 }
+static void SetupLogR131(const char* line) noexcept {if(auto f=setupLogSinkR131)f(line);} // R131: in-game path only, KCD2VR.log
 static bool Show(HMODULE module,bool launcher){
  auto path=ModulePath(module);if(path.empty())return false;State s{};s.ini=path.parent_path()/L"KCD2VR.ini";s.root=GameRoot(path.parent_path());s.launcher=launcher;
  HANDLE mutex=CreateMutexW(nullptr,TRUE,L"Local\\KCD2VR_SETUP_S15");
  struct Guard {HANDLE h;~Guard(){if(h){ReleaseMutex(h);CloseHandle(h);}}} guard{mutex};
- if(!mutex||GetLastError()==ERROR_ALREADY_EXISTS)return false;
- if(!launcher&&GetPrivateProfileIntW(L"Settings",L"first_start",1,PendingPath(s.ini).c_str())==0)return false;
- if(!launcher&&GetPrivateProfileIntW(L"Settings",L"first_start",1,s.ini.c_str())==0)return false;
+ if(!mutex||GetLastError()==ERROR_ALREADY_EXISTS){if(!launcher)SetupLogR131("R131 SETUP_WINDOW skipped reason=ALREADY_OPEN (another setup window runs)");return false;}
+ if(!launcher&&GetPrivateProfileIntW(L"Settings",L"first_start",1,PendingPath(s.ini).c_str())==0){SetupLogR131("R131 SETUP_WINDOW skipped reason=PENDING_SAVED (first_start 0 in the pending file)");return false;}
+ if(!launcher&&GetPrivateProfileIntW(L"Settings",L"first_start",1,s.ini.c_str())==0){SetupLogR131("R131 SETUP_WINDOW skipped reason=FIRST_START_0");return false;}
  // A setup window is never opened from the loader lock or a render callback.
  const auto pending=PendingPath(s.ini);const auto uiIni=GetPrivateProfileIntW(L"Settings",L"StartupSetupHasGraphics",0,pending.c_str())==1?pending:s.ini;
  s.headset=ReadHeadset(uiIni);for(const auto& f:fields)s.initial.push_back(Read(uiIni,f));
@@ -437,14 +438,20 @@ static bool Show(HMODULE module,bool launcher){
  LoadLaunchOptions(s,uiIni,uiIni==pending);
  s.font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,DEFAULT_PITCH,L"Segoe UI");
  WNDCLASSW cls{};cls.lpfnWndProc=Proc;cls.hInstance=module;cls.hCursor=LoadCursorW(nullptr,MAKEINTRESOURCEW(32512));cls.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1);cls.lpszClassName=L"KCD2VRStartupS15";
- if(!RegisterClassW(&cls)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS){DeleteObject(s.font);return false;}
+ if(!RegisterClassW(&cls)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS){if(!launcher)SetupLogR131("R131 SETUP_WINDOW failed reason=REGISTER_CLASS");DeleteObject(s.font);return false;}
  MONITORINFO monitor{sizeof(monitor)};RECT work{};
  if(GetMonitorInfoW(MonitorFromWindow(GetForegroundWindow(),MONITOR_DEFAULTTOPRIMARY),&monitor))work=monitor.rcWork;
  else if(!SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0))work={0,0,GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN)};
  const RECT r=FitWindow(work);
- auto w=CreateWindowExW(WS_EX_APPWINDOW,cls.lpszClassName,L"KCD2VR - Setup",setupStyle,r.left,r.top,r.right-r.left,r.bottom-r.top,nullptr,nullptr,module,&s);
+ // R131: at game start the game window covers the desktop and Windows refuses SetForegroundWindow from our thread, so
+ // the window opened BEHIND the game (Miki 7 Nov: "not working"). in-game it is now topmost and flashes in the taskbar.
+ auto w=CreateWindowExW(WS_EX_APPWINDOW|(launcher?0:WS_EX_TOPMOST),cls.lpszClassName,L"KCD2VR - Setup",setupStyle,r.left,r.top,r.right-r.left,r.bottom-r.top,nullptr,nullptr,module,&s);
+ if(!w&&!launcher)SetupLogR131("R131 SETUP_WINDOW failed reason=CREATE_WINDOW");
+ if(w&&!launcher){SetWindowPos(w,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);FLASHWINFO fl{sizeof(fl),w,FLASHW_ALL|FLASHW_TIMERNOFG,0,0};FlashWindowEx(&fl);
+  SetupLogR131("R131 SETUP_WINDOW shown on the desktop (topmost; KCD2VR - Setup). Save = used from the next start, close = offered again next start");}
  if(w){ShowWindow(w,SW_SHOWNORMAL);SetForegroundWindow(w);MSG m{};HWND lastFocus=nullptr;while(!s.done){auto got=GetMessageW(&m,nullptr,0,0);if(got<=0)break;if(!IsDialogMessageW(w,&m)){TranslateMessage(&m);DispatchMessageW(&m);}
    if(!s.done){const auto focus=GetFocus();if(focus!=lastFocus){RevealControl(w,s,focus);lastFocus=focus;}}}if(IsWindow(w))DestroyWindow(w);}
+ if(w&&!launcher)SetupLogR131(s.start?"R131 SETUP_WINDOW saved (first_start 0, settings used from the next start)":"R131 SETUP_WINDOW closed without saving (offered again next start)");
  DeleteObject(s.font);return s.start;
 }
 static DWORD WINAPI SetupWorker(void* module) {try{(void)Show(static_cast<HMODULE>(module),false);}catch(...){}FreeLibraryAndExitThread(static_cast<HMODULE>(module),0);return 0;}
@@ -453,9 +460,10 @@ void FirstRun() noexcept {
  // bootstrap thread. Own a separate GUI thread; do not stall native startup.
  HMODULE held=nullptr;
  if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,reinterpret_cast<LPCWSTR>(&FirstRun),&held))return;
- try{auto p=ModulePath(held).parent_path()/L"KCD2VR.ini";if(GetPrivateProfileIntW(L"Settings",L"first_start",1,p.c_str())==0||GetPrivateProfileIntW(L"Settings",L"first_start",1,PendingPath(p).c_str())==0){FreeLibrary(held);return;}}
+ try{auto p=ModulePath(held).parent_path()/L"KCD2VR.ini";if(GetPrivateProfileIntW(L"Settings",L"first_start",1,p.c_str())==0||GetPrivateProfileIntW(L"Settings",L"first_start",1,PendingPath(p).c_str())==0){FreeLibrary(held);return;}
+  SetupLogR131("R131 SETUP_WINDOW offered: no first_start 0 in KCD2VR.ini, opening the setup window");}
  catch(...){FreeLibrary(held);return;}
- HANDLE worker=CreateThread(nullptr,0,SetupWorker,held,0,nullptr);if(worker)CloseHandle(worker);else FreeLibrary(held);
+ HANDLE worker=CreateThread(nullptr,0,SetupWorker,held,0,nullptr);if(worker)CloseHandle(worker);else{SetupLogR131("R131 SETUP_WINDOW failed reason=THREAD");FreeLibrary(held);}
 }
 }
 #if defined(KCD2VR_PROXY_DINPUT8)

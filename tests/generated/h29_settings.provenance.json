@@ -1,0 +1,23 @@
+{
+  "source": "src/mod.cpp",
+  "sha256": "5d495b55cd0783de9691afaaae8129026d0adf48e557eea3695a1da787402fd0",
+  "blocks": {
+    "fill": [
+      2758,
+      2762
+    ],
+    "apply": [
+      3227,
+      3232
+    ],
+    "save": [
+      3413,
+      3417
+    ],
+    "load": [
+      3909,
+      3914
+    ]
+  },
+  "extracted_sha256": "2745cd0e7de07f242e82a3328adfe9c5fdd37edacccc1b3a4c48f2b1db87466b"
+}

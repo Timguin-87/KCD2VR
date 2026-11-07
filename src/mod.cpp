@@ -8,6 +8,7 @@
 #include "subsystems/ranged_reload/stowed_hide_hw.h" // R121: VrHideBackWeapons / VrHideStowedAtStations (live_runtime_d40.inl)
 #include "vrik/impale_death_speed_r106.h" // R106: VrImpaleFastDeathR106 switch
 #include "core/cinematic_bars_r107.h" // R107: VrCinematicBarsR107 switch
+#include "core/cutscene_signal_r132.h" // R132: view-system cutscene count (prologue cutscenes)
 #include "vrik/release_combat_r92.h"
 #include "subsystems/base/startup_graphics_d80.h"
 #include "diagnostics/capture_ticket_d84.h"
@@ -17,6 +18,7 @@
 #include "diagnostics/native_palette_view_d67r1.h"
 #include "vrik/knife_pouch_d66.h"
 #include "vrik/start_r111.h" // R111: calibrated = VRIK at start/load, start at Henry's eyes
+#include "vrik/agency_scripted_r132.h" // R132: story-only action filters (prologue ride to Trosky) are not "scripted"
 #include "quick_access_r112.h" // R113: quick-access modifier THUMBREST / FACE TOUCH
 #include "controller_layout_r118.h" // R118: controller layout OPENXR / STEAMVR / PS VR2
 #include "core/observed_load_recovery_r96.h" // R111: load episode for the start decision
@@ -221,6 +223,7 @@
 #include "hud_xml_mod.h"
 #include "depth_probe.h"
 #include "prompt_device_lock.h"
+#include "subsystems/hud_ui_controls/runtime/glyph_apply_r129.h" // R129 PS/Xbox button art: never behind the CVar lease, re-sent on every UI change
 #include "subsystems/alchemy/finish_observer_cb1.h" // CB1
 #include "subsystems/throw_drop/grip_stow_cb1.h" // CB1
 #include "subsystems/throw_drop/stow_button_h41.h"
@@ -592,6 +595,25 @@ NativeAgencyStateV6419C ReadNativeAgencyStateV6419C() noexcept
         if (enabled) { ++count; mask|=(1ull<<i); }
     }
     out.known=true; out.count=count; out.mask=mask; return out;
+}
+
+// R132: CViewSystem::m_cutsceneCount, -1 = not readable (wrong build / not created yet). see core/cutscene_signal_r132.h
+int ReadViewSystemCutsceneCountR132() noexcept
+{
+    if (!IsSupportedWhGameBuildV6143()) return -1;
+    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll"));
+    if (!base) return -1;
+    namespace cs = kcd2vr::cutscene_signal_r132;
+    __try {
+        void* cry = *reinterpret_cast<void**>(base + kCryActionGlobalRva);
+        if (!cry || *reinterpret_cast<std::uintptr_t*>(cry) != base + kCryActionVftRva) return -1;
+        const auto view = *reinterpret_cast<std::uintptr_t*>(reinterpret_cast<std::uintptr_t>(cry) + cs::kViewSystemOffset);
+        if (!view) return -1;
+        const auto vt = *reinterpret_cast<std::uintptr_t*>(view);
+        if (vt != base + cs::kViewSystemVft) return -1;
+        if (*reinterpret_cast<std::uintptr_t*>(vt + cs::kIsPlayingCutSceneSlot) != base + cs::kIsPlayingCutSceneRva) return -1;
+        return *reinterpret_cast<volatile int*>(view + cs::kCutsceneCountOffset);
+    } __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
 }
 
 void FormatAgencyMaskV6419C(std::uint64_t mask, char* out, std::size_t cap) noexcept
@@ -4415,6 +4437,7 @@ void Mod::Run()
     menu_game_fov_target_.store(linkedStartupFov);
     vr_source_vertical_fov_deg_.store(linkedStartupFov);
     vr_corrected_view_vfov_deg_.store(linkedStartupFov);
+    startup_s15::setupLogSinkR131=+[](const char* line) noexcept {diagnostic_trace::Write(line);}; // R131
     startup_s15::FirstRun(); // desktop offer; next-launch settings only, bootstrap never waits
 
     KCD2VR_DIAG_LOG(Bug,info,"KCD2VR starting up");
@@ -6730,14 +6753,12 @@ void Mod::Run()
         }
         const auto native_ui_snapshot=ui_native_state::Read();
         { // D56: native UI recreation/visibility edge, never a periodic refresh.
-            static std::uint32_t promptEpoch=~0u,promptVisible=~0u;
-            static std::uint64_t promptHud=~std::uint64_t(0);
-            const auto hud=flashui_probe::HudGeneration();
-            if(g_f7_prompt_active_d33&&(promptEpoch!=native_ui_snapshot.epoch||
-               promptVisible!=native_ui_snapshot.visible||promptHud!=hud)){
-                promptEpoch=native_ui_snapshot.epoch;promptVisible=native_ui_snapshot.visible;promptHud=hud;
-                (void)prompt_device_lock::RequestFlashStyleD56(vr_pad_glyph_style_.load(std::memory_order_acquire));
-            }
+            // R129: no longer gated on the CVar lease (g_f7_prompt_active_d33). That lease failed at mod start, so after a
+            // restart / save load the saved PlayStation art was never re-sent until a VR menu click. The first pass here
+            // (statics start at ~0) is also the start-up retry.
+            static kcd2vr::glyph_apply_r129::Edge promptEdge;
+            if(promptEdge.changed(flashui_probe::HudGeneration(),native_ui_snapshot.epoch,native_ui_snapshot.visible))
+                ResendGlyphStyleOnUiChangeR129(vr_pad_glyph_style_.load(std::memory_order_acquire));
         }
         // C59: semantic native load UI edge requests cleanup; attachment setters
         // run only on the existing native frame owner, never this policy thread.
@@ -6782,7 +6803,20 @@ void Mod::Run()
         menu_lifetime_kind = MenuLifetimeKind::None;
         cursor_menu_probe_until_ms = 0;
         cursor_menu_probe_next_ms = 0;
-        const bool cutscene_cvar_flat_ui = cutscene_context_cvar && SafeCVarGetInt(cutscene_context_cvar,0)==1;
+        { // R132: the CVar pointer was looked up once at loop start; if the console/CVar was not there yet it stayed null
+          // for the whole session. retry every 2 s until found (no latch).
+            static std::uint64_t cvarRetryR132=0;
+            if(!cutscene_context_cvar&&now_ms>=cvarRetryR132){cvarRetryR132=now_ms+2000ull;
+                if(!flat_state_console)flat_state_console=SafeGetCryConsole();
+                if(flat_state_console)cutscene_context_cvar=SafeConsoleGetCVar(flat_state_console,"e_SkipInFrustumOptimizationWH");}
+        }
+        // R132: authored cutscene = the old WH CVar OR the engine's own cut-scene sequence count (CViewSystem). the
+        // new-game prologue plays its cutscenes as Track View cut-scene sequences without the CVar (R131 log 7 Nov).
+        static kcd2vr::cutscene_signal_r132::Gate viewCutsceneGateR132;
+        const int view_cutscene_count_r132=ReadViewSystemCutsceneCountR132();
+        const bool cutscene_cvar_r132 = cutscene_context_cvar && SafeCVarGetInt(cutscene_context_cvar,0)==1;
+        const bool cutscene_view_r132 = viewCutsceneGateR132.update(view_cutscene_count_r132>0,now_ms);
+        const bool cutscene_cvar_flat_ui = cutscene_cvar_r132 || cutscene_view_r132;
         // A count of disabled controls also rises during smithing/alchemy. It
         // protects native body actions, but does not prove a cinematic camera.
         const bool smithingImmersive43=ui_scene_presentation::SmithingImmersive43(
@@ -6908,10 +6942,13 @@ void Mod::Run()
             ? 100 : static_cast<int>(ui89_policy.owner);
         if(presentation_scene_key_prev<0) presentation_scene_key_prev=presentation_scene_key;
         else if(presentation_scene_key!=presentation_scene_key_prev) {
-            char sm[192]{}; std::snprintf(sm,sizeof(sm),
-                "V65.23-SCENE game-state transition %d->%d; presentation follows game only",
-                presentation_scene_key_prev,presentation_scene_key);
-            diagnostic_trace::Write(sm);
+            // R132: one row per scene decision, always in KCD2VR.log (not only with F2): which signal made it a cutscene.
+            char sm[320]{}; std::snprintf(sm,sizeof(sm),
+                "V65.23-SCENE game-state transition %d->%d (%s) cutscene=%s viewCutsceneCount=%d cvar=%d dialogue=%d dialogueMode=%d theater=%d; presentation follows game only",
+                presentation_scene_key_prev,presentation_scene_key,presentation_scene_key==100?"AUTHORED_CUTSCENE":ui_menu_router::Name(ui89_policy.owner),
+                kcd2vr::cutscene_signal_r132::Source(cutscene_cvar_r132,cutscene_view_r132),view_cutscene_count_r132,cutscene_cvar_r132?1:0,
+                dialogue_active?1:0,dialogue_mode_now,policy_theater_scene?1:0);
+            diagnostic_trace::WriteStatus(sm);
             presentation_scene_key_prev=presentation_scene_key;
             vr_hud_reapply_requested_.store(true,std::memory_order_release);
             // Visibility snapshot above is passive. Never call GetElement/IsElementPresent
@@ -8314,7 +8351,7 @@ void Mod::Run()
                     std::snprintf(m,sizeof(m),
                         "V64.19C-AGENCY known=%d count=%d scripted=%d mask=0x%08llX active=%s source=CCryAction+0x530/vslot+0x108",
                         agency_cached.known?1:0,agency_cached.known?agency_cached.count:-1,
-                        (agency_cached.known&&agency_cached.count>=4)?1:0,
+                        kcd2vr::agency_r132::scripted(agency_cached.known,agency_cached.count,agency_cached.mask)?1:0, // R132
                         static_cast<unsigned long long>(agency_cached.mask),active);
                     diagnostic_trace::Write(m);
                     agency_last_logged_known=agency_cached.known;
@@ -8323,7 +8360,25 @@ void Mod::Run()
             }
             gs.agency_known=agency_cached.known;
             gs.agency_count=agency_cached.known?agency_cached.count:-1;
-            gs.scripted=agency_cached.known && agency_cached.count>=4;
+            // R132: the old rule (any 4 filters) took VRIK away for the whole prologue ride to Trosky - the game keeps
+            // 5 story filters on there (no_inventory|no_dog|no_distract|no_companion_bond|no_horse_saddle_bond) while you
+            // ride yourself. scripted now also needs a real control filter (move/camera, or 2 body-control ones).
+            gs.scripted=kcd2vr::agency_r132::scripted(agency_cached.known,agency_cached.count,agency_cached.mask);
+            { // R132: one KCD2VR.log row when VRIK is selected and the game takes control / gives it back (no on-screen text)
+              static int lastScriptedR132=-1;
+              const bool vrikSelectedR132=frik_pose_probe::CombatCensusMode()>=2;
+              const int nowScriptedR132=vrikSelectedR132?(gs.scripted?1:0):-1;
+              if(nowScriptedR132!=lastScriptedR132){
+                  if(nowScriptedR132>=0&&(nowScriptedR132==1||lastScriptedR132==1||kcd2vr::agency_r132::storyOnly(agency_cached.known,agency_cached.count,agency_cached.mask))){
+                      char active[512]{};FormatAgencyMaskV6419C(agency_cached.known?agency_cached.mask:0,active,sizeof(active));
+                      char m[700]{};std::snprintf(m,sizeof(m),nowScriptedR132?
+                          "R132 VRIK_WAIT reason=game took control (action filters %s) - VRIK body comes back by itself when they go":
+                          "R132 VRIK_ON game control filters gone or story-only (%s) - VRIK body follows you",active);
+                      diagnostic_trace::WriteStatus(m); // KCD2VR.log only
+                  }
+                  lastScriptedR132=nowScriptedR132;
+              }
+            }
             frik_pose_probe::PublishGameStateContext(gs);
             // Dialogue/cutscene/scripted control-loss are explicit VRIK authority
             // blockers. Unknown agency state stays fail-closed as "unknown", not
