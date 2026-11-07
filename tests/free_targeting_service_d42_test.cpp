@@ -26,6 +26,9 @@ static int SafeCVarGetInt(void*,int fallback){++reads;return reads==failReadNumb
 static bool SafeCVarSetInt(void*,int v){++writes;if(setReady)value=v;return setReady;}
 namespace diagnostic_trace {static void Write(const char* s){lines.emplace_back(s);}}
 struct Log {void warning(const char*,const char*){}};
+#ifndef KCD2VR_DIAG_LOG
+#define KCD2VR_DIAG_LOG(...) ((void)0) // R133: the service now logs through the diag sink too
+#endif
 static Log logger;static Log& log(){return logger;}
 namespace frik_pose_probe {
 static bool CombatFreeViewContextD42(){return contextReady;}

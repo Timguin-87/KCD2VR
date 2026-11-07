@@ -3,26 +3,53 @@ static bool PhysReadItemWorld54(void* item,void*& link,std::uint32_t& id) noexce
     return item&&Read(static_cast<unsigned char*>(item)+0x88,link)&&
         (!link||Read(static_cast<unsigned char*>(link)+0x30,id));
 }
+// R135: why the last PhysDescribeItem54 refused (game thread; read right after the call). Short reason + def vtable rva.
+static const char* g_describe_refusal_r135="NONE";static std::uint32_t g_describe_vft_r135=0;static int g_describe_class_r135=-1;
+// R136: the R135 "native class id" fallback is removed. vslot +0x50 is NOT a weapon class id for every definition:
+// S_FoodItemClass 0x3A4DD20 returns its own food type there (R136 log 03:19: schnapps=1 accepted as a sword, bread=8,
+// apple=0, cheese=9). Only weapon definitions (melee/missile/S_WeaponItemClass, or an alias of one) are weapons.
+// R136: default inventory weight when a weapon definition carries none (tutorial practice sword, R136 log line 12846
+// `reason=CLASS_HAND_WEIGHT` for key A9EC = census line 2792 "alias_prepadeni_longSword000630" class=4). These are the
+// neutral references of weapon_dynamics177::body (ratio 1.0), so the sword feels like a standard one of its class.
+static float PhysDefaultWeightR136(int classId) noexcept {
+    switch(classId){case 2:return 3.2f;case 3:return 6.5f;case 4:return 3.4f;case 5:return 7.f;case 7:return 9.6f;default:return 3.f;}
+}
+static float g_describe_weight_r136=0;static int g_describe_flags_r136=0; // last raw weight / two|right<<8 (refusal row only)
 static bool PhysDescribeItem54(std::uint64_t key,void* item,PhysEquipmentItem6698& x) noexcept {
-    x={};if(!key||!PhysVft6698(item,0x3A2DA88))return false;x.item=item;
-    void* def=nullptr;void* cls=nullptr;std::uint64_t again=0;
+    g_describe_refusal_r135="NONE";g_describe_vft_r135=0;g_describe_class_r135=-1;g_describe_weight_r136=0;g_describe_flags_r136=0;
+    x={};if(!key||!PhysVft6698(item,0x3A2DA88)){g_describe_refusal_r135="NOT_AN_ITEM";return false;}x.item=item;
+    void* rawDef=nullptr;void* def=nullptr;void* cls=nullptr;std::uint64_t again=0;
     if(!Read(static_cast<unsigned char*>(item)+0x30,again)||again!=key||
-       !Read(static_cast<unsigned char*>(item)+0x48,def)||(!PhysVft6698(def,0x3A4E390)&&!PhysVft6698(def,0x3A4D890))||
-       !Read(static_cast<unsigned char*>(def)+0xE8,cls)||!cls||
-       !PhysReadItemWorld54(item,x.worldLink54,x.profile.entity))return false;
+       !Read(static_cast<unsigned char*>(item)+0x48,rawDef)||!rawDef){g_describe_refusal_r135="KEY_OR_DEF";return false;}
+    // R134: an alias item (quest/tutorial weapon) reads class, hands, weight and requirements from its source definition.
+    def=PhysWeaponDefinitionR134(rawDef);
+    {std::uintptr_t v=0;if(Read(rawDef,v)&&v>WhBase())g_describe_vft_r135=std::uint32_t(v-WhBase());}
+    if(!def){g_describe_refusal_r135="DEF_NOT_WEAPON";return false;}
+    {std::uintptr_t v=0;if(Read(rawDef,v)&&v>WhBase())x.defVftR135=std::uint32_t(v-WhBase());x.defSourceR135=def==rawDef?0:1;}
+    if(!Read(static_cast<unsigned char*>(def)+0xE8,cls)||!cls||
+       !PhysReadItemWorld54(item,x.worldLink54,x.profile.entity)){g_describe_refusal_r135="WEAPON_CLASS_ROW";return false;}
     unsigned char right=0,two=0;float weight=0;
-    if(!Read(static_cast<unsigned char*>(cls)+8,x.profile.classId)||x.profile.classId<0||x.profile.classId>32||
-       !Read(static_cast<unsigned char*>(cls)+0x24,two)||two>1||!Read(static_cast<unsigned char*>(cls)+0x25,right)||right>1||
-       !Read(static_cast<unsigned char*>(def)+0x58,weight)||!std::isfinite(weight)||weight<=0||weight>100)return false;
+    if(!Read(static_cast<unsigned char*>(cls)+8,x.profile.classId)||x.profile.classId<0||x.profile.classId>32){g_describe_refusal_r135="CLASS_RANGE";return false;}
+    g_describe_class_r135=x.profile.classId;
+    const bool twoRead=Read(static_cast<unsigned char*>(cls)+0x24,two),rightRead=Read(static_cast<unsigned char*>(cls)+0x25,right);
+    g_describe_flags_r136=int(two)|(int(right)<<8);
+    if(!twoRead||two>1||!rightRead||right>1){g_describe_refusal_r135="HAND_FLAGS";return false;}
+    // R136: a weapon definition without a usable weight (quest/tutorial copy) is still the weapon; weight only scales handling.
+    if(!Read(static_cast<unsigned char*>(def)+0x58,weight))weight=0;g_describe_weight_r136=weight;
+    const bool defaultWeightR136=!std::isfinite(weight)||weight<=0||weight>100;
+    if(defaultWeightR136)weight=PhysDefaultWeightR136(x.profile.classId);
+    x.weightDefaultR136=defaultWeightR136;
     x.profile.key=key;x.profile.side=right?0:1;x.profile.twoHanded=two!=0;x.profile.weight=weight;
     if(PhysVft6698(def,0x3A4E390)){int sr=-1,ar=-1;
         if(Read(static_cast<unsigned char*>(def)+0x118,sr)&&sr>=0&&sr<=60)x.profile.strReq59c17=sr;
         if(Read(static_cast<unsigned char*>(def)+0x11C,ar)&&ar>=0&&ar<=60)x.profile.agiReq59c17=ar;}
     void* linkAfter=nullptr;void* defAfter=nullptr;void* clsAfter=nullptr;std::uint32_t idAfter=0;
-    return Read(static_cast<unsigned char*>(item)+0x30,again)&&again==key&&
-        Read(static_cast<unsigned char*>(item)+0x48,defAfter)&&defAfter==def&&
+    const bool same=Read(static_cast<unsigned char*>(item)+0x30,again)&&again==key&&
+        Read(static_cast<unsigned char*>(item)+0x48,defAfter)&&defAfter==rawDef&&PhysWeaponDefinitionR134(defAfter)==def&&
         Read(static_cast<unsigned char*>(def)+0xE8,clsAfter)&&clsAfter==cls&&
         PhysReadItemWorld54(item,linkAfter,idAfter)&&linkAfter==x.worldLink54&&idAfter==x.profile.entity;
+    if(!same)g_describe_refusal_r135="CHANGED_DURING_READ";
+    return same;
 }
 static bool PhysCachedItemMatches54(const PhysEquipmentItem6698& x,std::uint64_t key) noexcept {
     std::uint64_t actual=0;void* link=nullptr;std::uint32_t id=0;
@@ -75,7 +102,8 @@ static bool PhysResolveItem6698(std::uint64_t key,PhysEquipmentItem6698& x) noex
             (unsigned long long)key,x.profile.classId,x.slotValid34[0]?1:0,x.slot34[0].p.x,x.slot34[0].p.y,x.slot34[0].p.z,x.slotValid34[1]?1:0,x.slot34[1].p.x,x.slot34[1].p.y,x.slot34[1].p.z,slotDelta);
         diagnostic_trace::Write(sm);}
     if(x.boundsValid)for(int i=0;i<3;++i)if(!std::isfinite(x.bounds[i])||!std::isfinite(x.bounds[i+3])||x.bounds[i+3]<x.bounds[i]||x.bounds[i+3]-x.bounds[i]>8)x.boundsValid=false;
-    char message[360]{};std::snprintf(message,sizeof(message),"V66.98 ITEM key=%016llX class=%d nativeHand=%c twoHand=%d inventoryWeight=%.3f bounds=%d strReq=%d agiReq=%d worldLink=%d entity=%u metadataOnly=%d",(unsigned long long)key,x.profile.classId,x.profile.side?'L':'R',x.profile.twoHanded,x.profile.weight,x.boundsValid,x.profile.strReq59c17,x.profile.agiReq59c17,x.worldLink54?1:0,x.profile.entity,x.entity?0:1);diagnostic_trace::Write(message);
+    static const char* const kDefSourceR135[3]{"WEAPON_DEF","ALIAS_SOURCE","WEAPON_DEF"};
+    char message[420]{};std::snprintf(message,sizeof(message),"V66.98 ITEM key=%016llX class=%d nativeHand=%c twoHand=%d inventoryWeight=%.3f bounds=%d strReq=%d agiReq=%d worldLink=%d entity=%u metadataOnly=%d def=%X defSource=%s weightDefault=%d",(unsigned long long)key,x.profile.classId,x.profile.side?'L':'R',x.profile.twoHanded,x.profile.weight,x.boundsValid,x.profile.strReq59c17,x.profile.agiReq59c17,x.worldLink54?1:0,x.profile.entity,x.entity?0:1,x.defVftR135,kDefSourceR135[x.defSourceR135<3?x.defSourceR135:0],x.weightDefaultR136?1:0);diagnostic_trace::Write(message);
     return true;
 }
 static bool PhysSupplyHeldT2(const PhysEquipment6698& e,const PhysEquipmentItem6698& item,int side) noexcept {
@@ -121,7 +149,18 @@ static bool PhysReadEquipment6698(PhysEquipment6698& out) noexcept {
             --out.count;for(int side=0;side<2;++side)if(out.heldIndex[side]>=out.count)out.heldIndex[side]=-1;
         } // only proven pole class
     }
-    for(int side=0;side<2;++side)if(out.handKey[side]&&out.heldIndex[side]<0)add(out.handKey[side],-1,-1);
+    static std::uint64_t reportedR135[2]{};
+    for(int side=0;side<2;++side){
+        if(!out.handKey[side]){reportedR135[side]=0;continue;}
+        if(out.heldIndex[side]>=0)continue;
+        g_describe_refusal_r135="NOT_READ";g_describe_vft_r135=0;g_describe_class_r135=-1;g_describe_weight_r136=0;g_describe_flags_r136=0;
+        add(out.handKey[side],-1,-1);
+        // R135: one short line when an occupied hand stays unknown (once per key; an empty hand or another key re-arms it).
+        // Not a latch: the snapshot retries this item every refresh.
+        if(out.heldIndex[side]<0&&reportedR135[side]!=out.handKey[side]){reportedR135[side]=out.handKey[side];char m[240]{};
+            std::snprintf(m,sizeof(m),"R135 HAND_ITEM_UNKNOWN side=%c key=%016llX reason=%s def=%X class=%d twoRight=%X weight=%.3f hand=NOT_OWNED retry=EVERY_SNAPSHOT",
+                side?'L':'R',(unsigned long long)out.handKey[side],g_describe_refusal_r135,g_describe_vft_r135,g_describe_class_r135,g_describe_flags_r136,double(g_describe_weight_r136));diagnostic_trace::Write(m);}
+    }
     // Unsupported occupied hands stay explicitly UNKNOWN/OCCUPIED to the solver.
     out.valid=true;cache=out;return true;
 }

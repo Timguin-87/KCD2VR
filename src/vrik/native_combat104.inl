@@ -1062,10 +1062,10 @@ static void NativeGuardTick112() noexcept {
         g_guard_incoming_reads59c17.fetch_add(1,std::memory_order_relaxed);g_guard_reads_total59c17.fetch_add(1,std::memory_order_relaxed);
         if(incoming176.perceived==incoming176.sector)g_guard_perceived_match59c17.fetch_add(1,std::memory_order_relaxed);
         against59c17=kcd2vr::guard_parry176::againstRecent(g.parry176,incoming176.sector,
-            {g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()},ph::body_axes(f.input).right,
+            CalFrameR133(),ph::body_axes(f.input).right,
             CombatIntent59c16()?.03:.04,.50,std::max<std::uint64_t>(g.lastMotionTickH5,g.beatH5.active?g.beatH5.onset:0));
         if(!GuardMotionRequired59c3()&&!against59c17.ok&&motion176.valid)against59c17=kcd2vr::guard_parry176::againstAttack(motion176,incoming176.sector,
-            {g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()},ph::body_axes(f.input).right,
+            CalFrameR133(),ph::body_axes(f.input).right,
             CombatIntent59c16()?.03:.04,.50);
     }
     const bool toward57c1=against59c17.ok;
@@ -1177,7 +1177,7 @@ static void NativeGuardTick112() noexcept {
     const bool motionEdge176=false&&!g_guard_countermotion57c1.load()&&!g_guard_incoming_repress45.load(std::memory_order_relaxed)&&motion176.valid&&g_cal_state.load(std::memory_order_acquire)==2&&
         opponentRead45&&incoming176.incoming&&
         kcd2vr::guard_parry176::againstAttack(motion176,incoming176.sector,
-            {g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()},ph::body_axes(f.input).right,.06,.65).ok;
+            CalFrameR133(),ph::body_axes(f.input).right,.06,.65).ok;
     if(motionEdge176){
         const auto publication=diagnostics::parry176::publication.load(std::memory_order_acquire);
         // This is an INPUT edge through the real block action. The native timing
