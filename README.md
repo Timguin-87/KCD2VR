@@ -1,12 +1,5 @@
 # KCD2VR
 
-<<<<<<< HEAD
-Tracked hands, weapons and room movement for Kingdom Come: Deliverance II.
-The game owns combat results, inventory, recipes and interaction legality.
-The VR side supplies tracked movement and the presentation of those actions.
-
-## Current source: R105 — HUD, OpenXR recovery and native spanner grip
-=======
 ## Current source: R105 — HUD, OpenXR recovery and native spanner grip
 
 ****KCD2VR - Medieval Immersion Simulator****
@@ -217,7 +210,6 @@ Thanks to:
 - **Warhorse Studios** — for Kingdom Come: Deliverance II itself. Thank you for making the best game I've ever played, and something worth doing all of this for.
 - And my beautiful wife, for her patience.
 >>>>>>> 90844dcf4206c7752ab674c844fa8da1f098433e
->>>>>>> 75938b0b9f3275eb0fcf67d3796565cd5cc6425e
 
 R105 continues from the supplied R104 source. It repairs stale controller input,
 OpenXR frame/session recovery, the weapon/potion selector visibility bypass and

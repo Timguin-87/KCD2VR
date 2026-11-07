@@ -29,7 +29,6 @@ struct Context {
 
 struct State {
     float lx{0}, ly{0}, rx{0}, ry{0}, lt{0}, rt{0};
-    bool gameplay_r133{false}; // R133: built by the immersive gameplay branch (left stick = walking, right X = turning)
     bool a{false}, b{false}, x{false}, y{false};
     bool lb{false}, rb{false}, l3{false}, r3{false};
     bool start{false}, back{false};

@@ -73,8 +73,7 @@ static void ItemCensusImpl178r19(bool reloadOn,bool interactionOn) noexcept { //
             keyRead=PhysVft6698(item,0x3A2DA88)&&Read(static_cast<unsigned char*>(item)+0x30,again)&&again==key;
             if(keyRead&&Read(static_cast<unsigned char*>(item)+0x88,link)&&link&&Read(static_cast<unsigned char*>(link)+0x30,entityId)&&entityId){
                 ent=EntityById6694(entityId);
-                void* raw=nullptr;
-                if(Read(static_cast<unsigned char*>(item)+0x48,raw)&&(def=PhysWeaponDefinitionR134(raw))!=nullptr&&
+                if(Read(static_cast<unsigned char*>(item)+0x48,def)&&(PhysVft6698(def,0x3A4E390)||PhysVft6698(def,0x3A4D890))&&
                    Read(static_cast<unsigned char*>(def)+0xE8,cls)&&cls){int c=-1;if(Read(static_cast<unsigned char*>(cls)+8,c)&&c>=0&&c<=32)classId=c;}
 
             }

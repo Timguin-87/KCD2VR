@@ -29,23 +29,6 @@ static ph::Pose PhysModel6698(const float* q,const float* model) noexcept {
     auto p=ph::compose(ph::inverse(PhysWorld6698(model)),PhysWorld6698(q));p.p=p.p*(1.0/model[7]);return p;
 }
 static bool PhysVft6698(void* p,std::uintptr_t rva) noexcept {std::uintptr_t v=0;return p&&Read(p,v)&&v==WhBase()+rva;}
-// R134: quest/tutorial copies of weapons are item ALIASES (log 7 Nov 02:27:42 line 33886: Henry's right hand holds
-// "alias_prepadeni_longSword000357", census class=-1, no V66.98 ITEM row, MELEE_FLOW key=FFFF.. invalidMask=2 for the
-// whole training fight). Their definition (item+0x48) is S_ItemClassAlias (RTTI vtable 0x3BAEBF0), not
-// S_MeleeWeaponItemClass 0x3A4E390 / S_MissileWeaponItemClass 0x3A4D890. Every S_ItemClassAlias virtual is
-// `mov rcx,[rcx+0x68]; mov rax,[rcx]; jmp [rax+N]` (e.g. WHGame+0x2A46A30), so +0x68 is the source item class.
-// Returns the weapon definition that owns class/weight/requirements (the item itself, or the alias source), else null.
-static void* PhysWeaponDefinitionR134(void* def) noexcept {
-    for(int hop=0;hop<3&&def;++hop){
-        // R135: + S_WeaponItemClass 0x3A4E620 itself (same +0xE8 weapon class as melee/missile: its vslot +0x50
-        // 0x474A20 = `call 0x476358 (mov rax,[rcx+0xE8]); mov eax,[rax+8]`).
-        if(PhysVft6698(def,0x3A4E390)||PhysVft6698(def,0x3A4D890)||PhysVft6698(def,0x3A4E620))return def;
-        void* source=nullptr;
-        if(!PhysVft6698(def,0x3BAEBF0)||!Read(static_cast<unsigned char*>(def)+0x68,source)||source==def)return nullptr;
-        def=source;
-    }
-    return nullptr;
-}
 static bool PhysPutFloat6698(void* p,float v) noexcept {
     __try {std::memcpy(p,&v,4);return true;}__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
@@ -55,7 +38,6 @@ struct PhysEquipmentItem6698 {
     int set=-1,slot126=-1;bool boundsValid=false,held=false,dropUnitT1=false;
     std::uint64_t guardFaceRetryRequestH24=0;unsigned guardFaceRetryCountH24=0;bool guardFaceWasHeldH24=false;
     bool slotValid34[2]{};std::array<ph::Pose,2> slot34{};std::uint64_t slotRetry34=0; // C34b: the weapon model's own hand helpers slt_0 / slt_1 (model-local metres)
-    std::uint32_t defVftR135=0;unsigned char defSourceR135=0;bool weightDefaultR136=false; // R135: definition vtable rva; 0 weapon def, 1 alias source. R136: default class weight used
 };
 struct PhysEquipment6698 {
     std::array<PhysEquipmentItem6698,8> items{};int count=0,selected=-1,heldIndex[2]{-1,-1};

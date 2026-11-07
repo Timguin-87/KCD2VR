@@ -227,14 +227,6 @@ static bool TrackedFrameCameraCoreE1(float x,float y,float z,float fx,float fy,f
     if(!kcd2vr::native_roomscale_d76::SameSerial(kcd2vr::native_roomscale_d76::Surface::Character,packet.stamp.actor,current.roomOriginD76.serial))return false;
     if(roomOriginD76)*roomOriginD76=current.roomOriginD76;
     state=staged;ox=float(eye.x);oy=float(eye.y);oz=float(eye.z);hx=float(forward.x);hy=float(forward.y);
-    {   // R133: Henry's root yaw from this same current-root read, for the FREE PLUS body hold in camera_hook.
-        const double qx=current.q.x,qy=current.q.y,qz=current.q.z,qw=current.q.w;
-        const double rfx=2*(qx*qy-qw*qz),rfy=1-2*(qx*qx+qz*qz);
-        if(std::isfinite(rfx)&&std::isfinite(rfy)&&rfx*rfx+rfy*rfy>1e-6){
-            kcd2vr::free_targeting_r133::rootYaw.store(float(kcd2vr::free_targeting_r133::yawOf(rfx,rfy)),std::memory_order_relaxed);
-            kcd2vr::free_targeting_r133::rootYawTick.store(GetTickCount64(),std::memory_order_release);
-        }
-    }
     // value = forward displacement from incoming native eye; value2 = vertical.
     // generation = XR sample; collector = body publication; point = solved base.
     const float horizontal53=std::sqrt(fx*fx+fy*fy);

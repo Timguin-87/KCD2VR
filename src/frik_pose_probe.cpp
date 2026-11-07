@@ -1,4 +1,3 @@
-#include "vrik/fist_lt_r138.h" // R138: closed empty left fist is never native LT
 #include "vrik/impale_death_speed_r106.h" // R106: impale fast death (used by native_impale_part.inl)
 #include "vrik/start_r111.h" // R111: start at Henry's eyes (StandingEyeShift43, session re-seat)
 #include "core/load_rearm_r96.h" // R96: save-load re-arm of session latches
@@ -839,16 +838,6 @@ std::atomic<int> g_ctx_agency_count{-1};
 std::atomic<std::uint64_t> g_ctx_packed_last_logged{~0ull};
 
 #include "subsystems/vrik/calibration_state.inl" // M2_OWNED_SOURCE
-// R133 FREE PLUS: the tracking->model frame turned by the body offset (free_targeting_plus_r133.h), so head,
-// hands, weapon and room walking stay where they are in the world while the game turns Henry's root toward his
-// opponent. offset 0 (every mode but FREE PLUS, and FREE PLUS outside a held fight) = the calibrated frame exactly.
-// the calibration solver/save keep reading the raw g_cal_frame_q*.
-struct CalFrameR133T {float x,y,z,w;template<class Q> operator Q() const noexcept {return Q{x,y,z,w};}};
-static CalFrameR133T CalFrameR133() noexcept {
-    float q[4]{g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()};
-    kcd2vr::free_targeting_r133::yawFrame(q,kcd2vr::free_targeting_r133::offsetBody.load(std::memory_order_acquire));
-    return {q[0],q[1],q[2],q[3]};
-}
 std::atomic<std::uint64_t> g_last_setik_tick{0};
 std::atomic<bool> g_player_identity_observe{false};
 std::atomic<void*> g_last_player_entity{nullptr};
@@ -1944,10 +1933,7 @@ bool __fastcall ItemAttachOperationDetour(void* owner,void* item,int side) {
     if(nativeOk&&item&&side==2){
         void* def=nullptr;void* cls=nullptr;std::uintptr_t v=0;unsigned char right=2;
         std::uint64_t itemKey=0,liveKey=0;
-        // R134: an S_ItemClassAlias definition (vtable 0x3BAEBF0, quest/tutorial weapons) forwards to its source at +0x68.
-        if(Read(static_cast<unsigned char*>(item)+0x48,def)&&def&&Read(def,v)&&v==WhBase()+0x3BAEBF0ull&&
-           (!Read(static_cast<unsigned char*>(def)+0x68,def)||!def||!Read(def,v)))def=nullptr;
-        if(def&&Read(def,v)&&
+        if(Read(static_cast<unsigned char*>(item)+0x48,def)&&def&&Read(def,v)&&
            (v==WhBase()+0x3A4E390ull||v==WhBase()+0x3A4D890ull)&&
            Read(static_cast<unsigned char*>(def)+0xE8,cls)&&cls&&Read(static_cast<unsigned char*>(cls)+0x25,right)&&right<=1&&
            Read(static_cast<unsigned char*>(item)+0x30,itemKey)&&NativeHandKey6697(owner,right?0:1,liveKey)&&itemKey==liveKey)side=right?0:1;
@@ -4397,13 +4383,6 @@ bool F4GestureInputOwned176() noexcept {
     }
     return true;
 }
-// R138: Henry's LEFT hand has no item in the copied equipment publication (stale/unknown = free: an empty-hand fist is
-// the common case; a weapon in the left hand keeps the R122 LT rule unchanged).
-static bool LeftHandItemFreeR138() noexcept {
-    PhysEquipment6698 e{};const auto now=std::uint64_t(GetTickCount64());
-    if(!g_phys_equipment6698.read(e)||!e.valid||!e.tick||now<e.tick||now-e.tick>80)return true;
-    return !(e.handKnown[1]&&e.handKey[1]);
-}
 float FistTransportTrigger101(int side,float raw,bool tracked,bool menu,float grip) noexcept {
     // Only called by the mod input worker. During UI, clear no held state and
     // let UI receive its trigger; gameplay resumes only after a tracked release.
@@ -4430,23 +4409,18 @@ float FistTransportTrigger101(int side,float raw,bool tracked,bool menu,float gr
     // stay mod-owned. Block/attack_special from a raw LT stay suppressed in F4 by CombatInputDetour101.
     // If the mod's own block/kick takes LT during such a press, the raw LT is cut for the rest of that press
     // (attack_xi178r8 publishes one LT-up first), so the mod's block release is never hidden. Per press only.
-    // R138 (vrik/fist_lt_r138.h): a closed EMPTY left fist is never native LT - R122 handed the fist-closing press
-    // to the game (its block), every punch then became the game's unarmed kick (log 7 Nov 04:14:41 / 04:15:29:
-    // R122 LT_PRESS native=1, then all punches phase=256 type=4). open-hand LT outside a fight still passes after 100 ms.
-    static kcd2vr::fist_lt_r138::State ltR138{};
-    bool passR122=false;
+    static bool passR122=false,downR122=false;
     if(side==1){
-        namespace fl=kcd2vr::fist_lt_r138;
-        fl::Input in{};in.raw=raw;in.grip=grip;in.now=std::uint64_t(GetTickCount64());in.leftHandFree=LeftHandItemFreeR138();
-        in.consume=consume;in.menu=menu;in.tracked=tracked;in.ltPublished=kcd2vr::attack_xi178r8::ltPublished.load(std::memory_order_acquire);
-        const bool fresh=raw>=fl::kDown&&(!ltR138.down||ltR138.pending);
-        in.inCombat=fresh?combat_diag_probe::HenryInCombat178r31(in.now):-1; // read only while a press is being decided
-        const auto ev=fl::step(ltR138,in);
-        if(ev==fl::Event::Native||ev==fl::Event::Fist){char m[240]{};std::snprintf(m,sizeof(m),
-            "R122 LT_PRESS native=%d inCombat=%d modOwnedLt=%d fist=%d (native LT outside a fight: stealth kill / knock out / butcher; R138 a closed empty fist stays the mod's)",
-            ev==fl::Event::Native?1:0,in.inCombat,in.ltPublished?1:0,(in.grip>=fl::kFistGrip&&in.leftHandFree)?1:0);diagnostic_trace::Write(m);}
-        else if(ev==fl::Event::Cut)diagnostic_trace::Write("R138 LT_PRESS native=0 reason=FIST_CLOSED_DURING_NATIVE_LT (rest of this press is the mod's: fist guard / punches)");
-        passR122=ltR138.pass;
+        const bool down=raw>=.20f;
+        if(!down)passR122=false;
+        else if(!downR122&&consume&&!menu&&tracked){
+            const int inCombat=combat_diag_probe::HenryInCombat178r31(GetTickCount64());
+            passR122=inCombat==0&&!kcd2vr::attack_xi178r8::ltPublished.load(std::memory_order_acquire);
+            char m[200]{};std::snprintf(m,sizeof(m),"R122 LT_PRESS native=%d inCombat=%d modOwnedLt=%d (native LT outside a fight: stealth kill / knock out / butcher)",
+                passR122?1:0,inCombat,kcd2vr::attack_xi178r8::ltPublished.load()?1:0);diagnostic_trace::Write(m);
+        }
+        if(passR122&&kcd2vr::attack_xi178r8::ltPublished.load(std::memory_order_acquire))passR122=false; // mod block/kick owns LT now
+        downR122=down;
         kcd2vr::attack_xi178r8::rawLtR122.store(passR122&&!menu,std::memory_order_release);
     }
     if(menu)return raw;

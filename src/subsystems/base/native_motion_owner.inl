@@ -30,14 +30,6 @@ static std::atomic<std::uintptr_t> g_motion_contract112{0};
 static std::optional<DetourModKit::hook::Hook> g_root_motion_hook125;
 static std::atomic<std::uintptr_t> g_root_motion_contract125{0};
 static std::atomic<std::uint64_t> g_root_motion_frames125{0};
-// R139: Henry's last R112 alignment-veto decision (game thread, the 9E2D55 query of his own manager) for the
-// R125 exit. R138 log 7 Nov 08:51-08:53 (F2+F3 on): the R112 veto passed on every practice-sword attack
-// (C24 vetoed 47..103 per attack) but the R125 exit, which re-ran the same proof itself, never owned one frame
-// (0 R125 rows) and the lunge clips moved Henry 46..70 cm. the exit now follows the decision the game thread
-// already made for this frame: same owner, same refusals, nothing new to pass.
-static std::atomic<std::uintptr_t> g_root_lease_animated139{0},g_root_lease_state139{0};
-static std::atomic<std::uint64_t> g_root_lease_tick139{0};
-inline constexpr std::uint64_t kRootLeaseMs139=60; // ~5 frames; the query runs every frame of an attack
 
 // D42 selection changes no native eligibility or target policy. Existing
 // ordinary-action and Henry ownership proofs still decide the actual veto.
@@ -508,21 +500,6 @@ static bool NativeAlignmentResult112(void* manager,std::uintptr_t caller,bool or
     if(original&&caller==WhBase()+0x9E2D55){
         ReadScope101R2 scope;
         if(NativeAlignmentOwned112(manager,&why)){++g_alignment_skips112;++g_alignment_skips55;vetoed=true;}
-        // R139: publish Henry's decision for the R125 root-motion exit (a refusal revokes at once). NPC managers
-        // (the query is global) never touch it. read-only, no native write.
-        void* actor=nullptr;void* player=nullptr;void* entity=nullptr;std::uintptr_t animated=0;NativeOwner104 owner{};
-        if(manager&&PhysVft6698(manager,0x3A633B0)&&Read(static_cast<unsigned char*>(manager)+8,actor)&&
-           PhysVft6698(actor,0x3A80610)&&Read(static_cast<unsigned char*>(actor)+0x1F8,player)&&
-           PhysVft6698(player,0x3AA4B98)&&Read(static_cast<unsigned char*>(player)+0x38,entity)&&entity&&
-           entity==g_last_player_entity.load()){
-            g_root_lease_tick139.store(0,std::memory_order_release);
-            if(vetoed&&Read(static_cast<unsigned char*>(player)+0x268,animated)&&animated&&
-               NativeResolve104(player,owner)&&owner.actor==actor&&owner.state){
-                g_root_lease_animated139.store(animated,std::memory_order_relaxed);
-                g_root_lease_state139.store(reinterpret_cast<std::uintptr_t>(owner.state),std::memory_order_relaxed);
-                g_root_lease_tick139.store(GetTickCount64(),std::memory_order_release);
-            }
-        }
     }
     // Receipts observe the decision above; they never feed back into it.
     if(AlignVetoReceiptsActive25())AlignVetoReceipt25(manager,caller,original,vetoed,why);
@@ -545,7 +522,7 @@ static bool __fastcall NativeAlignmentDetour112(void* manager) noexcept {kcd2vr:
 // D73724, plus any ForceMovement +1B8/+1BC) to the physics request 8A3188. nothing of that passes the alignment
 // or the command queue we veto.
 // change: at 83A1A0 (the common exit, after merge/clamp/forced movement) for Henry ONLY, while the existing
-// no-step owner proofs pass (R139: the alignment veto's own decision of this frame, see RootMotionOwned125: F4 contact mode, Henry manager
+// no-step owner proofs pass (same NativeMotionContext112 as the alignment veto: F4 contact mode, Henry manager
 // identity, protected-body census, tracking) AND his live main action is an ordinary slash/thrust (or a punch
 // with fists) in phase 4/8/16, the horizontal part of the wanted movement becomes the game's own requested
 // entity movement (+67C, the movement controller / stick request). rotation and height stay native, so turning,
@@ -555,21 +532,25 @@ static bool __fastcall NativeAlignmentDetour112(void* manager) noexcept {kcd2vr:
 static bool RootMotionOwned125(std::uintptr_t animated,int& phase) noexcept {
     phase=0;const auto b=WhBase();
     if(!b||!animated||!g_no_step55.load(std::memory_order_relaxed))return false;
-    std::uintptr_t vft=0;void* entity=nullptr;
+    std::uintptr_t vft=0;void* entity=nullptr;void* back=nullptr;void* player=nullptr;
     const auto a=reinterpret_cast<const unsigned char*>(animated);
     if(!Read(a,vft)||vft!=b+0x3A49468||!Read(a+0x38,entity)||!entity||
        entity!=g_last_player_entity.load(std::memory_order_acquire))return false;
-    // R139: the owner proof is the R112 alignment veto of this frame (NativeAlignmentResult112): Henry's
-    // NativeMotionContext112 (F4 contact mode, Henry manager identity, tracking, equipment, protected-body census,
-    // current ordinary slash/thrust or tracked punch) plus the record check. a refusal there (kick, clinch,
-    // masterstrike, paired, hit reaction, guard, step switch OFF, NPC) revokes the lease, so it keeps the clip.
-    const auto tick=g_root_lease_tick139.load(std::memory_order_acquire);const auto now=std::uint64_t(GetTickCount64());
-    if(!tick||now<tick||now-tick>kRootLeaseMs139||g_root_lease_animated139.load(std::memory_order_relaxed)!=animated)return false;
-    const auto state=g_root_lease_state139.load(std::memory_order_relaxed);int live=0;
-    if(!state||!Read(reinterpret_cast<const unsigned char*>(state)+0x38,live)||
-       !kcd2vr::free_targeting_d42::attackPhase(live))return false;
-    if(g_root_lease_tick139.load(std::memory_order_acquire)!=tick)return false; // republished while reading
-    phase=live;return true;
+    PhysFrame6698 seed{};FistOwner101 hands{};
+    if(g_phys_frame6698.read(seed)&&seed.player&&Read(static_cast<const unsigned char*>(seed.player)+0x268,back)&&
+       back==reinterpret_cast<void*>(animated))player=seed.player;
+    else if(FistReadOwner101(hands)&&hands.player&&Read(static_cast<const unsigned char*>(hands.player)+0x268,back)&&
+       back==reinterpret_cast<void*>(animated))player=hands.player;
+    NativeOwner104 resolved{};void* manager=nullptr;nc104::Observed early{};
+    // cheap phase test before the full owner proof: outside phase 4/8/16 nothing is evaluated further.
+    if(!player||!NativeResolve104(player,resolved)||!NativeObserve104(resolved,early)||
+       !kcd2vr::free_targeting_d42::attackPhase(early.phase)||!Read(static_cast<const unsigned char*>(resolved.actor)+0x250,manager)||!manager)return false;
+    PhysFrame6698 f{};NativeOwner104 owner{};
+    if(!NativeMotionContext112(f,owner,manager)||owner.player!=player)return false;
+    nc104::Observed state{};
+    if(!NativeObserve104(owner,state)||!kcd2vr::free_targeting_d42::attackPhase(state.phase))return false;
+    if(!CurrentOrdinaryMotion59c3(owner,nullptr,FistSelected101()))return false;
+    phase=state.phase;return true;
 }
 static void RootMotionMid125(DetourModKit::hook::MidContext& c) noexcept {
     using namespace DetourModKit::hook;

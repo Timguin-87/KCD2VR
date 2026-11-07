@@ -1,6 +1,6 @@
     // Latch the engine head anchor only from an untouched native snapshot.
     V3 unused{};(void)ControllerHeadAnchoredArmGoal(ts,s.original[rig.head],false,unused);
-    const Q4 frame=QNormalize(CalFrameR133());
+    const Q4 frame=QNormalize({g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()});
     const Q4 baseH{g_cal_hq_x.load(),g_cal_hq_y.load(),g_cal_hq_z.load(),g_cal_hq_w.load()};
     const Q4 delta=QNormalize(QMul(QMul(frame,QMul(XrToCryQ(ts.hq),QConj(baseH))),QConj(frame)));
     const V3 baseHead{g_cal_native_head_x.load(),g_cal_native_head_y.load(),g_cal_native_head_z.load()};

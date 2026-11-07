@@ -28,8 +28,6 @@
 #include "diagnostics/xr_timing165.h"
 #include "vrik/hand_same_frame_hj1.h"
 #include "vrik/visual_selection59c7f.h"
-#include "subsystems/experimental/free_targeting_d42.h" // R133 FREE PLUS view hold
-#include "vrik/riding_vrik_d76.h" // R133: never hold on a horse (the horse turns with the left stick)
 
 #include <DetourModKit/scan.hpp>
 #include <DetourModKit/hook.hpp>
@@ -1380,51 +1378,6 @@ bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* 
                 const Vec3f r{f.y,-f.x,0.0f};
                 const Vec3f u{0.0f,0.0f,1.0f};
                 visual_basis[0]=r;visual_basis[1]=f;visual_basis[2]=u;
-            }
-        }
-        // R133 FREE PLUS (Miki 7 Nov: "camera moving too much circling the enemy ... make my head view not move at
-        // all"): while Henry has a combat opponent the game keeps turning his root/camera toward him (locked
-        // locomotion, no hook; the queued turn command is already vetoed). that yaw is absorbed into a view offset
-        // here and into the VR body frame (offsetBody, frik_pose_probe CalFrameR133), so head, hands and the room
-        // stay where they are in the world and the lock stays underneath. your own stick/snap turns pass.
-        // after the fight the pad turns Henry back under the view (offset runs out). recenter/load/dialogue reset it.
-        {
-            namespace r133=kcd2vr::free_targeting_r133;
-            static r133::Hold holdR133{};static std::uint64_t genR133=0,epochR133=0;
-            const bool plusR133=kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire)&&
-                kcd2vr::free_targeting_d42::mode()==r133::FreePlus;
-            if(record_render_identity&&(plusR133||holdR133.haveCamera||holdR133.view!=0||holdR133.body!=0)){ // the last call after leaving mode 2 forgets the old yaw
-                const auto nowR133=std::uint64_t(GetTickCount64());
-                const auto genNow=s_rotation_filter_generation.load(std::memory_order_acquire);
-                const auto epochNow=frik_pose_probe::PoseEpochH24();
-                r133::Input in{};in.modePlus=plusR133;in.now=nowR133;
-                in.reset=(genR133&&genNow!=genR133)||(epochR133&&epochNow!=epochR133)||dialogueEye59c10r2||activityEye59c19||
-                    !hmd_final_orientation_authority||kcd2vr::riding_vrik_d76::RiderRecentR98(nowR133);
-                genR133=genNow;epochR133=epochNow;
-                in.context=trackedBase48&&kcd2vr::free_targeting_d42::contextReady.load(std::memory_order_acquire);
-                in.engaged=r133::engaged(nowR133);in.userTurn=r133::userTurning(nowR133);
-                const float bfl=std::sqrt(base_forward.x*base_forward.x+base_forward.y*base_forward.y);
-                in.cameraYaw=bfl>1e-4f?r133::yawOf(base_forward.x,base_forward.y):holdR133.lastCamera;
-                const auto rootTick=r133::rootYawTick.load(std::memory_order_acquire);
-                in.haveRoot=rootTick&&nowR133>=rootTick&&nowR133-rootTick<=100;
-                in.rootYaw=r133::rootYaw.load(std::memory_order_relaxed);
-                const auto clearsBefore=holdR133.clears;
-                const auto stepR133=r133::step(holdR133,in);
-                if(stepR133==r133::Step::Absorb){
-                    r133::absorbFrames.fetch_add(1,std::memory_order_relaxed);
-                    r133::absorbedDeg.store(float(holdR133.absorbedDeg),std::memory_order_relaxed);
-                    r133::maxOffsetDeg.store(float(holdR133.maxOffsetDeg),std::memory_order_relaxed);
-                }
-                if(!in.engaged&&stepR133!=r133::Step::Absorb){holdR133.absorbedDeg=0;holdR133.maxOffsetDeg=0;}
-                if(holdR133.clears!=clearsBefore)r133::clears.fetch_add(1,std::memory_order_relaxed);
-                r133::offsetView.store(float(holdR133.view),std::memory_order_release);
-                r133::offsetBody.store(float(holdR133.body),std::memory_order_release);
-                r133::bleedSign.store(stepR133==r133::Step::Bleed?holdR133.bleedSign:0,std::memory_order_release);
-            }
-            const double phiR133=hmd_final_orientation_authority&&!dialogueEye59c10r2&&!activityEye59c19?double(r133::offsetView.load(std::memory_order_acquire)):0.; // atomic: culling applies can run on another thread
-            if(std::fabs(phiR133)>1e-6){
-                const float c=float(std::cos(phiR133)),s=float(std::sin(phiR133));
-                for(auto& v:visual_basis){const float x=v.x,y=v.y;v.x=c*x-s*y;v.y=s*x+c*y;}
             }
         }
         // V64.37 F3 marriage lab. When native CameraInputDispatch is shadow-driving

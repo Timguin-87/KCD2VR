@@ -88,8 +88,6 @@ struct Settings {
     bool pickupNearOnlyD40=false;
     bool combatNoStepD40=true,combatNoTurnD40=true,combatNoTurnReadyD40=false,clinchReadyD40=false;
     bool freeTargetingD42=true,freeTargetingContextD42=false,freeTargetingLeaseD42=false;
-    int freeTargetingModeR133=1; // R133: 0 NATIVE, 1 FREE, 2 FREE PLUS (VrFreeTargetingModeR133); freeTargetingD42 = mode!=0
-    bool freeTargetingHoldR133=false; // R133 status: FREE PLUS view offset is live right now
     int clinchModeD40=2;
     bool labLivingTouchD40=false,labLivingImpactD40=false,labCorpseDragD40=false;
     bool npcContactReactionD41=true,npcStaminaReactionD41=true,finisherCandidateD41=true;
@@ -181,7 +179,7 @@ inline constexpr std::array<std::array<Row,8>,12> kRows{{
       {Id::NpcContactReactionD41,L"Hit reaction by body region",L"Choose native reaction from the accepted hit region."},
       {Id::NpcStaminaReactionD41,L"Include stamina-only hits",L"Include armour hits, but never blocked hits."},
       {Id::FinisherCandidateD41,L"Combo finish requirement",L"Final contact rules; native combo/RPG checks remain."},
-      {Id::FreeTargetingD42,L"Free targeting",L"GAME LOCK / FREE / FREE PLUS: plus = the game never turns your view; stick walks where you look."},
+      {Id::FreeTargetingD42,L"Free targeting experiment",L"No auto-turn to target; native targets and combos."},
       {Id::FistStrokeD49,L"Punch stroke trial",L"Trial: punch peak speed and reversal recognition."}}},
     {{{Id::PickupCameraBridgeD55,L"Pickup camera handover trial",L"Keep the tracked view during brief pickup handover."},
       {Id::TwoHandBiasD65,L"Two-hand primary influence trial",L"Let the primary hand influence two-hand direction."},
@@ -273,7 +271,7 @@ inline constexpr std::array<Row,8> kGearTrialsR118{{
     {Id::HideAtStationsR121,L"Hide all weapons at crafting tables",L"At alchemy and smithing every stowed weapon is hidden, hip sword and dagger too. OFF: normal rules."}, // R121
     {Id::MeleeGripR123,L"Fixed sword grip",L"Sword, axe, mace and dagger sit in the hand at their own handle socket. OFF: learned from Henry's animated hand (old)."}, // R123
     {Id::PropImpactSoundR124,L"Prop impact sounds",L"A mug/plate/jug you drop, throw or knock makes the game's clay/wood/metal sound when it lands. OFF: silent."}, // R124
-    {Id::EyeRayR121,L"Look selection from your eye",L"The centre of your view or an index-finger point selects, also in VRIK and after leaning at a table. OFF: hands only, Henry's eye."}, // R121 + R137
+    {Id::EyeRayR121,L"Look selection from your eye",L"What you look at is selected from where you see, also after leaning at a table. OFF: from Henry's eye."}, // R121
     {Id::ShieldBlockBoxR120,L"Shield block box",L"Shield blocks only inside its box (COMBAT > BLOCK > SHIELD BOX). OFF: old wide rule, block almost always on."} // R120
 }};
 // R125: GEAR page 3 = HUD look (pages 1 and 2 are full).
@@ -467,8 +465,7 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::NpcContactReactionD41:d.npcContactReactionD41=!d.npcContactReactionD41;break;
     case Id::NpcStaminaReactionD41:d.npcStaminaReactionD41=!d.npcStaminaReactionD41;break;
     case Id::FinisherCandidateD41:d.finisherCandidateD41=!d.finisherCandidateD41;break;
-    case Id::FreeTargetingD42:d.freeTargetingModeR133=d.freeTargetingModeR133>=2?0:d.freeTargetingModeR133<0?1:d.freeTargetingModeR133+1; // R133: 0 -> 1 -> 2 -> 0
-      d.freeTargetingD42=d.freeTargetingModeR133!=0;break;
+    case Id::FreeTargetingD42:d.freeTargetingD42=!d.freeTargetingD42;break;
     default:return false;
     }
     return true;
@@ -631,11 +628,7 @@ template<class S> void label(const S& s,const Row& row,wchar_t* out,std::size_t 
     case Id::NpcStaminaReactionD41:value=!d.npcStaminaReactionD41?L"OFF":d.npcContactReactionD41?L"ON":L"ON / REACTIONS OFF";break;
     case Id::FinisherCandidateD41:value=d.finisherCandidateD41?L"PHYSICAL":L"DIRECTIONS (BACKUP)";break;
     case Id::FreeTargetingD42:// R103: context is false whenever this menu is open, so "PAUSED" was shown every time he looked.
-      // R133: 3-way. the status part stays the R103 one (context false while this menu is open).
-      if(d.freeTargetingModeR133<=0)value=L"OFF (GAME LOCK + CAMERA)";
-      else if(d.freeTargetingModeR133==1)value=!d.freeTargetingContextD42?L"FREE (WORKS IN COMBAT)":d.freeTargetingLeaseD42?L"FREE / ACTIVE":L"FREE / NOT READY";
-      else value=!d.freeTargetingContextD42?L"FREE PLUS (WORKS IN COMBAT)":d.freeTargetingHoldR133?L"FREE PLUS / VIEW HELD":d.freeTargetingLeaseD42?L"FREE PLUS / ACTIVE":L"FREE PLUS / NOT READY";
-      break;
+      value=!d.freeTargetingD42?L"OFF":!d.freeTargetingContextD42?L"ON (WORKS IN COMBAT)":d.freeTargetingLeaseD42?L"ON / ACTIVE":L"ON / NOT READY";break;
     case Id::ClinchStatusD40:value=d.clinchReadyD40?L"AVAILABLE":L"NOT READY";break;
     case Id::PropRightD40:case Id::PropLeftD40:{const int side=row.id==Id::PropLeftD40?1:0;value=d.propStatusKnownD40[side]?propStateD40(d.propStateD40[side]):L"NO CURRENT STATUS";break;}
     default:break;

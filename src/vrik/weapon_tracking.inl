@@ -103,7 +103,7 @@ static void PublishWeaponTracking6694(void* character,void* skeleton,void* pose,
     }
     Q4 frame{};V3 baseHead{},trackingHead{};
     if(g_cal_state.load(std::memory_order_acquire)==2){V3 unused{};(void)ControllerHeadAnchoredArmGoal(ts,head,false,unused);
-        frame=QNormalize(CalFrameR133());
+        frame=QNormalize({g_cal_frame_qx.load(),g_cal_frame_qy.load(),g_cal_frame_qz.load(),g_cal_frame_qw.load()});
         baseHead={g_cal_native_head_x.load(),g_cal_native_head_y.load(),g_cal_native_head_z.load()};
         trackingHead={g_cal_head_x.load(),g_cal_head_y.load(),g_cal_head_z.load()};
     }else{
@@ -116,8 +116,6 @@ static void PublishWeaponTracking6694(void* character,void* skeleton,void* pose,
             const float angle=std::atan2(-forward.x,forward.y);fq={0,0,std::sin(-angle*.5f),std::cos(-angle*.5f)};
             nh=FromT(head);th=Sub(ts.head,{roomOriginD76.consumedTracking.x,roomOriginD76.consumedTracking.y,roomOriginD76.consumedTracking.z});originChar=character;originEpoch=e;
         }frame=fq;baseHead=nh;trackingHead=th;
-        {float q[4]{frame.x,frame.y,frame.z,frame.w}; // R133 FREE PLUS body offset (as the calibrated frame helper)
-         kcd2vr::free_targeting_r133::yawFrame(q,kcd2vr::free_targeting_r133::offsetBody.load(std::memory_order_acquire));frame={q[0],q[1],q[2],q[3]};}
     }
     if(kcd2vr::roomscale_d76::recenterPending.load(std::memory_order_acquire)||
        (g_cal_state.load()==2&&roomOriginD76.owner.epoch&&roomOriginD76.owner.epoch!=g_cal_room_origin_d76.load(std::memory_order_acquire)))return;

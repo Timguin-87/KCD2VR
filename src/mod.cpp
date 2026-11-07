@@ -2,7 +2,6 @@
 #include "xr_eye_srgb_r114.h" // R114: VrEyeSrgbR114 (live_runtime_d40.inl)
 #include "subsystems/alchemy/head_select_r116.h" // R116: VrAlchemyViewSelectR116 (live_runtime_d40.inl)
 #include "vrik/eye_ray_r121.h" // R121: VrInteractionEyeRayR121 (live_runtime_d40.inl)
-#include "vrik/view_select_r137.h" // R137: index-finger point ray for object selection
 #include "vrik/melee_grip_r123.h" // R123: VrMeleeAuthoredGripR123 (live_runtime_d40.inl)
 #include "vrik/prop_impact_sound_r124.h" // R124: VrPropImpactSoundR124 (live_runtime_d40.inl)
 #include "vrik/swing_whoosh_r116.h" // R116: VrSwingWhooshR116 (live_runtime_d40.inl)
@@ -1023,12 +1022,8 @@ static std::atomic<bool> g_roomscale_follow58{false},g_roomscale_dodge58{false};
 struct CombatCvarLease52 {
     static constexpr int kMax=24;const char* names[kMax]{};float values[kMax]{};float originals[kMax]{};bool had[kMax]{};int count=0;bool applied=false;
     void Add(const char* n,float v) noexcept {if(count<kMax){names[count]=n;values[count]=v;++count;}}
-    int freeModeR133=0;
-    void Load(bool player,bool shared,bool targeting=false,bool noLunge=false,int freeMode=0) noexcept {count=0;freeModeR133=freeMode;
-        // R133: the target cone follows the free-targeting mode (free_targeting_plus_r133.h cone()). mode 0 = the
-        // R52/R57 values below exactly as before.
-        const auto coneR133=kcd2vr::free_targeting_r133::cone(freeMode);
-        if(player){Add("wh_cs_PlayerMaxOpponentAngleToLock",coneR133.lockAngle);Add("wh_cs_PlayerMaxOpponentAngleToUnlock",coneR133.unlockAngle);
+    void Load(bool player,bool shared,bool targeting=false,bool noLunge=false) noexcept {count=0;
+        if(player){Add("wh_cs_PlayerMaxOpponentAngleToLock",1.5708f);Add("wh_cs_PlayerMaxOpponentAngleToUnlock",2.4f);
             Add("wh_cs_PlayerFreeAttackMinDistance",0.f);Add("wh_cs_PlayerFreeAttackStabMinDistance",0.f);
             // Shared distance correction belongs exclusively to explicit shared-rule opt-in.
             // R55C1: DisabledAttackTimeout was already zero in the supplied R55
@@ -1046,11 +1041,8 @@ struct CombatCvarLease52 {
             // time before the lock switches is the Immersion slider VrTargetSwitchDwell (seconds), live.
             {const float dwell=std::clamp(g_target_dwell59c8.load(std::memory_order_relaxed),0.f,2.f);
              Add("wh_cs_PlayerInputCombatUnlockDelay",dwell);Add("wh_cs_PlayerInputMouseUnlockMinTime",dwell);Add("wh_cs_PlayerInputMouseUnlockReturnTime",std::max(0.2f,dwell));}
-            Add("wh_cs_PlayerInputLockingTolerance",20.f);Add("wh_cs_PlayerInputLockAreaWidth",coneR133.lockArea);
-            if(coneR133.hyst)Add("wh_cs_PlayerInputUnlockAreaWidthHyst",coneR133.unlockHyst); // R133: native 0.2
+            Add("wh_cs_PlayerInputLockingTolerance",20.f);Add("wh_cs_PlayerInputLockAreaWidth",0.6f);
         }
-        if(player&&!targeting&&coneR133.hyst){ // R133: the wider cone is part of free targeting 1/2 even without R57
-            Add("wh_cs_PlayerInputLockAreaWidth",coneR133.lockArea);Add("wh_cs_PlayerInputUnlockAreaWidthHyst",coneR133.unlockHyst);}
         if(shared){Add("wh_cs_PerfectBlock_SpatialVolumeRadius",0.6f);Add("wh_cs_MaxAttackDistanceMoveOffset",0.f);Add("wh_cs_BlockCooldown",0.05f);}}
     bool Apply(bool want,char* msg,std::size_t cap) noexcept {
         if(want==applied||!count)return false;
@@ -3924,8 +3916,7 @@ bool Mod::LoadConfig()
     g_player_rules52.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatPlayerRules",true));g_shared_rules52.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatSharedRules",false));
     g_no_lunge594.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrNoAttackLunge",true)); // R59.6: Miki's decision restored (C4 had flipped it to false)
     g_targeting_lease59c8=ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatResponsiveTargeting",true);
-    g_combat_cvars52.Load(g_player_rules52.load(),g_shared_rules52.load(),g_targeting_lease59c8,g_no_lunge594.load(),
-        kcd2vr::free_targeting_d42::enabled.load()?kcd2vr::free_targeting_d42::mode():0); // V66.178R52 / R57 / R59.4 / R59.16C8 dwell / R133 cone (main loop re-leases on a mode change)
+    g_combat_cvars52.Load(g_player_rules52.load(),g_shared_rules52.load(),g_targeting_lease59c8,g_no_lunge594.load()); // V66.178R52 / R57 / R59.4 / R59.16C8 dwell
     combat_diag_probe::SetGeometryEngageNative178r31(ReadIniBoolExplicit(explicit_ini,"Settings","VrGeometryEngageNative",true)); // V66.178R31
     combat_diag_probe::SetGeometryOuter178r33(ReadIniBoolExplicit(explicit_ini,"Settings","VrGeometryOuterContinuation",true)); // V66.178R33
 #define KCD2VR_M2_HOST_SLOT 195 // M2_SOURCE_SELECTOR
@@ -6617,49 +6608,6 @@ void Mod::Run()
             const bool cameraOnly50=g_combat_camera_only50.load(std::memory_order_relaxed);
             char m[320]{};if(g_combat_lock178r13.Apply(false,false,rung,mode,m,sizeof(m))){diagnostic_trace::Write(m);KCD2VR_DIAG_LOG(Bug,warning,"{}",m);}
             #include "subsystems/experimental/free_targeting_service_d42.inl"
-            {   // R133: free-targeting mode. a mode change re-leases the target cone (restore the old values first,
-                // the lease only gives back a value that is still ours) and writes ONE row. a fight that FREE PLUS
-                // held writes one row when it ends. per-second rows only while F3 records.
-                namespace r=kcd2vr::free_targeting_r133;
-                const int modeR133=kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire)?kcd2vr::free_targeting_d42::mode():0;
-                if(modeR133!=g_combat_cvars52.freeModeR133){
-                    char c[1024]{};if(g_combat_cvars52.Apply(false,c,sizeof(c)))diagnostic_trace::Write(c);
-                    g_combat_cvars52.Load(g_player_rules52.load(),g_shared_rules52.load(),g_targeting_lease59c8,g_no_lunge594.load(),modeR133);
-                }
-                static int loggedModeR133=-1;
-                if(modeR133!=loggedModeR133){
-                    loggedModeR133=modeR133;const auto k=r::cone(modeR133);char m[420]{};
-                    std::snprintf(m,sizeof(m),"R133 FREE_TARGETING mode=%d(%s) combatCamera=%s queuedTurnVeto=%s viewHold=%s stickTurn=%s lockDeg=%.0f unlockDeg=%.0f lockAreaM=%.2f unlockHystM=%.2f",
-                        modeR133,r::name(modeR133),modeR133?"LEASED_OFF":"NATIVE",modeR133?"ORDINARY_PHASES":"NATIVE",
-                        modeR133==r::FreePlus?"ON":"OFF",modeR133==r::FreePlus?"ON":"OFF",
-                        double(k.lockAngle)*57.29578,double(k.unlockAngle)*57.29578,double(k.lockArea),double(k.hyst?k.unlockHyst:.2f));
-                    diagnostic_trace::Write(m);KCD2VR_DIAG_LOG(Bug,warning,"{}",m);
-                }
-                const auto nowR133=std::uint64_t(GetTickCount64());
-                const bool engagedR133=r::engaged(nowR133);
-                static bool wasEngagedR133=false;
-                if(engagedR133&&!wasEngagedR133){r::absorbFrames.store(0);r::stickFrames.store(0);r::bleedFrames.store(0);r::absorbedDeg.store(0.f);r::maxOffsetDeg.store(0.f);}
-                if(!engagedR133&&wasEngagedR133&&modeR133==r::FreePlus&&r::absorbFrames.load()){
-                    char m[360]{};std::snprintf(m,sizeof(m),
-                        "R133 FREE_PLUS fight_end gameTurnAbsorbedDeg=%.0f maxViewOffsetDeg=%.0f absorbFrames=%llu stickTurnedFrames=%llu offsetNowDeg=%.0f/%.0f (view/body; runs out while Henry turns back)",
-                        double(r::absorbedDeg.load()),double(r::maxOffsetDeg.load()),(unsigned long long)r::absorbFrames.load(),(unsigned long long)r::stickFrames.load(),
-                        double(r::offsetView.load())*57.29578,double(r::offsetBody.load())*57.29578);
-                    diagnostic_trace::Write(m);KCD2VR_DIAG_LOG(Bug,warning,"{}",m);
-                }
-                wasEngagedR133=engagedR133;
-                static std::uint32_t loggedClearsR133=0;const auto clearsR133=r::clears.load();
-                if(clearsR133!=loggedClearsR133){loggedClearsR133=clearsR133;
-                    diagnostic_trace::Write("R133 FREE_PLUS view offset cleared: Henry did not turn back under the view within 4 s (one view snap)");}
-                static std::uint64_t lastF3R133=0;
-                if(modeR133==r::FreePlus&&diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,nowR133)&&nowR133-lastF3R133>=1000){
-                    lastF3R133=nowR133;char m[360]{};std::snprintf(m,sizeof(m),
-                        "R133_F3 FREE_PLUS engaged=%d context=%d offsetViewDeg=%.1f offsetBodyDeg=%.1f absorbFrames=%llu absorbedDeg=%.0f stickTurnedFrames=%llu bleedFrames=%llu bleed=%d userTurn=%d",
-                        engagedR133?1:0,kcd2vr::free_targeting_d42::contextReady.load()?1:0,double(r::offsetView.load())*57.29578,double(r::offsetBody.load())*57.29578,
-                        (unsigned long long)r::absorbFrames.load(),double(r::absorbedDeg.load()),(unsigned long long)r::stickFrames.load(),(unsigned long long)r::bleedFrames.load(),
-                        r::bleedSign.load(),r::userTurning(nowR133)?1:0);
-                    diagnostic_trace::Write(m);
-                }
-            }
             if(rung>0)ProbeCombatCvars50();
             {char c[2048]{};if(g_combat_cvars51.Apply(rung>0,c,sizeof(c))){diagnostic_trace::Write(c);KCD2VR_DIAG_LOG(Bug,warning,"{}",c);}} // V66.178R51
             {char c[1024]{};if(g_combat_cvars52.Apply(rung>0,c,sizeof(c))){diagnostic_trace::Write(c);KCD2VR_DIAG_LOG(Bug,warning,"{}",c);}} // V66.178R52
@@ -8668,43 +8616,6 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
             const bool pointerEnabled32=(ordinaryPoint123&&!uiBlocked||alchemyPointer59c2)&&interactionStatus114.enabled&&frik_pose_probe::CalibrationReady()&&
                 retail_build112::Ready(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll")));
             #include "vrik/interaction_point32.inl"
-            {   // R137 (vrik/view_select_r137.h): index-finger point = grip closed, index lifted off the trigger, the
-                // empty hand out in front of your head and pointing away from you, 120 ms. its finger ray (finger tip
-                // along the hand, the same committed VRIK palm frame as the palm ray) selects objects instead of the
-                // headset ray while you point. switch: VrInteractionEyeRayR121. no latch: decided every loop.
-                static kcd2vr::view_select_r137::State point137{};
-                namespace vs137=kcd2vr::view_select_r137;
-                vs137::Hand hands137[2]{};vs137::Head head137{};
-                visual_ray_d75::Sample eye137{};
-                const bool on137=kcd2vr::eye_ray_r121::enabled.load(std::memory_order_acquire)&&pointerEnabled32&&!uiBlocked&&
-                    !alchemyPointer59c2&&pi.enabled&&!pi.menu&&xr_manager_&&CameraHook::GetLatestVisualRayD75(eye137,80);
-                if(on137){
-                    head137.valid=true;
-                    for(int i=0;i<3;++i){head137.eye[i]=eye137.origin[i];head137.fwd[i]=eye137.forward[i];}
-                    for(int side=0;side<2;++side){
-                        const auto& c=side?xr_manager_->LeftController():xr_manager_->RightController();
-                        auto& h=hands137[side];
-                        h.empty=pi.hand[side].empty&&itemState116[side]==0;h.grip=c.grip;h.trigger=c.trigger;
-                        h.touchValid=c.trigger_touch_valid;h.touch=c.trigger_touch;
-                        interaction112::Ray r{};
-                        // the ray is built only for a hand that could point (cheap committed-packet read)
-                        h.valid=c.active&&h.empty&&c.grip>=.60f&&c.trigger<.10f&&c.trigger_touch_valid&&!c.trigger_touch&&
-                            !(reserved114&(1u<<side))&&buildPalm59c9(side,r);
-                        if(h.valid){h.hand[0]=r.ox;h.hand[1]=r.oy;h.hand[2]=r.oz;h.dir[0]=r.x;h.dir[1]=r.y;h.dir[2]=r.z;}
-                    }
-                }
-                const bool posed137[2]{on137&&vs137::pose(hands137[0],head137),on137&&vs137::pose(hands137[1],head137)};
-                const int pointSide137=vs137::update(point137,posed137,ladder_now_ms);
-                float po137[3]{},pd137[3]{};
-                const bool ray137=pointSide137>=0&&vs137::fingerRay(hands137[pointSide137],po137,pd137);
-                interaction_alignment::SetPointRayR137(ray137,po137[0],po137[1],po137[2],pd137[0],pd137[1],pd137[2],ray137?pointSide137:-1);
-                static int pointLogged137=-2;
-                if((ray137?pointSide137:-1)!=pointLogged137){
-                    pointLogged137=ray137?pointSide137:-1;
-                    char m137[160]{};std::snprintf(m137,sizeof(m137),"R137 POINT_RAY hand=%s (index-finger point selects objects; none = headset view)",
-                        pointLogged137==0?"RIGHT":pointLogged137==1?"LEFT":"NONE");diagnostic_trace::Write(m137);
-                }
-            }
             interaction_alignment::SetPalmRays59c9(palms59c9);
             bool passiveHover156=false;
             static int hoverOwner57c1=-1;
@@ -9259,25 +9170,6 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
                 }
             }
             kcd2vr::gesture_talk59c5::apply54(pad,gestureTalkH4);
-            {   // R133 FREE PLUS: the view is (game camera yaw + offset). turn the walking stick by the same offset so
-                // stick forward = the forward you see (a locked strafe stays a straight sidestep, not a circle around him).
-                // after the fight our right-stick X turns Henry back under the held view until the offset is gone.
-                // only the immersive gameplay pad; menus, dialogue, minigames, theater keep their axes. dodge vectors are
-                // added after this (ApplyRoomscalePad58) and stay as they are.
-                namespace r=kcd2vr::free_targeting_r133;
-                const bool padGameplayR133=pad.gameplay_r133&&!padCtx.vr_menu&&!padCtx.theater&&!padCtx.system_menu&&
-                    !padCtx.dialogue_navigation&&!padCtx.semantic_minigame&&!padCtx.apse_ui&&!padCtx.back_context&&
-                    xr_head_valid&&palmInput36.gameplay&&kcd2vr::free_targeting_d42::mode()==r::FreePlus&&
-                    kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire);
-                if(padGameplayR133){
-                    const double offsetR133=r::offsetView.load(std::memory_order_acquire);
-                    if(std::fabs(offsetR133)>r::kDoneRad&&(std::fabs(pad.lx)>.01f||std::fabs(pad.ly)>.01f)){
-                        r::rotateStick(pad.lx,pad.ly,offsetR133);r::stickFrames.fetch_add(1,std::memory_order_relaxed);}
-                    const int signR133=r::bleedSign.load(std::memory_order_acquire);
-                    if(signR133&&std::fabs(pad.rx)<.05f&&!r::userTurning(GetTickCount64())){
-                        pad.rx=r::bleedRx(offsetR133,signR133);r::bleedFrames.fetch_add(1,std::memory_order_relaxed);}
-                }
-            }
             ApplyRoomscalePad58(pad,padCtx,xr_head_valid&&palmInput36.gameplay); // Fresh XR validity and this frame's gameplay owner.
             {const auto quickNowR112=std::uint64_t(GetTickCount64()); // R112: quick-access D-pad (left weapon, right food) = selector change
              if(pad.dpad_left)ui_hud_r112::weaponQuickInputMs.store(quickNowR112,std::memory_order_release);

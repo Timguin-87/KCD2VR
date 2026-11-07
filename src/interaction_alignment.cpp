@@ -32,7 +32,6 @@
 #include "subsystems/alchemy/native_selection68.h"
 #include "subsystems/alchemy/head_select_r116.h" // R116: alchemy selection = headset view / hand reach
 #include "vrik/eye_ray_r121.h" // R121: every head look ray starts at the rendered eye
-#include "vrik/view_select_r137.h" // R137: VRIK object selection = headset view / index-finger point / palm
 #include "subsystems/hud_ui_controls/runtime/alchemy_head_name_d75.h"
 #include "subsystems/interactions/quick_talk_candidate_d78.h"
 
@@ -135,8 +134,6 @@ core::SnapshotMailbox<NativeRay112> g_native_packets112;
 std::atomic<float> g_eye_x{0.0f}, g_eye_y{0.0f}, g_eye_z{0.0f};
 std::atomic<std::uint64_t> g_eye_tick_ms{0};
 std::atomic<std::uint64_t> g_eye_rays_r121{0}; // R121: look rays that started at the rendered eye
-core::SnapshotMailbox<RaySample> g_point_packets137; // R137: the pointing hand's finger ray (mod thread)
-std::atomic<std::uint64_t> g_view_head137{0},g_view_finger137{0},g_view_palm137{0},g_view_miss137{0}; // R137 object picks
 
 bool SafeReadable(const void* p, std::size_t need) noexcept {
     if (!p) return false;
@@ -273,7 +270,7 @@ void MaybeLog() noexcept {
     const bool valid = LoadVisualRay(ray);
     char msg[640]{};
     std::snprintf(msg, sizeof(msg),
-        "V64.3-INTERACT enabled=%d valid=%d builds=%llu playerCalls=%llu redirects=%llu screenChecks=%llu screenForced=%llu dir=(%.4f,%.4f,%.4f) sourceTan=(%.4f,%.4f) center=(%+.4f,%+.4f) nativeToVisual=%.2fdeg reach=%.3f baseRadius=%.3f coneHalf=%.2fdeg split=%d headCandidates=%llu handCandidates=%llu unknown=%llu eyeRayR121=%d/%llu viewR137 head=%llu finger=%llu palm=%llu outside=%llu",
+        "V64.3-INTERACT enabled=%d valid=%d builds=%llu playerCalls=%llu redirects=%llu screenChecks=%llu screenForced=%llu dir=(%.4f,%.4f,%.4f) sourceTan=(%.4f,%.4f) center=(%+.4f,%+.4f) nativeToVisual=%.2fdeg reach=%.3f baseRadius=%.3f coneHalf=%.2fdeg split=%d headCandidates=%llu handCandidates=%llu unknown=%llu eyeRayR121=%d/%llu",
         g_enabled.load(std::memory_order_relaxed) ? 1 : 0, valid ? 1 : 0,
         (unsigned long long)g_ray_builds.load(std::memory_order_relaxed),
         (unsigned long long)g_interaction_calls.load(std::memory_order_relaxed),
@@ -287,9 +284,7 @@ void MaybeLog() noexcept {
         double(g_radius_m.load(std::memory_order_relaxed)),
         double(g_cone_half_angle_deg.load(std::memory_order_relaxed)),g_split_ready57c1?1:0,
         (unsigned long long)g_head_candidates57c1.load(),(unsigned long long)g_hand_candidates57c1.load(),(unsigned long long)g_unknown_candidates57c1.load(),
-        kcd2vr::eye_ray_r121::enabled.load(std::memory_order_relaxed)?1:0,(unsigned long long)g_eye_rays_r121.load(std::memory_order_relaxed),
-        (unsigned long long)g_view_head137.load(std::memory_order_relaxed),(unsigned long long)g_view_finger137.load(std::memory_order_relaxed),
-        (unsigned long long)g_view_palm137.load(std::memory_order_relaxed),(unsigned long long)g_view_miss137.load(std::memory_order_relaxed));
+        kcd2vr::eye_ray_r121::enabled.load(std::memory_order_relaxed)?1:0,(unsigned long long)g_eye_rays_r121.load(std::memory_order_relaxed));
     diagnostic_trace::Write(msg);
 }
 
@@ -391,8 +386,7 @@ static void SelectionReceipt59c10(std::uint64_t now,std::uint32_t target,int sid
     static constexpr const char* reasons[]{"NATIVE_ACTIVITY_FALLBACK","NATIVE_RAY_STALE","POLICY_UNKNOWN",
         "HAND_RAY_STALE","SOURCE_OWNER_CHANGED","PALM_OUTSIDE_OR_STALE","GRIP_TARGET_LOCK",
         "OFFERED","LOWER_RANKED_CANDIDATE","OUTSIDE_CONE_OR_REACH","HEAD_POLICY",
-        "DIRECT_NATIVE_DOOR_OFFERED","DIRECT_NATIVE_DOOR_NO_FRESH_PALM_WITNESS",
-        "VIEW_R137_HEAD","VIEW_R137_FINGER","VIEW_R137_OUTSIDE_VIEW","VIEW_R137_OUTSIDE_FINGER"};
+        "DIRECT_NATIVE_DOOR_OFFERED","DIRECT_NATIVE_DOOR_NO_FRESH_PALM_WITNESS"};
     char line[480]{};std::snprintf(line,sizeof(line),
         "C10 F5_SELECTION session=%llu target=%u hand=%d reason=%s lockedTarget=%u distance=%.3f score=%.4f observed=%llu changes=%llu coalesced=%llu scope=CANDIDATE_NOT_FINAL_ACTION",
         (unsigned long long)session,target,side,reasons[reason],locked,double(distance),double(score),
@@ -435,44 +429,6 @@ static void DoorCandidateObservation38(const Candidate57c1& native,const float* 
     g_door_candidates38.record(value);
 }
 #include "interaction_direct_door54r1.inl"
-// R137 (vrik/view_select_r137.h): one VRIK object candidate -> palm path (-1), offered (1) or refused (0).
-// before, an object was offered ONLY by an open palm's 2 m cone (R136 log: 359 PALM_OUTSIDE_OR_STALE refusals,
-// 86 offers, all 0.08-0.60 m from a hand) and without a palm by the game's own screen test; the headset ray never
-// selected an object in VRIK. now: locked palm / palm touch / palm within 60 cm keep the palm path, an index-finger
-// point uses the finger ray, everything else the headset ray (rendered eye + forward from RayBuildDetour/R121).
-static int ObjectViewR137(const Candidate57c1& candidate,std::uintptr_t world_point,float* out_screen,
-                          const NativeRay112& native,std::uint64_t now) noexcept {
-    namespace vs=kcd2vr::view_select_r137;
-    float p[3]{};
-    __try {const auto* w=reinterpret_cast<const float*>(world_point);p[0]=w[0];p[1]=w[1];p[2]=w[2];}
-    __except(EXCEPTION_EXECUTE_HANDLER){return -1;}
-    if(!std::isfinite(p[0])||!std::isfinite(p[1])||!std::isfinite(p[2]))return -1;
-    palm59c9::Pair palms{};
-    const bool palmsOk=g_hand_ray_active.load(std::memory_order_acquire)&&g_palm_packets59c9.read(palms);
-    RaySample point{};
-    const bool pointing=g_point_packets137.read(point)&&point.hand&&point.owner>=0&&point.owner<2&&interaction112::Fresh(point,now);
-    const auto pick=palmsOk?palm59c9::choose(palms,p[0],p[1],p[2],now,palms.locked):palm59c9::Choice{};
-    const bool palmTakes=palmsOk&&pick.side>=0&&palm59c9::accepts(palms,candidate.id,pick.side);
-    const auto source=vs::decide(palmsOk&&palms.lockedEntity!=0,pointing?point.owner:-1,palmTakes?pick.side:-1,pick.distance);
-    if(source==vs::Source::Palm){g_view_palm137.fetch_add(1,std::memory_order_relaxed);return -1;}
-    const bool finger=source==vs::Source::Finger;
-    RaySample ray=finger?point:native.ray;ray.hand=false; // Project: the head cap (0.5 m) for both
-    if(!interaction112::Normalize(ray))return -1;
-    const float reach=finger?std::min(native.reach,vs::kPointReachM):native.reach;
-    const float radius=finger?vs::kPointRadiusM:g_radius_m.load(std::memory_order_relaxed);
-    const float angle=finger?vs::kPointHalfDeg:g_cone_half_angle_deg.load(std::memory_order_relaxed);
-    const auto pr=interaction57c1::Project(ray,p[0],p[1],p[2],reach,radius,angle);
-    const int side=finger?point.owner:-1;
-    if(!pr.inside){
-        g_view_miss137.fetch_add(1,std::memory_order_relaxed);
-        SelectionReceipt59c10(now,candidate.id,side,finger?16:15);return 0;
-    }
-    float x=50.f,y=50.f;vs::rank(source,pr.x,pr.y,x,y);
-    __try {out_screen[0]=x;out_screen[1]=y;} __except(EXCEPTION_EXECUTE_HANDLER){return -1;}
-    (finger?g_view_finger137:g_view_head137).fetch_add(1,std::memory_order_relaxed);
-    SelectionReceipt59c10(now,candidate.id,side,finger?14:13,pr.distance);
-    g_onscreen_forced.fetch_add(1,std::memory_order_relaxed);return 1;
-}
 char __fastcall OnScreenDetour(std::uintptr_t a1, std::uintptr_t world_point,
     float* out_screen, std::uintptr_t a4) noexcept {
     const auto caller=reinterpret_cast<std::uintptr_t>(_ReturnAddress());
@@ -554,12 +510,6 @@ char __fastcall OnScreenDetour(std::uintptr_t a1, std::uintptr_t world_point,
             // and distance checks after this projection, without a 2 m cap.
         }else{
             g_hand_candidates57c1.fetch_add(1,std::memory_order_relaxed);
-            // R137: VrInteractionEyeRayR121 ON = the headset view / index-finger point select objects too;
-            // a palm that holds, touches or is within 60 cm of the object keeps the palm path below.
-            if(kcd2vr::eye_ray_r121::enabled.load(std::memory_order_acquire)){
-                const int view137=ObjectViewR137(candidate,world_point,out_screen,native,now);
-                if(view137>=0)return char(view137);
-            }
             if(!g_hand_ray_active.load(std::memory_order_acquire)){
                 SelectionReceipt59c10(now,candidate.id,-1,3);
                 return g_onscreen_original(a1,world_point,out_screen,a4); // H11: no hand owner = native gaze selection
@@ -820,16 +770,6 @@ void ClearLegacyHandRayWorldH5() noexcept {
        !g_hand_packets112.read(current)||!current.hand||current.owner!=-1)return;
     g_hand_ray_active.store(false,std::memory_order_release);
     ++g_door_generation38;g_door_candidates38.clear();
-}
-void SetPointRayR137(bool active,float ox,float oy,float oz,float dx,float dy,float dz,int side) noexcept {
-    RaySample packet{};
-    if(active&&side>=0&&side<2){
-        packet.hand=true;packet.ox=ox;packet.oy=oy;packet.oz=oz;packet.x=dx;packet.y=dy;packet.z=dz;
-        packet.limit=kcd2vr::view_select_r137::kPointReachM;packet.radius=kcd2vr::view_select_r137::kPointRadiusM;
-        packet.owner=side;packet.tick=GetTickCount64();
-        if(!interaction112::Normalize(packet))packet={};
-    }
-    (void)g_point_packets137.publish(packet); // a busy publish leaves the old ray; it goes stale after 80 ms
 }
 void SetPalmRays59c9(const palm59c9::Pair& pair) noexcept {
     (void)g_palm_packets59c9.publish(pair);

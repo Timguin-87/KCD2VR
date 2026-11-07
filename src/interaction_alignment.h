@@ -30,9 +30,6 @@ void SetHandRayWorld(bool active, float ox,float oy,float oz, float dx,float dy,
 // Inactive legacy HUD laser may release only its own default-owner ray.
 // Ordinary Grip/context release continues through SetHandRayWorld(false,...).
 void ClearLegacyHandRayWorldH5() noexcept;
-// R137 (vrik/view_select_r137.h): the index-finger point ray (finger tip + hand direction, world metres) of the
-// pointing hand, published every mod loop; active=false when no hand points. object selection only.
-void SetPointRayR137(bool active,float ox,float oy,float oz,float dx,float dy,float dz,int side) noexcept;
 bool HandRayActive() noexcept;
 // D76R1 read-only name focus: current head-view native bounds, with the
 // qualified hand nominee as fallback. Never grants Use or changes selection.
