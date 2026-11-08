@@ -62,19 +62,23 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
             DrawCheck(dc,denseFont,kHudStatus170,s.hud_status_icons_visible,L"Status icons");
         }
         if(!s.hud_native_canvas_fit&&!(s.auto_correct_hud||s.hud_corrected_active)){DrawButton(dc,font_small_,kV4UiReset,L"RESET LAYOUT",RGB(176,148,98)); DrawButton(dc,font_small_,kV4UiApply,L"APPLY + SAVE",kAccent);}
-        DrawCheck(dc,denseFont,kContextualHud162r1,s.contextual_hud,L"Immersive HUD (look at an open palm)");
+        DrawCheck(dc,denseFont,kContextualHud162r1,s.contextual_hud,L"Immersive HUD (palm look)");
+        DrawCheck(dc,denseFont,kMinimalHudR141,s.live_d39.minimalHudR141,L"Minimal HUD"); // R141 VrMinimalHudR141
         DrawCheck(dc,denseFont,kHudLag22,s.hud_lag_on,L"HUD follows your head a little slower"); // C22b
         DrawCheck(dc,denseFont,kHudQuickSlotsR115,s.quick_slots_on_selection_r115,L"Weapon / potion slots only while selecting (3 s)"); // R115
-        DrawCheck(dc,denseFont,kHudBlockMsgR124,s.show_block_indicator_h24,L"Show BLOCK message while blocking"); // R124
+        DrawCheck(dc,denseFont,kHudBlockMsgR124,s.show_block_indicator_h24,L"BLOCK message"); // R124 (R141: half row)
+        DrawCheck(dc,denseFont,kHudTutorialsR141,!s.live_d39.hideTutorialsR141,L"Tutorial messages"); // R141: ticked = shown (VrHideTutorialsR141=false)
 
 #elif defined(KCD2VR_MENU_CLICK_VRHUD)
 
         if(PtIn(kV4UiAuto,x,y)){s.auto_correct_hud=!s.auto_correct_hud;ApplyState(s);save();MarkDirty();return;}
         // Session opt-in; native mode ignores palm gates.
         if(PtIn(kContextualHud162r1,x,y)){s.contextual_hud=!s.contextual_hud;ApplyState(s);save();MarkDirty();return;}
+        if(PtIn(kMinimalHudR141,x,y)){s.live_d39.minimalHudR141=!s.live_d39.minimalHudR141;ApplyState(s);save();MarkDirty();return;} // R141 VrMinimalHudR141
         if(PtIn(kHudLag22,x,y)){s.hud_lag_on=!s.hud_lag_on;ApplyState(s);save();MarkDirty();return;} // C22b
         if(PtIn(kHudQuickSlotsR115,x,y)){s.quick_slots_on_selection_r115=!s.quick_slots_on_selection_r115;ApplyState(s);save();MarkDirty();return;} // R115
         if(PtIn(kHudBlockMsgR124,x,y)){s.show_block_indicator_h24=!s.show_block_indicator_h24;ApplyState(s);save();MarkDirty();return;} // R124 VrShowBlockIndicator
+        if(PtIn(kHudTutorialsR141,x,y)){s.live_d39.hideTutorialsR141=!s.live_d39.hideTutorialsR141;ApplyState(s);save();MarkDirty();return;} // R141 VrHideTutorialsR141
         if(PtIn(kV4Crosshair,x,y)){ s.hud_crosshair_visible=!s.hud_crosshair_visible; ApplyState(s); if(callbacks_.apply_hud_visibility) callbacks_.apply_hud_visibility(callbacks_.context,s.hud_crosshair_visible,s.hud_lower_icons_visible,s.hud_compass_visible); save(); return; }
         if(PtIn(kV4LowerIcons,x,y)){ s.hud_lower_icons_visible=!s.hud_lower_icons_visible; ApplyState(s); if(callbacks_.apply_hud_visibility) callbacks_.apply_hud_visibility(callbacks_.context,s.hud_crosshair_visible,s.hud_lower_icons_visible,s.hud_compass_visible); save(); return; }
         if(PtIn(kV4Compass,x,y)){ s.hud_compass_visible=!s.hud_compass_visible; ApplyState(s); if(callbacks_.apply_hud_visibility) callbacks_.apply_hud_visibility(callbacks_.context,s.hud_crosshair_visible,s.hud_lower_icons_visible,s.hud_compass_visible); save(); return; }
@@ -188,6 +192,8 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         Text(dc,dense,L"INTERACTION ICONS  (Hints / br.actionHints)",620,122,418,22,kAccent,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
         std::swprintf(v,128,L"%.0f%%",double(s.vr_ui_hints_scale*100.0f)); DrawSlider(dc,dense,kUiPromptHintScale,L"Interaction / menu icons",(s.vr_ui_hints_scale-0.25f)/1.25f,v);
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"%.0f%%",double(s.vr_ui_hints_inset_pct)); DrawSlider(dc,dense,kUiPromptHintInset,L"Interaction inward",s.vr_ui_hints_inset_pct/75.0f,v);}
+        else{const float craftR145=prompt_policy_d80::minigameScale.load(std::memory_order_acquire); // R145 VrMinigamePromptScale
+            std::swprintf(v,128,L"%.0f%%",double(craftR145*100.0f)); DrawSlider(dc,dense,kCraftUiSizeR145,L"Crafting UI size (alchemy / smithing prompts + icons)",(craftR145-0.25f)/0.75f,v);}
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"%+.0f px",double(s.vr_ui_hints_y)); DrawSlider(dc,dense,kUiPromptHintY,L"Interaction vertical",(s.vr_ui_hints_y+300.0f)/600.0f,v);}
         std::swprintf(v,128,L"%.2fx",double(s.passive_full_frame_scale)); DrawSlider(dc,dense,kCinematicSizeR107,L"Cutscene / dialogue / loading size",(s.passive_full_frame_scale-1.0f)/1.0f,v); // R107
         Text(dc,dense,L"CONTROL / TUTORIAL PROMPTS  (TutorialMessage / tl.tutorial)",620,318,418,22,kAccent,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
@@ -204,6 +210,7 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
 #elif defined(KCD2VR_MENU_CLICK_VRHUDELEMENTS)
 
         if(begin_drag(kUiPromptHintScale,DragControl::UiHintsScale)) return;
+        if((s.auto_correct_hud||s.hud_corrected_active)&&begin_drag(kCraftUiSizeR145,DragControl::CraftUiSizeR145)) return; // R145, same slot as the hidden inset row
         if(begin_drag(kUiPromptHintInset,DragControl::UiHintsInset)) return;
         if(begin_drag(kUiPromptHintY,DragControl::UiHintsY)) return;
         if(begin_drag(kCinematicSizeR107,DragControl::PassiveFullFrameScale)) return; // R107

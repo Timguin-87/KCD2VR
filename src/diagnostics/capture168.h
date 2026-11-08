@@ -71,6 +71,17 @@ struct Gate {
         if(rung==1||rung==2){vrikStageD67.store(rung+1,std::memory_order_release);return rung+1;}
         select(Domain::Vrik,rung==0,now);return rung==0&&active(Domain::Vrik,now)?1u:0u;
     }
+    // R146 (non-developer perf): no recorder bit set and no recorder closed within the
+    // 5 s receipt grace below. Then receipt() and active() are false for every domain,
+    // so accept() can only refuse; callers may skip their text scan. Pure read, no latch.
+    bool quiet(std::uint64_t now) const noexcept {
+        if(mask.load(std::memory_order_acquire))return false;
+        for(unsigned i=0;i<DomainCount;++i){
+            const auto closed=closedAt[i].load(std::memory_order_acquire);
+            if(closed&&now>=closed&&now-closed<=5000)return false;
+        }
+        return true;
+    }
     bool any(std::uint64_t now) const noexcept {
         return active(Domain::Bug,now)||active(Domain::Combat,now)||active(Domain::Interaction,now)||active(Domain::Reload,now)||active(Domain::Vrik,now)||active(Domain::Physics,now);
     }

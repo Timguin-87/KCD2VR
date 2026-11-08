@@ -33,6 +33,17 @@ int main(){
     current.known=false;assert(!chooseFirstPerson({100,true},current,100));current.known=true;
     current.camera=ds::Camera::Unknown;assert(!chooseFirstPerson({100,true},current,100));
     current.camera=ds::Camera::FirstPerson;assert(chooseFirstPerson({100,true},current,100));
+    // R142: dialogue start/end (Henry listed participant, dialog input map known but off): camera choice only.
+    {ds::State start{100,0x30000,0x70000,true,false,ds::Camera::FirstPerson};
+     assert(!chooseFirstPerson({100,true},start,100)); // no membership = never (ordinary gameplay, barks without Henry)
+     start.membership.active=true;assert(!chooseFirstPerson({100,true},start,100)); // map unreadable = native
+     start.inputOwner.known=true;assert(chooseFirstPerson({100,true},start,100));
+     assert(!ds::embodiedOwner(start,100)); // eye/body/gameplay suspension still wait for the map
+     start.camera=ds::Camera::Dialogue;assert(chooseFirstPerson({100,true},start,100));
+     start.camera=ds::Camera::Unknown;assert(!chooseFirstPerson({100,true},start,100));start.camera=ds::Camera::FirstPerson; // bone/ui/rider
+     assert(!chooseFirstPerson({100,false},start,100)); // VrDialogueCameraMode 0/1
+     assert(!chooseFirstPerson({100,true},start,181)&&!chooseFirstPerson({100,true},start,99));
+     start.known=false;assert(!chooseFirstPerson({100,true},start,100));}
     constexpr std::uintptr_t b=0x180000000,self=0x10000,game=0x20000,module=0x30000,manager=0x40000,cameras=0x50000;
     std::map<std::uintptr_t,std::uint64_t> mem;
     auto read=[&](std::uintptr_t address,auto& value){auto it=mem.find(address);if(it==mem.end())return false;

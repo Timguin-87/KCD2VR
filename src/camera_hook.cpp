@@ -1393,7 +1393,14 @@ bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* 
             static r133::Hold holdR133{};static std::uint64_t genR133=0,epochR133=0;
             const bool plusR133=kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire)&&
                 kcd2vr::free_targeting_d42::mode()==r133::FreePlus;
-            if(record_render_identity&&(plusR133||holdR133.haveCamera||holdR133.view!=0||holdR133.body!=0)){ // the last call after leaving mode 2 forgets the old yaw
+            // R142: the hold also runs in the culling apply (record_render_identity=false). the rendered camera reuses that
+            // culled matrix (ApplyLatestCullingPoseToPublishedCamera), so the record=true call never ran: R138 log 7 Nov
+            // 08:51-08:53 FREE PLUS engaged=1 context=1 for 3 min with absorbFrames=0, W3 XR_TIMING cameraLatchUsed ~470/5 s
+            // cameraLatchMissed=0 the whole log. one caller at a time (the two applies can run on different threads); a
+            // skipped call loses nothing, the next one takes the whole yaw delta since the last call.
+            static std::atomic<bool> busyR133{false};
+            if((plusR133||holdR133.haveCamera||holdR133.view!=0||holdR133.body!=0)&& // the last call after leaving mode 2 forgets the old yaw
+               !busyR133.exchange(true,std::memory_order_acquire)){
                 const auto nowR133=std::uint64_t(GetTickCount64());
                 const auto genNow=s_rotation_filter_generation.load(std::memory_order_acquire);
                 const auto epochNow=frik_pose_probe::PoseEpochH24();
@@ -1420,6 +1427,7 @@ bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* 
                 r133::offsetView.store(float(holdR133.view),std::memory_order_release);
                 r133::offsetBody.store(float(holdR133.body),std::memory_order_release);
                 r133::bleedSign.store(stepR133==r133::Step::Bleed?holdR133.bleedSign:0,std::memory_order_release);
+                busyR133.store(false,std::memory_order_release);
             }
             const double phiR133=hmd_final_orientation_authority&&!dialogueEye59c10r2&&!activityEye59c19?double(r133::offsetView.load(std::memory_order_acquire)):0.; // atomic: culling applies can run on another thread
             if(std::fabs(phiR133)>1e-6){

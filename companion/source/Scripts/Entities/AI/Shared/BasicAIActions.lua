@@ -174,14 +174,24 @@ function BasicAIActions:GetChatActions(user)
 	local canFollow = user.actor:CanFollow(self.id) and not user.actor:IsFollowing(self.id)
 	if canFollow then
 		local followHint = "@ui_hud_follow_start"
-		AddInteractorAction(output, false, Action():hint(followHint):action("focus_follow_init_interactor_press"):hintType(AHT_PRESS):uiOrder(5):func(BasicAIActions.OnFollow):interaction(inr_chatFollow):enabled(isEnabled):actionMap("focus_follow_init_interactor"):hintClass(AHC_FOLLOW))
+		-- KCD2VR R151: Follow is on X now (defaultProfile.xml: X first, LB second), the VR grip never sends LB in
+		-- normal play. while the NPC waits for a reply the reply prompt owns X, then Follow keeps the old LB-only
+		-- binding (kcd2vr_follow_lb_press) so the two prompts never share a button.
+		local followAction = "focus_follow_init_interactor_press"
+		if showReplyHint then followAction = "kcd2vr_follow_lb_press" end
+		AddInteractorAction(output, false, Action():hint(followHint):action(followAction):hintType(AHT_PRESS):uiOrder(5):func(BasicAIActions.OnFollow):interaction(inr_chatFollow):enabled(isEnabled):actionMap("focus_follow_init_interactor"):hintClass(AHC_FOLLOW))
 	end
 
 	if showInitHint then
 		chatHint = "@ui_hud_chat_init"
 		-- VR: keep the native X quick-talk prompt alongside Follow. The game
 		-- still checks CanChat above; a gesture preference must not remove it.
+		-- R151: except when Follow is offered - Follow owns X then (two prompts on one button: the game drops one).
+		-- quick talk with that NPC stays on the pointing gesture (hidden RB alias below) and comes back on X
+		-- as soon as Follow is gone (following started or not offered).
+		if not canFollow then
 		AddInteractorAction(output, false, Action():hint(chatHint):action("chat_init_with_focus"):hintType(AHT_PRESS):uiOrder(6):func(BasicAIActions.OnChatWithFocus):interaction(inr_chatFollow):enabled(isEnabled):actionMap("chat_init_interactor"):hintClass(AHC_CHAT))
+		end
 		AddInteractorAction(output, false, Action():action("kcd2vr_chat_init_gesture"):hintType(AHT_PRESS):uiOrder(5):func(BasicAIActions.OnChat):interaction(inr_chatFollow):enabled(isEnabled):uiVisible(false):actionMap("chat_init_interactor"):hintClass(AHC_CHAT))
 	elseif showReplyHint then
 		chatHint = "@ui_hud_chat_reply"

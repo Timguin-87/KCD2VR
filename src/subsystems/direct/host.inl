@@ -167,6 +167,7 @@
 // src/mod.cpp: loadconfig_12.inl
 // M2_SLOT_BEGIN 205
     combat_diag_probe::SetDirectBlockTiming39(g_exp59c10.directBlock39.load(),g_exp59c10.directBlockLo39.load(),g_exp59c10.directBlockHi39.load());
+    npc_defense::SetBySkill(g_exp59c10.directBlock39.load(),g_exp59c10.directBlockLo39.load(),g_exp59c10.directBlockHi39.load()); // R146: skill picks NPC block/parry/dodge speed
 // M2_SLOT_END 205
 #elif KCD2VR_M2_HOST_SLOT == 236
 // src/mod.h: mod_state_01.inl
@@ -248,7 +249,8 @@ static NpcBlock39 g_npc_block_state39;
 struct CombatWindowsConsoleH3 : RagdollConsole59 {
     bool Qualified()const noexcept {return retail_build112::Ready(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll")));}
     bool Read(const char* name,float& value)noexcept {return Qualified()&&RagdollConsole59::Read(name,value);}
-    bool Write(const char* name,float value)noexcept {return Qualified()&&RagdollConsole59::Write(name,value);}
+    // R143: Dodge_WindowMod and the 6 H3 slot cvars are cheat cvars: Set() is refused without -devmode -> CheatCVarSetFloat143.
+    bool Write(const char* name,float value)noexcept {if(!Qualified())return false;void* v=SafeConsoleGetCVar(SafeGetCryConsole(),name);return v&&CheatCVarSetFloat143(v,value);}
 };
 static kcd2vr::routerH3::Windows g_router_windows_h3;
 static kcd2vr::dodge_window_d70::Lease g_dodge_window_d70;

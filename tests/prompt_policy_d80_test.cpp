@@ -1,6 +1,7 @@
 #include "subsystems/hud_ui_controls/prompt_policy_d80.h"
 #include "ui_prompt_scale120r3.h"
 #include <cassert>
+#include <cmath>
 #include <limits>
 using namespace kcd2vr::prompt_policy_d80;
 struct Cvar {int value=1,reads=0,writes=0;bool available=true;
@@ -44,6 +45,27 @@ int main(){
      assert(!p.Needed(on,1,1));assert(p.Needed(off,1,1));p.Published(off,1,1);
      assert(!p.Needed(off,1,1));assert(p.Needed(off,1,2)); // explicit same-HUD retry, no idle poll
      p.Published(off,1,2);assert(!p.Needed(off,1,2));}
+    // R145: at an active station the same request goes out again every second, never while off or before the first send.
+    {Publication p;Presentation off{},on{true,true,45};
+     assert(!p.Reassert(on,5000));p.Published(on,1,1,5000);
+     assert(!p.Reassert(on,5999));assert(p.Reassert(on,6000));
+     p.Published(on,1,1,6000);assert(!p.Reassert(on,6500));
+     assert(p.Reassert(on,10)); // clock went back: send, never wait forever
+     p.Published(off,1,1,7000);assert(!p.Reassert(off,20000)&&!p.Reassert(on,20000)); // left the station: Needed() decides
+     assert(p.Needed(on,1,1));}
+    // R145: the yellow message line follows the hints slider on top of the authored 50 %, never bigger, gives it back.
+    {struct InfoIO{kcd2vr::ui_native_canvas::Geometry g{0,0,50,50,0};int writes=0;
+       bool Resolve(unsigned,const char*,std::uintptr_t& id){id=7;return true;}
+       bool Get(unsigned,kcd2vr::ui_native_canvas::Geometry& out){out=g;return true;}
+       bool Set(unsigned,kcd2vr::ui_native_canvas::Geometry in){++writes;g=in;return true;}}io;
+     kcd2vr::ui_prompt_scale120r3::InfoTextR145 info;
+     assert(info.Run(io,1,true,.51f)&&std::fabs(io.g.xs-25.5f)<.01f&&std::fabs(io.g.ys-25.5f)<.01f);
+     const int writes=io.writes;assert(info.Run(io,1,true,.51f)&&io.writes==writes); // ours already: no write
+     assert(info.Run(io,1,true,1.4f)&&std::fabs(io.g.xs-50.f)<.01f); // >100 % = authored size, never bigger
+     assert(info.Run(io,1,true,.5f)&&std::fabs(io.g.xs-25.f)<.01f);
+     io.g.xs=io.g.ys=50.f;assert(info.Run(io,1,true,.5f)&&std::fabs(io.g.xs-25.f)<.01f); // native reset: once, not twice
+     assert(info.Run(io,1,false,.5f)&&std::fabs(io.g.xs-50.f)<.01f&&!info.Active()); // window closed: authored size back
+     assert(kcd2vr::ui_prompt_scale120r3::InfoTextR145::Clamp(std::numeric_limits<float>::quiet_NaN())==1.f);}
     {HintsLease hints;Cvar io;hints.Update(io,true,false,1);assert(io.value==0);
      const auto reads=io.reads;for(int i=0;i<100;++i)hints.Update(io,true,false,1);assert(io.reads==reads);
      hints.Update(io,true,true,1);assert(io.value==1);hints.Update(io,false,true,2);assert(io.value==1);

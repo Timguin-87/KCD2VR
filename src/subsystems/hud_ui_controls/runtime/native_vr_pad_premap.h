@@ -25,6 +25,10 @@ struct Context {
     int (*carry_query_r25)(std::uint32_t) noexcept {nullptr};
     bool quick_talk_claim_h4{false}; // current pending/opener/chooser gesture; quick-weapon chord re-arms at neutral
     bool snap_turn_d37{false}; // Gameplay yaw belongs to the latched Touch pulse; native menu/activity axes stay unchanged.
+    // R147: Henry sits on a horse now (riding_vrik_d76::RiderRecentR98) + optional follow prompt query
+    // (1 listed, 0 not listed, -1 unknown; want=false only retires the query). ride_follow_r147.h
+    bool mounted_r147{false};
+    int (*follow_query_r147)(bool want) noexcept {nullptr};
 };
 
 struct State {
@@ -46,6 +50,9 @@ struct State {
     unsigned char xUtilityPress62{0};
     // R118: one physical X/Square hold on the STEAMVR / PS VR2 layout = native Inventory request (instead of torch).
     bool inventoryRequestR118{false};
+    // R147: this frame's LB comes from a mounted X tap (ride_follow_r147.h): 0 no, 1 follow prompt listed, 2 list unreadable.
+    unsigned char rideFollowLbR147{0};
+    bool rideFollowTalkR147{false}; // R147: release frame of a mounted tap that stayed Quick Speak (no follow prompt listed)
 };
 
 void Reset() noexcept;

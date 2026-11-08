@@ -47,8 +47,14 @@ bool ApplyWholeReadableHud44c2(bool enabled,const ui_surface_geometry::Hud&,floa
 void UpdatePalmAlpha44c2(bool active,bool left,bool right,bool qam,std::uint64_t generation) noexcept;
 // R112: big directional combat crosshair size (ui_hud_r112::combatCrosshairScale); enabled=false restores native.
 void UpdateCombatCrosshairR112(bool enabled,std::uint64_t now) noexcept;
+// R145: yellow message line (InfoText) size = hints slider (ui_prompt_scale120r3::InfoTextR145). same owner window as
+// the prompts; outside it the authored size is given back.
+void UpdateInfoTextScaleR145(bool enabled,float scale,std::uint64_t now) noexcept;
 // R125: hide=true hides the direction art of CombatCursorCross (state1/2/3/6/7), lock + pbslot icons stay native.
 void UpdateCombatCrossArtR125(bool hide,std::uint64_t now) noexcept;
+// R141 Minimal HUD: re-hide the status/popup clips (+ the action cursor when cursor=true) every HUD generation and
+// 500 ms; on=false gives back what it hid. zeroMask = ui_minimal_hud_r141::CvarLease::ZeroMask() (game hides those).
+void UpdateMinimalHudR141(bool on,bool cursor,unsigned zeroMask,std::uint64_t now) noexcept;
 // R112: quick weapon/potion selectors fade 3 s after the last quick-access input / native re-show (alpha only).
 void UpdateQuickSlotFadeR112(bool enabled,bool reveal,std::uint64_t now) noexcept;
 void CanvasPhaseCost178r27(double& resolveMs,double& getMs,double& setMs,std::uint64_t& hits,std::uint64_t& misses) noexcept; // V66.178R27

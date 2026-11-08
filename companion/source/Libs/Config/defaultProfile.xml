@@ -654,7 +654,21 @@
 	</actionmap>
 
 	<actionmap name="focus_follow_init_interactor" priority="gameplay" exclusivity="0">
-		<action name="focus_follow_init_interactor_press" onPress="1" keyboard="_keybinds_ref_" xboxpad="xi_shoulderl" pspad="pad_l1" />
+		<!-- KCD2VR R151: Follow on X (PS Square), first input = the shown glyph; LB / L1 kept second for a real pad and for the
+		     mod's mounted X tap (R147 sends LB). the grip never sends LB in normal play, so LB alone was unreachable in VR.
+		     BasicAIActions.lua hides the X Quick talk prompt while Follow is offered (one button, one prompt). -->
+		<action name="focus_follow_init_interactor_press" onPress="1" keyboard="_keybinds_ref_">
+			<xboxpad>
+				<inputdata input="xi_x" />
+				<inputdata input="xi_shoulderl" />
+			</xboxpad>
+			<pspad>
+				<inputdata input="pad_square" />
+				<inputdata input="pad_l1" />
+			</pspad>
+		</action>
+		<!-- R151: the original LB-only Follow, used only while the NPC waits for a reply (the reply prompt owns X then). -->
+		<action name="kcd2vr_follow_lb_press" onPress="1" xboxpad="xi_shoulderl" pspad="pad_l1" />
 	</actionmap>
 
 	<actionmap name="chat_focus_follow_init" priority="gameplay" exclusivity="0">

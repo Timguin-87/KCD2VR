@@ -260,6 +260,7 @@
 #include "core/haptics.h"
 #include "diagnostics/combat_capture.h"
 #include "vrik/calibration_profile.h"
+#include "vrik/default_profile_r149.h" // R149: default arm profile when there is no saved F8 T-pose
 #include <DetourModKit/hook.hpp>
 #include <windows.h>
 #include "core/config_file_guard_d62.h"

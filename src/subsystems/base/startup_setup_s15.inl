@@ -267,8 +267,12 @@ static bool SaveSource(State& s,bool launchOptions=false){
  else if(!startup_graphics_d80::canKeepConfig(s.productionMode,lines))return false;
  if(launchOptions)lines=graphics_owner31::updateUserCfgR27(lines,selected);
  std::ofstream out(tmp,std::ios::binary|std::ios::trunc);if(!out)return false;
- for(const auto& l:lines){auto k=key(l);if(k!="r_width"&&k!="r_height"&&k!="cl_fov"&&k!="cl_hfov")out<<l<<"\r\n";}
- out<<"r_Width = "<<int(width)<<"\r\nr_Height = "<<int(height)<<"\r\ncl_fov = "<<fov<<"\r\n";out.flush();bool ok=out.good();out.close();ok=ok&&!out.fail();
+ // R145 (Miki 8 Nov): the setup also writes the VR2 sun shadow cascades (the RIGHT eye shadow stripe), so they are set
+ // from the first frame; R144's keeper in mod.cpp re-applies them in stereo if a preset change resets them later.
+ static constexpr const char* kGsmCommentR145="-- KCD2VR: wider sun shadow cascades so the RIGHT eye has no stripe of missing shadows";
+ for(const auto& l:lines){auto k=key(l);if(k!="r_width"&&k!="r_height"&&k!="cl_fov"&&k!="cl_hfov"&&k!="e_gsmsizeswh"&&l.rfind(kGsmCommentR145,0)!=0)out<<l<<"\r\n";}
+ out<<"r_Width = "<<int(width)<<"\r\nr_Height = "<<int(height)<<"\r\ncl_fov = "<<fov<<"\r\n";
+ out<<kGsmCommentR145<<"\r\ne_GsmSizesWH = 6,20,50,150,600\r\n"; /* R145: = mod.cpp golden_apply_gsm VR2 */ out.flush();bool ok=out.good();out.close();ok=ok&&!out.fail();
  // Native is an explicit mode 0 write, never the no-write Keep (-1) choice.
  // Verify both the closed staging file and the installed file before reporting
  // success. A successful rename alone does not confirm the requested setting.

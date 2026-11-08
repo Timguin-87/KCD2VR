@@ -337,10 +337,12 @@ constexpr UiRect kV4UiAuto{832,112,1038,136};
 constexpr UiRect kV4UiCompact{620,154,1038,178};
 constexpr UiRect kV4UiSafeWidth{620,202,1038,226};
 constexpr UiRect kPauseOverlay124{620,508,1038,532};
-constexpr UiRect kContextualHud162r1{620,580,1038,604};
+constexpr UiRect kContextualHud162r1{620,580,822,604}; // R141: left half, Minimal HUD right half
+constexpr UiRect kMinimalHudR141{832,580,1038,604}; // R141 VR HUD page: Minimal HUD (VrMinimalHudR141)
 constexpr UiRect kHudLag22{620,610,1038,634}; // C22b VR HUD page (R115: moved down one row)
 constexpr UiRect kHudQuickSlotsR115{620,504,1038,528}; // R115 VR HUD page: weapon/potion slots only while selecting
-constexpr UiRect kHudBlockMsgR124{620,640,1038,664}; // R124 VR HUD page: BLOCK message on/off (VrShowBlockIndicator)
+constexpr UiRect kHudBlockMsgR124{620,640,822,664}; // R124 VR HUD page: BLOCK message on/off (VrShowBlockIndicator); R141 left half
+constexpr UiRect kHudTutorialsR141{832,640,1038,664}; // R141 VR HUD page: tutorial messages shown/hidden (VrHideTutorialsR141)
 constexpr UiRect kV4UiSafeHeight{620,250,1038,274};
 constexpr UiRect kAutoUpper49{620,298,1038,322};
 constexpr UiRect kAutoLower49{620,346,1038,370};
@@ -393,6 +395,9 @@ constexpr UiRect kV4ElemBest{-10,-10,-5,-5};
 // TutorialMessage is the separate tl.tutorial control/help layer.
 constexpr UiRect kUiPromptHintScale{620,160,1038,184};
 constexpr UiRect kUiPromptHintInset{620,208,1038,232};
+// R145 "Crafting UI size" (VrMinigamePromptScale): the inset row slot, that row is only drawn without the corrected HUD
+// (hud_corrected_active is always true since C33), and the crafting slider is checked first on a click.
+constexpr UiRect kCraftUiSizeR145{620,208,1038,232};
 constexpr UiRect kUiPromptHintY{620,256,1038,280};
 constexpr UiRect kUiControlPromptScale{620,356,1038,380};
 constexpr UiRect kUiControlPromptX{620,404,1038,428};
@@ -1563,6 +1568,9 @@ void VrMenu::HandleDrag(int x, int y)
     case DragControl::CombatCrosshairR112: s.combat_crosshair_scale_r112=std::round((0.25f+t(kCombatCrosshairR112)*1.25f)*20.0f)/20.0f; break; // R112 25..150 %, 5 % steps
     case DragControl::PassiveFullFrameScale: s.passive_full_frame_scale=1.00f+t(kCinematicSizeR107)*1.00f; s.passive_full_frame_scale=std::round(s.passive_full_frame_scale*100.0f)/100.0f; break;
     case DragControl::PauseOverlaySize: s.pause_overlay_size=0.45f+t(kPauseOverlay124)*0.70f; s.pause_overlay_size=std::round(s.pause_overlay_size*100.0f)/100.0f; break;
+    case DragControl::CraftUiSizeR145: // R145 Crafting UI size 25..100 %, 5 % steps, live at the station (the movie owner re-applies)
+        prompt_policy_d80::minigameScale.store(std::round((0.25f+t(kCraftUiSizeR145)*0.75f)*20.0f)/20.0f,std::memory_order_release);
+        prompt_policy_d80::Refresh();MarkDirty();break;
     case DragControl::MergedMesh: s.merged_mesh_target=30.0f+t(kV4ViewDistance)*270.0f; s.merged_mesh_target=std::round(s.merged_mesh_target); break;
     case DragControl::EngineClarity: s.engine_clarity=t(kV4Sharpness)*0.75f; s.engine_clarity=std::round(s.engine_clarity*100.0f)/100.0f; break;
     case DragControl::Gamma: s.gamma=0.50f+t(kV4Gamma)*1.50f; s.gamma=std::round(s.gamma*100.0f)/100.0f; break;
@@ -1721,6 +1729,7 @@ void VrMenu::CommitDrag(DragControl released)
     auto save=[&](){ if(callbacks_.save_settings) (void)callbacks_.save_settings(callbacks_.context); };
     if(released==DragControl::StabSpeedD67||released==DragControl::StabTravelD67){ApplyState(s);save();return;}
     if(released==DragControl::HudDistanceR110){ApplyState(s);save();return;} // R125: distance / INF saved on release
+    if(released==DragControl::CraftUiSizeR145){prompt_policy_d80::Refresh();save();return;} // R145 VrMinigamePromptScale saved on release
     if(released>=DragControl::M1DifficultyR109&&released<=DragControl::M3KillEnergyR109){ApplyState(s);save();return;} // R109 MISC sliders: apply + save on release
     if(released==DragControl::NpcDifficulty||released==DragControl::NpcDefenseSpeed||released==DragControl::NpcUnarmedSpacing){ApplyState(s);save();return;}
     if(released==DragControl::BladeAxisH41||released==DragControl::FistTravelH41||released==DragControl::GuardDistanceD56||released==DragControl::GuardDepthD61||released==DragControl::GuardWidthH41||released==DragControl::GuardHeightH41||released==DragControl::GuardEntryH41||released==DragControl::GuardReleaseH41||released==DragControl::ShieldBoxR120||released==DragControl::PbWindowH41||released==DragControl::MsWindowH41||released==DragControl::H29TravelR8||released==DragControl::FingerMiddleShiftH31||released==DragControl::FingerMiddleMedialH31||released==DragControl::H29Cut||released==DragControl::H29Stab||released==DragControl::H29Punch||released==DragControl::H29Block||released==DragControl::FingerMiddleLateralC54){ApplyState(s);save();return;}
@@ -2098,22 +2107,22 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
         DrawButton(dc,font_small_,kMiscTab3R109,L"MISC 3",page==MenuPage::MiscCombat3R109?kAccent:kPanel2);
         if(page==MenuPage::MiscCombat1R109){
             std::swprintf(v,128,L"%.0f %%",double(s.npc_difficulty_percent)); DrawSlider(dc,font_small_,kM1DifficultyR109,L"Enemy difficulty: 0 % = native AI, 100 % = the harder C8 AI values",s.npc_difficulty_percent/100.f,v);
-            std::swprintf(v,128,L"x%.2f",double(s.npc_defense_speed)); DrawSlider(dc,font_small_,kM1DefenseSpeedR109,L"Enemy defence speed, all (x1.00 = native; above 1 it replaces the 3 rows below)",(s.npc_defense_speed-1.f)/2.f,v);
+            std::swprintf(v,128,L"x%.2f",double(s.npc_defense_speed)); DrawSlider(dc,font_small_,kM1DefenseSpeedR109,L"Enemy defence speed, all (above 1 replaces the 3 rows below; BY SKILL ON replaces all 4)",(s.npc_defense_speed-1.f)/2.f,v);
             std::swprintf(v,128,L"x%.2f",double(s.npc_block_anim_speed109)); DrawSlider(dc,font_small_,kM1BlockAnimR109,L"Enemy block raise speed (only with EARLIER CONTACT below)",(s.npc_block_anim_speed109-1.f)/2.f,v);
             std::swprintf(v,128,L"x%.2f",double(s.npc_parry_anim_speed109)); DrawSlider(dc,font_small_,kM1ParryAnimR109,L"Enemy parry raise speed (only with EARLIER CONTACT below)",(s.npc_parry_anim_speed109-1.f)/2.f,v);
             std::swprintf(v,128,L"x%.2f",double(s.npc_dodge_anim_speed109)); DrawSlider(dc,font_small_,kM1DodgeAnimR109,L"Enemy dodge clip speed",(s.npc_dodge_anim_speed109-1.f)/2.f,v);
             std::swprintf(v,128,L"%.0f %%",double(s.npc_unarmed_spacing_percent)); DrawSlider(dc,font_small_,kM1SpacingR109,L"Unarmed enemy keeps this much of the native distance (60 % = boxing, 100 % = native)",(s.npc_unarmed_spacing_percent-25.f)/75.f,v);
             if(s.exp_npc_block_speed18<=0.f)std::swprintf(v,128,L"legacy ETA");else std::swprintf(v,128,L"x%.2f",double(s.exp_npc_block_speed18));
             DrawSlider(dc,font_small_,kM1BlockSpeed18R109,L"Enemy guard timing on VR DIRECT hits (x1 = native, higher = earlier guard, 0 = old ETA)",s.exp_npc_block_speed18<=0.f?0.f:(s.exp_npc_block_speed18-1.f)/2.f,v);
-            std::swprintf(v,128,L"x%.1f",double(s.exp_direct_block_lo39)); DrawSlider(dc,font_small_,kM1DirectLoR109,L"Enemy block speed-up at weapon skill 0 (BY SKILL below)",(s.exp_direct_block_lo39-1.f)/2.f,v);
-            std::swprintf(v,128,L"x%.1f",double(s.exp_direct_block_hi39)); DrawSlider(dc,font_small_,kM1DirectHiR109,L"Enemy block speed-up at weapon skill 30 (BY SKILL below)",(s.exp_direct_block_hi39-1.f)/2.f,v);
+            std::swprintf(v,128,L"x%.1f",double(s.exp_direct_block_lo39)); DrawSlider(dc,font_small_,kM1DirectLoR109,L"Enemy block / parry / dodge speed at weapon skill 0 (BY SKILL below)",(s.exp_direct_block_lo39-1.f)/2.f,v);
+            std::swprintf(v,128,L"x%.1f",double(s.exp_direct_block_hi39)); DrawSlider(dc,font_small_,kM1DirectHiR109,L"Enemy block / parry / dodge speed at weapon skill 30 (BY SKILL below)",(s.exp_direct_block_hi39-1.f)/2.f,v);
             std::swprintf(v,128,L"%.2f s",double(s.exp_npc_eta_prepare)); DrawSlider(dc,font_small_,kM1EtaPrepareR109,L"Time to contact told to the enemy when you prepare a stroke",(s.exp_npc_eta_prepare-.10f)/.50f,v);
             std::swprintf(v,128,L"%.2f s",double(s.exp_npc_eta_strike)); DrawSlider(dc,font_small_,kM1EtaStrikeR109,L"Time to contact told to the enemy when you strike",(s.exp_npc_eta_strike-.10f)/.50f,v);
             DrawCheck(dc,font_small_,kM1RaiseR109,s.npc_defense_raise109,L"EARLIER CONTACT: enemy block / parry clip peak moved to the shortened time (raise experiment)");
-            DrawCheck(dc,font_small_,kM1BySkillR109,s.exp_direct_block_timing39,L"BY SKILL: VR DIRECT hits announce a contact time shortened by the enemy's weapon skill");
+            DrawCheck(dc,font_small_,kM1BySkillR109,s.exp_direct_block_timing39,L"BY SKILL: enemy weapon skill sets his block / parry / dodge speed (2 rows above)");
             DrawCheck(dc,font_small_,kM1DirBlockR109,s.exp_direct_dirblock39,L"Directional block: the waiting enemy is told the real side your blade comes from");
             std::swprintf(v,128,L"Difficulty: %ls. Defence speed: %ls. Unarmed distance: %ls.",s.npc_difficulty_percent<=0.f?L"native":s.npc_difficulty_ready?L"control ready":L"not active, native kept",
-                s.npc_defense_speed<=1.f&&!s.npc_defense_raise109&&s.npc_dodge_anim_speed109<=1.f?L"native":s.npc_defense_ready?L"control ready":L"not active, native kept",
+                (s.exp_direct_block_timing39?s.exp_direct_block_lo39<=1.f&&s.exp_direct_block_hi39<=1.f:s.npc_defense_speed<=1.f&&!s.npc_defense_raise109&&s.npc_dodge_anim_speed109<=1.f)?L"native":s.npc_defense_ready?L"control ready":L"not active, native kept",
                 s.npc_unarmed_spacing_percent>=100.f?L"native":s.npc_unarmed_spacing_ready?L"control ready":L"unavailable (see KCD2VR.log)");
             Text(dc,font_tiny_?font_tiny_:font_small_,v,kM1StatusR109.l,kM1StatusR109.t,kM1StatusR109.r-kM1StatusR109.l,kM1StatusR109.b-kM1StatusR109.t,kMuted,DT_LEFT|DT_WORDBREAK);
         } else if(page==MenuPage::MiscCombat2R109){

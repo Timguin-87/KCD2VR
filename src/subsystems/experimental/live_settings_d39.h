@@ -74,10 +74,15 @@ struct Settings {
     bool meleeGripR123=true; // R123: VrMeleeAuthoredGripR123, sword/axe/mace held at the weapon's own hand socket (no learned clip pose)
     bool hudInfinityR125=false; // R125: VrHudInfinityR125, HUD at optical infinity (one quad per eye, zero disparity)
     bool combatCrossR125=false; // R125: VrCombatCrossR125, false = combat direction cross art hidden, lock/perfect-block/master-strike icons stay
+    bool hideTutorialsR141=false; // R141: VrHideTutorialsR141, true = tutorial popups off (the game's wh_ui_TutorialsEnabled held 0)
+    bool minimalHudR141=false; // R141: VrMinimalHudR141, only prompts, dialogue/subtitles and the palm compass/health; the rest stays hidden
     bool propImpactSoundR124=true; // R124: VrPropImpactSoundR124, our loose props play the game's put-down sound when they hit something
     bool sceneryPropSwapR100=true; // R100: VrSceneryPropSwapR100, level-brush props become loose copies on Grip
     bool propFirmHoldR116=true; // R116: VrPropFirmHoldR116, held small props follow the hand every frame (no weight/drag budget)
     bool cinematicBarsR107=true; // R107: VrCinematicBarsR107, cutscene/dialogue screen shows only the 16:9 band
+    bool lockpickOpaqueR141=true; // R141: VrLockpickOpaqueR141, lockpicking overlay shown solid in the headset (HUD layer alpha pass, only while the lock is open)
+    bool eyeHoldR141=true; // R141: VrEyeHoldR141, a frame without a new eye image re-shows the last one (not black)
+    bool rideFollowXR147=true; // R147: VrRideFollowXR147, on the horse a short X tap (PS VR2 Square) takes the follow prompt (LB)
     bool impaleFullDepthR128=true; // R128: VrImpaleFullDepthR128, killing-stab hang goes in to the guard (plate on the zone = shallow) + own blade passes the hung corpse
     bool impaleFastDeathR106=true; // R106: VrImpaleFastDeathR106, the impaled man's death clip plays 3x until the ragdoll pin
     bool npcLifeD73=true;
@@ -107,7 +112,7 @@ enum class Id:unsigned {
     PickupReachD40,PropRightD40,PropLeftD40,CombatNoStepD40,CombatNoTurnD40,CombatTurnStatusD40,
     ClinchModeD40,ClinchDistanceD40,NpcTouchD40,LivingTouchD40,LivingImpactD40,CorpseDragD40,ClinchStatusD40,
     NpcContactReactionD41,NpcStaminaReactionD41,FinisherCandidateD41,FreeTargetingD42,ArrowHoldD48,ElbowSolverD48,FistStrokeD49,NativePairedBackupD51,NpcGazeD52,PickupCameraBridgeD55,AlchemyToolContactD55,
-    PetGestureD59,WashGestureD59,AlchemyTransferD59,TimingLocationD64,MapSizeD64,MapSupportD64,TwoHandBiasD65,TwoHandPrimaryBiasD65,BowAimD65,CrossbowReloadD65,AlchemySpeedD65,PickupClockD65,CrankTravelD66,KnifeRightHipD66,GripAnchorD67,ArcCoverageD67,SupportReleaseD67,ContactFairnessD67,ElbowContinuityD67,MotionTrialD67,ElbowOutwardD67,ElbowBackD67,SmithRecoveryD67,SmithSemiD67,HandLeadD69,HandLeadMsD69,WeaponSameFrameD69,RigidGripD69,ElbowHysteresisD69,StabFixD77,UnarmedFixD77,MasterstrikeFixD77,FinisherUpperPlayerD83,FinisherUpperNpcD83,BladeZoneD84,UpCutLowD84,StabStartD84,HudWalkoffD70,LeanHeightD70,DodgeWindowD70,ContactContinuityD71,ItemHandoverD71,InstantActivitiesD72,InstantInteractionsD72,InstantCraftingD72,InstantReloadsD72,InstantCombatD72,MapNativePaperM43,NpcLifeD73,NativeRoomscaleD76,NpcListeningD76,RidingVrikD76,DiceHandsD85,StaticGrabR89,CrossbowHandOnlyR90,CorpseSqueezeSearchR90,TwoHandWeightR90,WeaponKickR96,SceneryPropSwapR100,ImpaleFastDeathR106,CinematicBarsR107,EyeSrgbR114,KnifeChestZoneR109,HeavyCrossbowHandPullR111,VrikOnStartR111,StartHenryEyesR111,QuickSlotFadeR112,AlchemyViewSelectR116,PropFirmHoldR116,SwingWhooshR116,MediumCrossbowHandPullR117,ControllerLayoutR118,QuickAccessFaceTouchR118,ShieldBlockBoxR120,HideBackWeaponsR121,HideAtStationsR121,EyeRayR121,MeleeGripR123,PropImpactSoundR124,HudInfinityR125,CombatCrossR125,ImpaleFullDepthR128
+    PetGestureD59,WashGestureD59,AlchemyTransferD59,TimingLocationD64,MapSizeD64,MapSupportD64,TwoHandBiasD65,TwoHandPrimaryBiasD65,BowAimD65,CrossbowReloadD65,AlchemySpeedD65,PickupClockD65,CrankTravelD66,KnifeRightHipD66,GripAnchorD67,ArcCoverageD67,SupportReleaseD67,ContactFairnessD67,ElbowContinuityD67,MotionTrialD67,ElbowOutwardD67,ElbowBackD67,SmithRecoveryD67,SmithSemiD67,HandLeadD69,HandLeadMsD69,WeaponSameFrameD69,RigidGripD69,ElbowHysteresisD69,StabFixD77,UnarmedFixD77,MasterstrikeFixD77,FinisherUpperPlayerD83,FinisherUpperNpcD83,BladeZoneD84,UpCutLowD84,StabStartD84,HudWalkoffD70,LeanHeightD70,DodgeWindowD70,ContactContinuityD71,ItemHandoverD71,InstantActivitiesD72,InstantInteractionsD72,InstantCraftingD72,InstantReloadsD72,InstantCombatD72,MapNativePaperM43,NpcLifeD73,NativeRoomscaleD76,NpcListeningD76,RidingVrikD76,DiceHandsD85,StaticGrabR89,CrossbowHandOnlyR90,CorpseSqueezeSearchR90,TwoHandWeightR90,WeaponKickR96,SceneryPropSwapR100,ImpaleFastDeathR106,CinematicBarsR107,EyeSrgbR114,KnifeChestZoneR109,HeavyCrossbowHandPullR111,VrikOnStartR111,StartHenryEyesR111,QuickSlotFadeR112,AlchemyViewSelectR116,PropFirmHoldR116,SwingWhooshR116,MediumCrossbowHandPullR117,ControllerLayoutR118,QuickAccessFaceTouchR118,ShieldBlockBoxR120,HideBackWeaponsR121,HideAtStationsR121,EyeRayR121,MeleeGripR123,PropImpactSoundR124,HudInfinityR125,CombatCrossR125,ImpaleFullDepthR128,MinimalHudR141,HideTutorialsR141,LockpickOpaqueR141,EyeHoldR141,RideFollowXR147
 };
 struct Row {Id id;const wchar_t* title;const wchar_t* detail;bool session=false,readOnly=false;};
 inline constexpr std::array<std::array<Row,8>,12> kRows{{
@@ -259,8 +264,8 @@ inline constexpr std::array<Row,8> kBodyTrialsD76{{
     {Id::NativeRoomscaleD76,L"Physical walking 1:1 trial",L"Same walking choice as Roomscale movement; keep 6DOF body on."},
     {Id::LeanHeightD70,L"Leaning height threshold",L"Lower your head this much to lean without walking."},
     {Id::RidingVrikD76,L"Horse riding VRIK",L"Native mount/dismount; seated: upper-body VRIK at once."},
-    {Id::VrikOnStartR111,L"Calibrated: start in VRIK",L"With a saved T-pose VRIK is on at every game start and save load. You can still switch it off."}, // R111
-    {Id::StartHenryEyesR111,L"Start at Henry's eye height",L"Start/load/recenter puts your view at Henry's eyes, sitting or standing; head moves from there."}, // R111
+    {Id::VrikOnStartR111,L"Start in VRIK",L"VRIK is on at every game start and save load. Without a saved T-pose it uses default arms (F8 for exact arms). You can still switch it off."}, // R111, R149: also without a saved T-pose
+    {Id::StartHenryEyesR111,L"Start at Henry's eye height",L"Start/load/recenter puts your view at Henry's eyes, sitting or standing. Menu screen + load face you (SteamVR)."}, // R111 + R148
     {Id::EyeSrgbR114,L"Eye colours: sRGB swapchain",L"VDXR/Quest Link colours like SteamVR (not overblown). Takes effect at the next game start."}, // R114
     {Id::PropFirmHoldR116,L"Held small props: firm grip",L"Mug/plate/jug stays locked in the hand, no weight or drag. OFF: old heavy servo."}, // R116
     {Id::QuickSlotFadeR112,L"HUD: weapon/potion slots only while selecting",L"Hidden; thumbrest + left stick left/right shows the slot 3 s, then it fades. OFF: always shown. Also on VR HUD page."} // R112
@@ -280,7 +285,12 @@ inline constexpr std::array<Row,8> kGearTrialsR118{{
 inline constexpr std::array<Row,8> kGearTrialsR125{{
     {Id::HudInfinityR125,L"HUD at infinity (flat, never double)",L"Each eye gets its own HUD copy: no depth, eyes stay parallel. OFF: one HUD at the VR HUD distance."}, // R125
     {Id::CombatCrossR125,L"Combat direction cross",L"OFF: the big direction arms are hidden, only lock / perfect block / master strike icons show."}, // R125
-    {Id::ImpaleFullDepthR128,L"Impale: blade goes in fully",L"Killing stab: he slides onto the blade up to the guard. Plate armour there: stays shallow. OFF: old shallow point."} // R128
+    {Id::ImpaleFullDepthR128,L"Impale: blade goes in fully",L"Killing stab: he slides onto the blade up to the guard. Plate armour there: stays shallow. OFF: old shallow point."}, // R128
+    {Id::LockpickOpaqueR141,L"Lockpicking lock: solid",L"While picking a lock its rings show as solid as on the monitor. OFF: old see-through look. Other HUD never changes."}, // R141
+    {Id::EyeHoldR141,L"No black frames: hold last picture",L"When the game stalls or a DLSS/FSR pair is missing, the last picture stays (max 2 s) instead of a black frame. OFF: black (old)."}, // R141
+    {Id::MinimalHudR141,L"Minimal HUD",L"Only prompts, dialogue, subtitles + compass/health on the palm. Status icons, popups, cursor stay hidden."}, // R141 row 6
+    {Id::HideTutorialsR141,L"Tutorial messages",L"HIDDEN: no tutorial popups (the game's own Tutorials option, held while you play). Also hidden by Minimal HUD."}, // R141 row 7
+    {Id::RideFollowXR147,L"Riding: X tap = Follow",L"On the horse a short X tap (PS VR2: Square) follows the NPC when the game shows Follow (LB). OFF: X tap = talk."} // R147 row 8
 }};
 inline constexpr unsigned kMotionPage2D69=static_cast<unsigned>(Group::Count),kCombatPage2D70=kMotionPage2D69+1,kHandsPage2D71=kCombatPage2D70+1,kObjectsPage2D72=kHandsPage2D71+1,kBodyPage2D76=kObjectsPage2D72+1,kGearPage2R118=kBodyPage2D76+1,kGearPage3R125=kGearPage2R118+1;
 inline constexpr Rect kMotionPrevD69{694,88,782,112},kMotionNextD69{946,88,1038,112};
@@ -443,6 +453,11 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::HudInfinityR125:d.hudInfinityR125=!d.hudInfinityR125;break; // R125: never refused
     case Id::CombatCrossR125:d.combatCrossR125=!d.combatCrossR125;break; // R125: never refused
     case Id::ImpaleFullDepthR128:d.impaleFullDepthR128=!d.impaleFullDepthR128;break; // R128: never refused
+    case Id::MinimalHudR141:d.minimalHudR141=!d.minimalHudR141;break; // R141: never refused
+    case Id::HideTutorialsR141:d.hideTutorialsR141=!d.hideTutorialsR141;break; // R141: never refused
+    case Id::LockpickOpaqueR141:d.lockpickOpaqueR141=!d.lockpickOpaqueR141;break; // R141: never refused
+    case Id::EyeHoldR141:d.eyeHoldR141=!d.eyeHoldR141;break; // R141: never refused, live (next XR frame)
+    case Id::RideFollowXR147:d.rideFollowXR147=!d.rideFollowXR147;break; // R147: never refused, live (next X press)
     case Id::SwingWhooshR116:d.swingWhooshR116=!d.swingWhooshR116;break; // R116: never refused
     case Id::NpcLifeD73:d.npcLifeD73=!d.npcLifeD73;break;
     case Id::NpcGazeD52:d.npcGazeHmdD52=!d.npcGazeHmdD52;break;
@@ -610,6 +625,11 @@ template<class S> void label(const S& s,const Row& row,wchar_t* out,std::size_t 
     case Id::HudInfinityR125:value=d.hudInfinityR125?L"ON (INF)":L"OFF (distance)";break; // R125
     case Id::CombatCrossR125:value=d.combatCrossR125?L"SHOWN":L"HIDDEN (icons only)";break; // R125
     case Id::ImpaleFullDepthR128:value=d.impaleFullDepthR128?L"ON (to the guard)":L"OFF (shallow)";break; // R128
+    case Id::MinimalHudR141:value=d.minimalHudR141?L"ON (minimal)":L"OFF (normal HUD)";break; // R141
+    case Id::HideTutorialsR141:value=d.hideTutorialsR141?L"HIDDEN":(d.minimalHudR141?L"SHOWN (Minimal HUD hides them)":L"SHOWN");break; // R141
+    case Id::LockpickOpaqueR141:value=d.lockpickOpaqueR141?L"ON (solid)":L"OFF (see-through)";break; // R141
+    case Id::EyeHoldR141:value=d.eyeHoldR141?L"ON (hold, no black)":L"OFF (black frame)";break; // R141
+    case Id::RideFollowXR147:value=d.rideFollowXR147?L"ON (X tap on horse = LB)":L"OFF (X tap = talk)";break; // R147
     case Id::SwingWhooshR116:value=on(d.swingWhooshR116);break; // R116
     case Id::NpcLifeD73:value=on(d.npcLifeD73);break;
     case Id::NpcGazeD52:value=!d.npcGazeHmdD52?L"NATIVE":!d.npcGazeReadyD52?L"FOLLOW HMD / UNAVAILABLE":d.npcGazeSceneD52?L"FOLLOW HMD / ADMITTED":L"FOLLOW HMD / WAITING";break;

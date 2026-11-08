@@ -100,5 +100,20 @@ public:
         return NamedTransaction::Run(io,generation,enabled,{controls,controls});
     }
 };
+// R145 (Miki 8 Nov: "the yellow messages are again too big (like 'you cleaned yourself' etc. or the F2 messages)"):
+// those lines are InfoText (cccursor.infoText, Game.SendInfoText). cccursor is a world-projected parent, so the
+// readable HUD owner never scales it (ui_native_canvas Anchors) and no slider reached the message line: its only size
+// was the D63 half-size container in the companion hud.gfx. now the line follows the "Interaction / menu icons"
+// slider (VrUiHintsScale), on top of that authored size, never bigger than it (100% = the old size). scale only:
+// the game keeps position, alpha, visibility and timing. the other 5 popup containers stay as they were.
+class InfoTextR145 : public NamedTransaction<1> {
+public:
+    inline static constexpr std::array<const char*,1> Names{{"InfoText"}};
+    static float Clamp(float scale) noexcept {return std::isfinite(scale)?std::clamp(scale,.25f,1.f):1.f;}
+    InfoTextR145() noexcept : NamedTransaction(Names,true,true) {}
+    template<class Backend> bool Run(Backend& io,std::uint64_t generation,bool enabled,float scale) noexcept {
+        return NamedTransaction::Run(io,generation,enabled,{Clamp(scale)});
+    }
+};
 
 }

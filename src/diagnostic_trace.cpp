@@ -121,10 +121,14 @@ void WriteReceiptFor(diagnostics::capture168::Domain d,std::uint64_t session,con
 void Write(const char* message) noexcept {
     if(!Enabled()||!message)return;
     using namespace diagnostics::capture168;
+    const auto now=std::uint64_t(GetTickCount64());
+    // R146: no recorder and no 5 s end-receipt grace = accept() refuses everything;
+    // skip its prefix/strstr scan of the text (the common public-player case).
+    if(gate.quiet(now))return;
     // End receipts are explicitly session-bound; FAULT/mode/startup text has no
     // exemption. Previously the essential() whitelist bypassed every F key.
     if(!gate.mask.load(std::memory_order_relaxed)&&receiptDomain(message)<0)return;
-    if(!accept(message,GetTickCount64()))return;
+    if(!accept(message,now))return;
     Enqueue(message);
 }
 void WriteStatus(const char* message) noexcept {

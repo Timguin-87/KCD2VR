@@ -10,12 +10,12 @@ struct BlockCooldownLease59c17 {
             applied=true;had=false;
             if(!v){std::snprintf(msg,cap,"H24 BLOCK_COOLDOWN_LEASE APPLY cvar=MISSING");return true;}
             original=SafeCVarGetFloat(v,.2f);
-            const bool set=SafeCVarSetFloat(v,requestedH24);
+            const bool set=CheatCVarSetFloat143(v,requestedH24); // R143: cheat cvar, Set() refused without -devmode
             had=set&&std::fabs(SafeCVarGetFloat(v,-1.f)-requestedH24)<1.e-7f;
             std::snprintf(msg,cap,"H24 BLOCK_COOLDOWN_LEASE APPLY wh_cs_BlockCooldown=%.3g(was %.3g) written=%d scope=PLAYER_BLOCK_INPUT_ONLY nativeReleaseTimer=POSITIVE_DELAY",double(SafeCVarGetFloat(v,-1.f)),double(original),int(had));
         }else{
             bool ok=false;
-            if(v&&had&&std::fabs(SafeCVarGetFloat(v,-1.f)-requestedH24)<1.e-7f)ok=SafeCVarSetFloat(v,original);
+            if(v&&had&&std::fabs(SafeCVarGetFloat(v,-1.f)-requestedH24)<1.e-7f)ok=CheatCVarSetFloat143(v,original);
             applied=false;had=false;
             std::snprintf(msg,cap,"H24 BLOCK_COOLDOWN_LEASE RESTORE wh_cs_BlockCooldown=%.3g restored=%d",double(v?SafeCVarGetFloat(v,-1.f):-1.f),int(ok));
         }

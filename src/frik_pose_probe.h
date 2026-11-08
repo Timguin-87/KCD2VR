@@ -349,6 +349,8 @@ void ForceCalibrationRestore43() noexcept;
 void SetViewPositionProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept;
 // A stored calibration exists (arm profile from INI or this session's F8) and can be applied without a new T-pose.
 bool CalibrationStored43() noexcept;
+bool CalibrationDefaultR149() noexcept;   // R149: VRIK runs on the in-memory default arm profile (no saved F8)
+bool InstallDefaultCalibrationR149() noexcept; // R149: no saved F8 -> default profile from the eye height (never saved)
 void BeginFingerCapture() noexcept;
 bool FingerCaptureActive() noexcept;
 int FingerCaptureStatus() noexcept;

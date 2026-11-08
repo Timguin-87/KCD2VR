@@ -44,7 +44,7 @@ static bool __fastcall NativeEnter(void*){
 }
 static void Reset(){
     memory.clear();rates.clear();enterCalls=0;nativeAccepted=true;insideSetter=insideFollower=throwNative=stopInside=replaceInside=false;
-    nd::image=base;nd::ready=true;nd::speed=1.5f;nd::blockSpeed=1.4f;nd::parrySpeed=1.33f;nd::dodgeSpeed=1.25f;nd::raiseExperiment=false;nd::enterOriginal=&NativeEnter;nd::rateOriginal=&NativeRate;
+    nd::image=base;nd::ready=true;nd::speed=1.5f;nd::blockSpeed=1.4f;nd::parrySpeed=1.33f;nd::dodgeSpeed=1.25f;nd::raiseExperiment=false;nd::bySkill=false;nd::skillLo=2.f;nd::skillHi=3.f;kcd2vr::motion59c4::selected=false;nd::enterOriginal=&NativeEnter;nd::rateOriginal=&NativeRate;
     Put(npc,Address(base+0x3E3FAC8));Put(npc+0x210,state);Put(state+0xCE0,npc);Put(npc+0x200,manager);
     Put(npc+0x3C0,timingClock);Put(timingClock+8,npc);Put(timingClock+0x10,1.25f);Put(npc+0x3A0,animation);Put(animation,npc);
     Put(manager+0x38,slots);Put(manager+0x40,slots+8);Put(slots,action);Put(action+0x40,manager);
@@ -165,5 +165,49 @@ int main(){
     Reset();nd::speed=1.f;nd::raiseExperiment=false;nd::blockSpeed=3.f;nd::parrySpeed=3.f;
     Check(nd::RaiseFactor(false)==1.f&&nd::RaiseFactor(true)==1.f,"block/parry keys inert without experiment");
     Reset();nd::speed=2.f;Check(nd::DodgeFactor()==2.f&&nd::RaiseFactor(true)==2.f,"legacy VrNpcDefenseSpeed>1 keeps old shared path");
+    // R146 BY SKILL: the defender's own best melee skill picks block raise, parry raise and dodge speed
+    // between Low (skill 0) and High (skill 30); it replaces VrNpcDefenseSpeed and the per-type rows.
+    constexpr Address human=0x13000000,soul=0x13010000;
+    auto skills=[&](int sword,int unarmed){
+        const unsigned char getter[]{0x83,0xFA,0x23,0x73,0x0B,0x8B,0xC2,0x8B,0x84,0xC1,0xE8,0x05,0x00,0x00};
+        Bytes(base+0x1123C4B,getter,sizeof(getter));Put(npc+0x1F8,human);Put(human+0x278,npc);Put(human+0x668,soul);
+        Put(soul,Address(base+0x3F44F28));for(const int id:{16,17,23,22,24})Put(soul+0x5E8+8*Address(id),int(0));
+        Put(soul+0x5E8+8*16,sword);Put(soul+0x5E8+8*24,unarmed);};
+    auto skillReset=[&](float legacy){Reset();nd::speed=legacy;nd::SetBySkill(true,2.f,3.f);};
+    for(const float legacy:{1.f,1.75f}){
+        skillReset(legacy);skills(15,4);c=InitialContext();nd::InitialEta(c);
+        Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/2.5f)<.000001f,"by skill: skill 15 block raise x2.5 (legacy speed ignored)");
+        Put(action,Address(base+0x3BE12C0));c=InitialContext();nd::InitialEta(c);
+        Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/2.5f)<.000001f,"by skill: parry raise same skill factor");
+        c=InitialContext();gpr(c,Gpr::Rbx)=timingClock;c.ip=base+0x9E3D87;nd::FollowEta(c);
+        Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/2.5f)<.000001f,"by skill: follower uses same factor");
+        Check(ReadFloat(henryState+0x458)==.3f,"by skill: Henry ETA never written");
+        Put(action,Address(base+0x3B92428));Put(state+0x38,512);
+        Check(nd::DodgeEnter(reinterpret_cast<void*>(action))&&rates.size()==1&&std::abs(rates[0]-1.25f*2.5f)<.00001f,"by skill: dodge entry x2.5");
+        rates.clear();testReturnPc=base+0x9E3D38;nd::SetRate(reinterpret_cast<void*>(animation),1.f);
+        Check(rates.size()==1&&std::abs(rates[0]-2.5f)<.00001f,"by skill: dodge follower x2.5");
+        testReturnPc=base+0x19BE26B;nd::SetRate(reinterpret_cast<void*>(animation),1.f);Check(rates.back()==1.f,"by skill: dodge exit restore native");
+        testReturnPc=base+0x12345;nd::SetRate(reinterpret_cast<void*>(animation),.8f);Check(rates.back()==.8f,"by skill: unknown rate writer untouched");
+    }
+    skillReset(1.f);skills(36,0);c=InitialContext();nd::InitialEta(c);
+    Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/3.f)<.000001f,"by skill: skill >=30 uses High");
+    skillReset(1.f);skills(0,0);c=InitialContext();nd::InitialEta(c);
+    Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/2.f)<.000001f,"by skill: skill 0 uses Low");
+    skillReset(1.f);c=InitialContext();nd::InitialEta(c);
+    Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/2.f)<.000001f,"by skill: unread skill uses Low");
+    skillReset(1.f);skills(30,0);memory[base+0x1123C4B]^=1;c=InitialContext();nd::InitialEta(c);
+    Check(std::abs(NativePureGetter(gpr(c,Gpr::Rcx))-.3f/2.f)<.000001f,"by skill: changed native getter -> unread -> Low");
+    skillReset(1.f);skills(30,0);kcd2vr::motion59c4::selected=true;c=InitialContext();nd::InitialEta(c);
+    Check(gpr(c,Gpr::Rcx)==henryState+0x450,"by skill: VR DIRECT route raise left to C39 (no double factor)");
+    Put(action,Address(base+0x3B92428));Put(state+0x38,512);
+    Check(nd::DodgeEnter(reinterpret_cast<void*>(action))&&rates.size()==1&&std::abs(rates[0]-1.25f*3.f)<.00001f,"by skill: VR DIRECT route dodge still by skill");
+    Reset();nd::SetBySkill(true,1.f,1.f);nd::speed=2.f;
+    Check(!nd::Wanted(),"by skill Low=High=1: native, legacy ignored");
+    c=InitialContext();nd::InitialEta(c);Check(gpr(c,Gpr::Rcx)==henryState+0x450,"by skill x1: raise native");
+    Put(action,Address(base+0x3B92428));Put(state+0x38,512);
+    Check(nd::DodgeEnter(reinterpret_cast<void*>(action))&&rates.empty(),"by skill x1: dodge native");
+    Reset();nd::SetBySkill(false,3.f,3.f);nd::speed=1.f;
+    Check(nd::Wanted()&&nd::DodgeFactor()==1.25f&&nd::RaiseFactor(false)==1.f,"by skill OFF: old per-type defaults unchanged");
+    for(const float bad:{0.f,NAN,5.f}){nd::SetBySkill(true,bad,bad);Check(nd::SkillFactor(20)==1.f&&!nd::Wanted(),"invalid by-skill rows native");}
     std::printf("PASS %u production callback assertions\n",checks);return 0;
 }

@@ -295,7 +295,7 @@ bool ApplyDialogueMode(const DialogueCVarSnapshot& original,int mode) noexcept
     int target_p=original.force_pov, target_n=original.no_cameras;
     if(mode==1){ target_p=1; target_n=0; }
     else if(mode==2){ target_p=1; target_n=1; } // V65.15: immersive 1P + remove authored dialogue cameras
-    bool ok=true; ok=SafeCVarSetInt(p,target_p)&&ok; ok=SafeCVarSetInt(n,target_n)&&ok;
+    bool ok=true; ok=SafeCVarSetInt(p,target_p)&&ok; ok=CheatCVarSetInt143(n,target_n)&&ok; // R143: NoCameras is a cheat cvar (ForcePOV is not)
     const int got_p=SafeCVarGetInt(p,-999), got_n=SafeCVarGetInt(n,-999);
     char m[256]{}; std::snprintf(m,sizeof(m),
         "V58-DIALOGUE mode=%d target={ForcePOV:%d NoCameras:%d} readback={%d,%d} ok=%s",

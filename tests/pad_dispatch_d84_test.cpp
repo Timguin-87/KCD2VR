@@ -17,7 +17,7 @@ struct Event {std::string name;float value=0;bool digital=false,held=false,packe
 static std::vector<Event> events;
 static std::function<void(unsigned)> afterEvent;
 static std::uint64_t tick=100;
-static int carryReads=0;
+static int carryReads=0,followReads=0; // R147: follow prompt query rides the same mode-3 dispatch
 static bool g_original=true;
 static std::atomic<int> g_gamepad_mode{3};
 static std::atomic<std::uint64_t> g_pad_last_emit{0};
@@ -25,6 +25,7 @@ static std::atomic<bool> g_pad_stick_keys{true};
 static bool g_stick_key_state[8]{};
 static std::uint64_t GetTickCount64(){return tick;}
 static void UpdateCarryQuery25(){++carryReads;}
+static void UpdateFollowQuery147(){++followReads;}
 static void emit_pad(std::uintptr_t,char,const char* name,float value,bool digital=false,bool held=false,const xi::Packet* packet=nullptr){
     events.push_back({name,value,digital,held,packet!=nullptr,packet?*packet:xi::Packet{}});
     if(afterEvent)afterEvent(unsigned(events.size()));
@@ -43,7 +44,7 @@ static void publish(const Input& p){
     PublishGamepadState(p.lx,p.ly,p.rx,p.ry,p.lt,p.rt,p.a,p.b,p.x,p.y,p.lb,p.rb,p.l3,p.r3,p.start,p.back,p.du,p.dd,p.dl,p.dr);
 }
 static void dispatch(){tick+=8;flush_gamepad_same_dispatch_thread(123,0);}
-static void reset(){events.clear();afterEvent={};carryReads=0;g_original=true;g_gamepad_mode=3;g_pad_stick_keys=true;for(auto& b:g_stick_key_state)b=false;tick+=20;}
+static void reset(){events.clear();afterEvent={};carryReads=0;followReads=0;g_original=true;g_gamepad_mode=3;g_pad_stick_keys=true;for(auto& b:g_stick_key_state)b=false;tick+=20;}
 static bool same(const Event& a,const Event& b){
     return a.name==b.name&&a.value==b.value&&a.digital==b.digital&&a.held==b.held&&a.packet==b.packet&&
         (!a.packet||(a.p.rt==b.p.rt&&a.p.lt==b.p.lt&&a.p.a==b.p.a&&a.p.lb==b.p.lb&&a.p.mask==b.p.mask&&a.p.serial==b.p.serial&&a.p.stroke==b.p.stroke&&a.p.costNonce54==b.p.costNonce54));
@@ -75,10 +76,10 @@ int main(){
     interleave(forward,back,"forward-to-back-B");
     interleave(side,neutral,"dodge-and-combat-release");
     interleave(neutral,side,"neutral-to-dodge-and-combat-down");
-    reset();publish(side);dispatch();const auto held=events;events.clear();dispatch();check(same(events,held),"held-frame-repeats-existing-native-semantics");
+    reset();publish(side);dispatch();const auto held=events;events.clear();dispatch();check(same(events,held),"held-frame-repeats-existing-native-semantics");check(carryReads==2&&followReads==2,"R147 follow query once per mode-3 dispatch, beside the carry query");
     events.clear();const auto last=tick;flush_gamepad_same_dispatch_thread(123,0);check(events.empty()&&tick==last,"eight-ms-throttle-unchanged");
-    reset();publish(side);g_gamepad_mode=2;dispatch();check(events.size()==12&&carryReads==0,"axes-only-mode");
-    reset();publish(side);g_gamepad_mode=0;dispatch();check(events.empty()&&carryReads==0,"disabled-mode-no-emission");
+    reset();publish(side);g_gamepad_mode=2;dispatch();check(events.size()==12&&carryReads==0&&followReads==0,"axes-only-mode");
+    reset();publish(side);g_gamepad_mode=0;dispatch();check(events.empty()&&carryReads==0&&followReads==0,"disabled-mode-no-emission");
     reset();publish(side);g_original=false;dispatch();check(events.empty()&&carryReads==0,"missing-native-dispatch-no-emission");
     reset();publish(side);g_pad_stick_keys=false;dispatch();check(events.size()==22,"direction-key-option-preserved");
     std::printf("pad dispatch: %d checks, %d failures\n",checks,failures);

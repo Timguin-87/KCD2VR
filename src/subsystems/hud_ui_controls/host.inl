@@ -1026,6 +1026,18 @@ struct CVarLeaseBackend59c16 {
 };
 static ui_adaptive_hud57c1::Lease g_fire_cursor59c16;
 static prompt_policy_d80::HintsLease g_show_hints_d80;
+// R141 Minimal HUD: the game's own per-element switches wh_ui_Show<Element> (ui_minimal_hud_r141::kCvars) held at 0.
+static ui_minimal_hud_r141::CvarLease g_minimal_cvars_r141;
+struct MinimalCvarIoR141 {
+    bool Read(unsigned i,int& value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kCvars[i]};return io.Read(value);}
+    bool Write(unsigned i,int value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kCvars[i]};return io.Write(value);}
+};
+// R141 tutorials: the game's own Tutorials option wh_ui_TutorialsEnabled held at 0 (VrHideTutorialsR141 or Minimal HUD).
+static ui_minimal_hud_r141::TutorialLease g_tutorials_r141;
+struct TutorialCvarIoR141 {
+    bool Read(unsigned,int& value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kTutorialCvar[0]};return io.Read(value);}
+    bool Write(unsigned,int value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kTutorialCvar[0]};return io.Write(value);}
+};
 static std::atomic<std::uint64_t> g_hud_rehidden59c16{0};
 // M2_SLOT_END 5006
 #elif KCD2VR_M2_HOST_SLOT == 5012

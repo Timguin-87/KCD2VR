@@ -6,7 +6,7 @@ static void ComboGoldD74(std::uint64_t now){
         (void)kcd2vr::visible_failure::publishDiagnosticD74(text,now,diagnostics::capture168::Domain::Bug);
     }
 }
-// Actual holster display branch SHA256 8c36e047b23c9d83b6646283a4468df830f560eb92022e4fbb6eb0126074e332
+// Actual holster display branch SHA256 22e09fa415c501a11427f6212e8fea97f7a16ccdf6c7234377af2ccae15e30c3
 static void HolsterGoldD74(bool reachedZoneR9,std::uint64_t now){
         if(reachedZoneR9&&kcd2vr::diagnostics::capture168::active(kcd2vr::diagnostics::capture168::Domain::Bug,now)&&hd::visible_due(diag,now)){
             char t[kcd2vr::visible_failure::kMaxText+1]{};hd::visible_text(a,t,sizeof(t));

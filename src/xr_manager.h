@@ -1,6 +1,7 @@
 // xr_manager.h
 #pragma once
 #include "xr_layer_guard_r104.h"
+#include "xr_eye_hold_r141.h" // R141: re-show the last written eye images instead of a black frame
 #include "tracking_sample59c6.h"
 #include "vrik/hand_present_d61.h"
 #include "vrik/fresh_hand_target_r94.h"
@@ -349,6 +350,7 @@ private:
         int32_t width = 0;
         int32_t height = 0;
         std::vector<ID3D12Resource*> d3d12_images;
+        xr_eye_hold_r141::Images held_r141; // R141: pose/fov each image was last written with (XR thread only)
     };
 
     struct RtvEntry
@@ -424,6 +426,7 @@ private:
     std::uint64_t layer_sent_r104_[xr_layer_guard_r104::Count]{},layer_held_r104_[xr_layer_guard_r104::Count]{};
     std::uint64_t layer_drop_r104_[xr_layer_guard_r104::Count]{},layer_fix_r104_[xr_layer_guard_r104::Count]{};
     std::uint64_t end_ok_r104_=0,end_fail_r104_=0;
+    std::uint64_t eye_hold_r141_[4]{}; // R141: frames re-shown / no image (missing, too old, mismatch) - in the R106 30 s row
     std::uint64_t layer_fail_next_r104_=0,layer_fail_rows_r104_=0,layer_kind_next_r104_=0,layer_kind_rows_r104_=0;
     std::uint64_t layer_status_next_r104_=0,layer_status_sig_r104_=0;unsigned last_kinds_r104_=~0u;
     void NoteLayerDropR104(unsigned kind,unsigned drop) noexcept;
@@ -561,6 +564,10 @@ private:
     std::mutex flat_ui_mutex_;
     XrPosef flat_ui_anchor_pose_{};
     bool flat_ui_anchor_valid_ = false;
+    // R148 (start_facing_r148.h uiLookAway), all under flat_ui_mutex_: look-away timer, anchor taken after a runtime
+    // recenter (never moved), a runtime recenter is pending for the next capture, first capture row written.
+    std::uint64_t ui_away_since_r148_ = 0;
+    bool ui_anchor_user_r148_ = false, ui_reference_change_r148_ = false, ui_anchor_logged_r148_ = false;
     ID3D12Resource* afr_cache_[2] = { nullptr, nullptr };
     bool afr_cache_valid_[2] = { false, false };
     D3D12_RESOURCE_DESC afr_cache_desc_{};

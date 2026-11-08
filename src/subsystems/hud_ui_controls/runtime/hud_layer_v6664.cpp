@@ -1,5 +1,6 @@
 #include "hud_layer_v6664.h"
 #include "xr_eye_srgb_r114.h" // R114
+#include "hud_lock_alpha_r141.h" // R141
 #include "ui_hud_mirror36.h"
 #include "device_hook.h"
 #include "diagnostic_trace.h"
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <vector>
 #include <new>
+#include <d3dcompiler.h>
 
 namespace kcd2vr::hud_layer_v6664 { namespace {
 
@@ -151,6 +153,99 @@ bool x_acquired=false,x_has_released=false;uint32_t x_index=0;std::uint64_t x_re
 XrSession x_session59c7=XR_NULL_HANDLE;
 ID3D12Device* x_device59c7=nullptr;ID3D12CommandQueue* x_queue59c7=nullptr;
 std::uint64_t x_released_serial59c7=0,x_released_epoch59c7=0;
+int64_t x_swap_fmt_r141=0; // R141: the HUD swapchain's own format (fmtR108 below), for the lockpick pass RTVs
+void Barrier(ID3D12GraphicsCommandList* l, ID3D12Resource* r, D3D12_RESOURCE_STATES a, D3D12_RESOURCE_STATES b) noexcept;
+
+// R141 lockpick pass (hud_lock_alpha_r141.h). XR thread only. used ONLY while the LockPicking movie is open; any
+// other frame takes the unchanged CopyResource path. setup failure -> copy for now, setup tried again after 2 s.
+struct LockPassR141 {
+    ID3D12RootSignature* root=nullptr;ID3D12PipelineState* pso=nullptr;DXGI_FORMAT psoFmt=DXGI_FORMAT_UNKNOWN;
+    ID3D12DescriptorHeap* srv=nullptr;UINT srvInc=0;
+    ID3D12DescriptorHeap* rtv=nullptr;UINT rtvInc=0,rtvCount=0;XrSwapchain rtvFor=XR_NULL_HANDLE;ID3D12Resource* rtvFirst=nullptr;
+    std::uint64_t retryAt=0,draws=0;bool wasActive=false;ID3D12Device* dev=nullptr;
+};
+LockPassR141 x_lock_r141;
+std::atomic<unsigned> s_lock_rows_r141{0};
+void LogLockR141(const char* m) noexcept { if(s_lock_rows_r141.fetch_add(1,std::memory_order_relaxed)<40u)diagnostic_trace::WriteStatus(m); }
+bool LockPassReadyR141(ID3D12Device* dev,DXGI_FORMAT fmt,const char*& step) noexcept {
+    auto& p=x_lock_r141;
+    if(p.dev!=dev){ // another device (new session): start over; old objects are left alone (may still be queued)
+        const auto keepDraws=p.draws;const bool keepActive=p.wasActive;p=LockPassR141{};p.draws=keepDraws;p.wasActive=keepActive;p.dev=dev;}
+    if(!p.root){step="root";
+        D3D12_DESCRIPTOR_RANGE range{};range.RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV;range.NumDescriptors=1;
+        D3D12_ROOT_PARAMETER params[2]{};
+        params[0].ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;params[0].DescriptorTable={1,&range};params[0].ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL;
+        params[1].ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;params[1].Constants.ShaderRegister=0;params[1].Constants.Num32BitValues=1;params[1].ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL;
+        D3D12_ROOT_SIGNATURE_DESC sig{2,params,0,nullptr,D3D12_ROOT_SIGNATURE_FLAG_NONE};
+        ID3DBlob* ser=nullptr;ID3DBlob* err=nullptr;const auto hr=D3D12SerializeRootSignature(&sig,D3D_ROOT_SIGNATURE_VERSION_1,&ser,&err);
+        if(err)err->Release();if(FAILED(hr)||!ser){if(ser)ser->Release();return false;}
+        const auto rh=dev->CreateRootSignature(0,ser->GetBufferPointer(),ser->GetBufferSize(),IID_PPV_ARGS(&p.root));ser->Release();
+        if(FAILED(rh)){p.root=nullptr;return false;}
+    }
+    if(!p.pso||p.psoFmt!=fmt){step="shader";
+        const char* code=hud_lock_alpha_r141::ShaderR141();ID3DBlob* vs=nullptr;ID3DBlob* ps=nullptr;
+        auto compile=[&](const char* entry,const char* model,ID3DBlob** blob){ID3DBlob* e=nullptr;const auto h=D3DCompile(code,std::strlen(code),nullptr,nullptr,nullptr,entry,model,D3DCOMPILE_OPTIMIZATION_LEVEL3,0,blob,&e);if(e)e->Release();return SUCCEEDED(h);};
+        if(!compile("vs","vs_5_0",&vs)||!compile("ps","ps_5_0",&ps)){if(vs)vs->Release();if(ps)ps->Release();return false;}
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC d{};d.pRootSignature=p.root;d.VS={vs->GetBufferPointer(),vs->GetBufferSize()};d.PS={ps->GetBufferPointer(),ps->GetBufferSize()};
+        d.SampleMask=UINT_MAX;d.RasterizerState.FillMode=D3D12_FILL_MODE_SOLID;d.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;d.RasterizerState.DepthClipEnable=TRUE;
+        d.DepthStencilState.DepthEnable=FALSE;d.DepthStencilState.StencilEnable=FALSE;d.DepthStencilState.DepthFunc=D3D12_COMPARISON_FUNC_ALWAYS;
+        d.BlendState.RenderTarget[0].BlendEnable=FALSE;d.BlendState.RenderTarget[0].RenderTargetWriteMask=D3D12_COLOR_WRITE_ENABLE_ALL; // replaces the image like the copy
+        d.PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;d.NumRenderTargets=1;d.RTVFormats[0]=fmt;d.SampleDesc.Count=1;
+        step="pso";ID3D12PipelineState* pso=nullptr;const auto ph=dev->CreateGraphicsPipelineState(&d,IID_PPV_ARGS(&pso));vs->Release();ps->Release();
+        if(FAILED(ph)||!pso)return false;
+        p.pso=pso;p.psoFmt=fmt; // an older pso (format change = new swapchain, rare) is kept: queued work may still use it
+    }
+    if(!p.srv){step="srvHeap";
+        D3D12_DESCRIPTOR_HEAP_DESC h{};h.Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;h.NumDescriptors=3;h.Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        if(FAILED(dev->CreateDescriptorHeap(&h,IID_PPV_ARGS(&p.srv)))){p.srv=nullptr;return false;}
+        p.srvInc=dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    }
+    const UINT images=x_imgs?UINT(x_imgs->size()):0u;
+    if(!images){step="images";return false;}
+    if(!p.rtv||p.rtvFor!=x_sc||p.rtvCount!=images||p.rtvFirst!=(*x_imgs)[0]){step="rtvHeap";
+        if(p.rtv){p.rtv->Release();p.rtv=nullptr;} // CPU-only descriptors: already copied by every recorded bind
+        D3D12_DESCRIPTOR_HEAP_DESC h{};h.Type=D3D12_DESCRIPTOR_HEAP_TYPE_RTV;h.NumDescriptors=images;
+        if(FAILED(dev->CreateDescriptorHeap(&h,IID_PPV_ARGS(&p.rtv)))){p.rtv=nullptr;return false;}
+        p.rtvInc=dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        D3D12_RENDER_TARGET_VIEW_DESC rd{};rd.Format=fmt;rd.ViewDimension=D3D12_RTV_DIMENSION_TEXTURE2D;
+        auto at=p.rtv->GetCPUDescriptorHandleForHeapStart();
+        for(UINT i=0;i<images;++i){dev->CreateRenderTargetView((*x_imgs)[i],&rd,at);at.ptr+=p.rtvInc;}
+        p.rtvFor=x_sc;p.rtvCount=images;p.rtvFirst=(*x_imgs)[0];
+    }
+    return true;
+}
+// records the lockpick pass (cache -> swapchain image x_index) instead of the copy. false = nothing recorded.
+bool RecordLockPassR141(ID3D12Device* dev,ID3D12Resource* cache,const D3D12_RESOURCE_DESC& cd,unsigned slot,std::uint64_t now) noexcept {
+    auto& p=x_lock_r141;
+    const bool want=hud_lock_alpha_r141::Active();
+    if(want!=p.wasActive){p.wasActive=want;char m[200]{};
+        std::snprintf(m,sizeof(m),"R141 LOCKPICK_HUD_ALPHA active=%d swapchainFmt=%lld captureFmt=%u passDraws=%llu",want?1:0,(long long)x_swap_fmt_r141,(unsigned)cd.Format,(unsigned long long)p.draws);LogLockR141(m);}
+    if(!want||slot>=3||!x_imgs||x_index>=x_imgs->size())return false;
+    // the capture must be plain 8-bit UNORM (raw gamma bytes through Load); his PC: capture 28, swapchain 29 (R114)
+    if(cd.Format!=DXGI_FORMAT_R8G8B8A8_UNORM&&cd.Format!=DXGI_FORMAT_B8G8R8A8_UNORM)return false;
+    const auto fmt=static_cast<DXGI_FORMAT>(x_swap_fmt_r141);
+    const bool srgb=fmt==DXGI_FORMAT_R8G8B8A8_UNORM_SRGB||fmt==DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+    if(!srgb&&fmt!=DXGI_FORMAT_R8G8B8A8_UNORM&&fmt!=DXGI_FORMAT_B8G8R8A8_UNORM)return false;
+    if(now<p.retryAt)return false;
+    const char* step="";
+    if(!LockPassReadyR141(dev,fmt,step)){p.retryAt=now+2000;char m[160]{};
+        std::snprintf(m,sizeof(m),"R141 LOCKPICK_HUD_ALPHA pass=FAILED step=%s (plain copy now, retry in 2 s)",step);LogLockR141(m);return false;}
+    D3D12_SHADER_RESOURCE_VIEW_DESC sd{};sd.Format=cd.Format;sd.ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D;sd.Shader4ComponentMapping=D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;sd.Texture2D.MipLevels=1;
+    auto cpu=p.srv->GetCPUDescriptorHandleForHeapStart();cpu.ptr+=SIZE_T(slot)*p.srvInc;
+    auto gpu=p.srv->GetGPUDescriptorHandleForHeapStart();gpu.ptr+=UINT64(slot)*p.srvInc; // slot's last GPU use retired (fence check above)
+    dev->CreateShaderResourceView(cache,&sd,cpu);
+    auto rtv=p.rtv->GetCPUDescriptorHandleForHeapStart();rtv.ptr+=SIZE_T(x_index)*p.rtvInc;
+    Barrier(x_list,cache,D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    ID3D12DescriptorHeap* heaps[]{p.srv};x_list->SetDescriptorHeaps(1,heaps);
+    x_list->SetGraphicsRootSignature(p.root);x_list->SetPipelineState(p.pso);
+    x_list->SetGraphicsRootDescriptorTable(0,gpu);x_list->SetGraphicsRoot32BitConstant(1,srgb?1u:0u,0);
+    x_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    D3D12_VIEWPORT vp{0,0,float(x_w),float(x_h),0,1};D3D12_RECT sc{0,0,LONG(x_w),LONG(x_h)};
+    x_list->RSSetViewports(1,&vp);x_list->RSSetScissorRects(1,&sc);
+    DeviceHook::DrawFullscreenBypassR141(x_list,rtv); // swapchain image stays in RENDER_TARGET
+    Barrier(x_list,cache,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON);
+    ++p.draws;return true;
+}
 bool XrEnsure(XrSession s, ID3D12Device* dev, const D3D12_RESOURCE_DESC& cd) noexcept {
     if(x_sc!=XR_NULL_HANDLE && x_w==int32_t(cd.Width) && x_h==int32_t(cd.Height) && x_fmt==cd.Format) return true;
     if(x_failed) return false;
@@ -201,7 +296,7 @@ bool XrEnsure(XrSession s, ID3D12Device* dev, const D3D12_RESOURCE_DESC& cd) noe
         xrDestroySwapchain(x_sc); x_sc=XR_NULL_HANDLE; x_failed=true; LogStatusR104("V66.64-HUD XR swapchain images FAILED (R104: retried in 2 s)"); return false; }
     if(!x_imgs) x_imgs=new std::vector<ID3D12Resource*>();
     x_imgs->clear(); for(auto& i:im) x_imgs->push_back(i.texture);
-    x_w=int32_t(cd.Width); x_h=int32_t(cd.Height); x_fmt=cd.Format;
+    x_w=int32_t(cd.Width); x_h=int32_t(cd.Height); x_fmt=cd.Format; x_swap_fmt_r141=fmtR108; // R141
     x_session59c7=s;x_device59c7=dev;x_has_released=false;
     x_released_serial59c7=x_released_epoch59c7=0;
     char m[200]{}; std::snprintf(m,sizeof(m),"V66.64-HUD XR swapchain ready %dx%d fmt=%u swapchainFmt=%lld images=%u readback=OFF",x_w,x_h,(unsigned)x_fmt,(long long)fmtR108,n); LogStatusR104(m);
@@ -403,18 +498,25 @@ XrHudFrame XrPrepare(XrSession session, ID3D12Device* dev, ID3D12CommandQueue* q
     if(wr==XR_TIMEOUT_EXPIRED){++s_wait_timeouts;return previous();}
     if(XR_FAILED(wr)){x_failed=true;++s_xr_copy_fail;return out;}
     bool ok=x_imgs&&x_index<x_imgs->size();
+    bool usedLockPassR141=false;
     ID3D12CommandAllocator* const slotAlloc=SlotAllocR111(slot);
     if(ok)ok=slotAlloc&&SUCCEEDED(slotAlloc->Reset())&&SUCCEEDED(x_list->Reset(slotAlloc,nullptr));
     if(ok){
         auto* img=(*x_imgs)[x_index];
+        // R141: only while the LockPicking movie is open: the alpha pass instead of the copy (hud_lock_alpha_r141.h).
+        usedLockPassR141=RecordLockPassR141(dev,cache,cd,slot,now);
+        if(!usedLockPassR141){
         Barrier(x_list,cache,D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_COPY_SOURCE);
         Barrier(x_list,img,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_COPY_DEST);
         x_list->CopyResource(img,cache);
         Barrier(x_list,img,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_RENDER_TARGET);
         Barrier(x_list,cache,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_COMMON);
+        }
         ok=SUCCEEDED(x_list->Close());
     }
     if(ok){ID3D12CommandList* ls[]={x_list};ok=DeviceHook::ExecuteCommandListsBypass(q,1,ls);}
+    if(!ok&&usedLockPassR141){ // R141: the pass list was refused: plain copy for 10 s, then the pass again (no latch)
+        x_lock_r141.retryAt=now+10000;LogLockR141("R141 LOCKPICK_HUD_ALPHA pass=FAILED step=close/execute (plain copy for 10 s, then retry)");}
     if(ok){
         // Retain the source reference until our submitted copy retires.
         cache->AddRef();x_slot_src_r111[slot]=cache;

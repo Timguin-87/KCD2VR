@@ -208,7 +208,12 @@ static void PhysHolsterDiagFlushR8d(const HolsterDiagR8d& d) noexcept {
         diag.summary.add(a);char m[512]{};hd::format_attempt(a,m,sizeof(m));diagnostic_trace::Write(m);
         // R9: a squeeze that never reached the zone (door, apple, anything at belt/shoulder height) is not a holster
         // attempt for the player: trace + summary only, no visible line (14 of 20 R8d2 refusals were these).
-        const bool reachedZoneR9=a.why!=hd::Refuse::OutsideZone&&a.why!=hd::Refuse::OutsideVolume&&a.why!=hd::Refuse::NoMount;
+        // R146 (Miki 8 Nov: "pull an arrow while having the bow, the F2 message says no crossbow or something"): with a bow or
+        // crossbow out, the right shoulder is the quiver. reaching there for an arrow/bolt is the quiver grab, not a polearm draw,
+        // so the polearm's BOW_QUIVER_OWNS_SHOULDER refusal stays a trace + summary row only (it printed
+        // "polearm: right shoulder is the quiver while a bow or crossbow is out" at 17:01:59 / 17:02:20 / 17:04:41).
+        const bool reachedZoneR9=a.why!=hd::Refuse::OutsideZone&&a.why!=hd::Refuse::OutsideVolume&&a.why!=hd::Refuse::NoMount&&
+                                 a.why!=hd::Refuse::BowQuiver;
         if(reachedZoneR9&&kcd2vr::diagnostics::capture168::active(kcd2vr::diagnostics::capture168::Domain::Bug,now)&&hd::visible_due(diag,now)){
             char t[kcd2vr::visible_failure::kMaxText+1]{};hd::visible_text(a,t,sizeof(t));
             namespace cap=kcd2vr::diagnostics::capture168;

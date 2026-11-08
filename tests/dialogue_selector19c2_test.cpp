@@ -103,11 +103,27 @@ int main(){
     reset();nativeResult=false;memory[cameras+0x30]=cameras+0x1E8;assert(!call());
     assert(reads.empty()&&selectorObservations19c2==0);
     // Live combat speech may satisfy Human:IsInDialog, but it does not own
-    // the native interactive dialog map. Never suspend combat or its camera.
+    // the native interactive dialog map. Never suspend combat (active stays false).
+    // R142: the Dialog camera CANDIDATE is still declined while Henry is in the listed
+    // dialogue (dialogue start state 1 / end state 4 have the map off too): FirstPerson stays.
     reset();memory[cameras+0x30]=cameras+0x1E8;
-    memory[dialogue_input_fixture19c3::map+9]=0;assert(call());
+    memory[dialogue_input_fixture19c3::map+9]=0;assert(!call());
     assert(dialogue.read(current)&&current.known&&current.membership.active&&!current.active);
-    assert(selectorOverrides19c2==0);
+    assert(selectorOverrides19c2==1);
+    // R142 dialogue start exactly as logged 17:03:53.210: state 1, map DISABLED, Dialog camera selected.
+    reset();memory[instance+0x278]=1;memory[cameras+0x30]=cameras+0x318;
+    memory[dialogue_input_fixture19c3::map+9]=0;assert(!call());
+    assert(dialogue.read(current)&&current.membership.active&&!current.active&&selectorOverrides19c2==1);
+    // R142 same start, nothing else widened: no mode-2 request, bone/authored camera, not a participant,
+    // stop requested, map unreadable -> native answer, no override.
+    reset();memory[dialogue_input_fixture19c3::map+9]=0;assert(dialogueRequest19c2.publish({now,false}));
+    assert(call()&&selectorOverrides19c2==0);
+    reset();memory[dialogue_input_fixture19c3::map+9]=0;memory[cameras+0x30]=cameras+0x350;memory[cameras+0x350]=b+0x3A5A3D0;
+    assert(call()&&selectorOverrides19c2==0);
+    reset();memory[dialogue_input_fixture19c3::map+9]=0;memory[participants+0x18]=0;assert(call()&&selectorOverrides19c2==0);
+    reset();memory[dialogue_input_fixture19c3::map+9]=0;memory[scene+0xBC]=8;assert(call()&&selectorOverrides19c2==0);
+    reset();memory[dialogue_input_fixture19c3::map+9]=0;memory[instance+0x278]=0x17;assert(call()&&selectorOverrides19c2==0);
+    for(auto address:{cameras+0x38,cameras+0x3B}){reset();memory[dialogue_input_fixture19c3::map+9]=0;memory[address]=1;assert(call()&&selectorOverrides19c2==0);}
     reset();memory.erase(dialogue_input_fixture19c3::map+9);assert(call());
     assert(dialogue.read(current)&&current.known&&!current.active&&!current.inputOwner.known);
     for(auto address:{dialogue_input_fixture19c3::head+8,dialogue_input_fixture19c3::node+0x28,

@@ -14,6 +14,7 @@
 #include <mutex>
 #include "ui_prompt_scale120r3.h"
 #include "ui_hud_r112.h" // R112 combat crosshair size + quick-slot fade
+#include "ui_minimal_hud_r141.h" // R141 Minimal HUD (game element cvars + visible-flag filter + re-hide)
 #include "ui_station_prompts_d74.h"
 #include "../prompt_policy_d80.h"
 #include "ui_hud_geometry.h"
@@ -86,6 +87,7 @@ bool HudCaptureActive175() noexcept {
 }
 void RemoveHudRepairHooks175() noexcept;
 bool ReadHudKey175(void*,void*,std::uint64_t,ui_hud_visibility175::Key&) noexcept;
+bool NativeVisibleTarget175(std::uintptr_t object,bool requested) noexcept; // R141
 constexpr std::uintptr_t kFlashUiGlobalRva = 0x492D938ull; // proven by HUD/cursor static xrefs
 constexpr std::uintptr_t kUiHolderReleaseRva = 0x3968ACull;  // exact cleanup used after GetElement("hud") at WHGame+0x89B68C
 constexpr std::uint32_t kSupportedWhTimestamp = 0x6A350E20u;
@@ -535,10 +537,12 @@ bool __fastcall NativeHudDisplay54(void*self,void* info) {
         g_diceNativeVisibleR92.store(copy[0x28]!=0);
         if(DiceMarkerLeaseR92()){copy[0x28]=0;return visibility175::display54(self,copy);}
     }
-    if(!(flags&(0x20|0x18)))return visibility175::display54(self,info);
+    // R141: Minimal HUD also filters the visible flag (the HUD manager's re-show path). OFF = exactly as before.
+    const bool visibleR141=(flags&0x400)&&ui_minimal_hud_r141::enabled.load(std::memory_order_relaxed);
+    if(!(flags&(0x20|0x18))&&!visibleR141)return visibility175::display54(self,info);
     // D60: a scale-only call on an unrelated Flash child has no notification
     // work to do. Avoid the native key read on that common animation path.
-    if(!(flags&0x20)&&!g_notification_children_r12.HasWrapper(reinterpret_cast<std::uintptr_t>(self))&&
+    if(!(flags&0x20)&&!visibleR141&&!g_notification_children_r12.HasWrapper(reinterpret_cast<std::uintptr_t>(self))&&
        !g_prompt_children_d74.HasWrapper(reinterpret_cast<std::uintptr_t>(self))&&
        !g_action_cursor_children_d69.HasWrapper(reinterpret_cast<std::uintptr_t>(self))&&
        !g_combat_cursor_children_r112.HasWrapper(reinterpret_cast<std::uintptr_t>(self))) // R112
@@ -546,6 +550,11 @@ bool __fastcall NativeHudDisplay54(void*self,void* info) {
     ui_hud_visibility175::Key key{};
     if(!ReadHudKey175(self,g_last_hud.load(std::memory_order_acquire),HudGeneration(),key))return visibility175::display54(self,info);
     void* supplied=info;
+    if(visibleR141){
+        const bool requested=copy[0x28]!=0;
+        const bool target=NativeVisibleTarget175(key.object,requested);
+        if(target!=requested){copy[0x28]=target?1:0;supplied=copy;}
+    }
     if(flags&0x20){
         float alpha=0;std::memcpy(&alpha,copy+0x14,4);
         const unsigned owner=g_semantic_owner54.load(std::memory_order_acquire);
@@ -564,10 +573,13 @@ bool __fastcall NativeHudDisplay54(void*self,void* info) {
     }
     return result;
 }
-void __fastcall NativeHudVisible175(void*self,bool requested) {
+// R141: one decision for a native visible request of a qualified HUD child, used by the SetVisible hook below and,
+// while Minimal HUD is on, by the visible flag (0x400) of SetDisplayInfo in NativeHudDisplay54 (the game's HUD
+// manager re-shows elements through SetDisplayInfo, WHGame 0x556164). object = the Flash object of the child.
+bool NativeVisibleTarget175(std::uintptr_t object,bool requested) noexcept {
     bool target=requested;
-    if(!g_hud_owned_write175&&g_hud_repair_ready175.load(std::memory_order_acquire)){
-        const auto decision=g_native_visibility175.NativeRequest(reinterpret_cast<std::uintptr_t>(self),requested,
+    {
+        const auto decision=g_native_visibility175.NativeRequest(object,requested,
             reinterpret_cast<std::uintptr_t>(g_last_hud.load(std::memory_order_acquire)),HudGeneration(),
             g_transition_hidden170.load(std::memory_order_acquire),g_hud_repair175.load(std::memory_order_acquire),ValidHudKey175,g_corrected36.load(),g_contextual36.load());
         target=decision.visible;
@@ -585,6 +597,12 @@ void __fastcall NativeHudVisible175(void*self,bool requested) {
             if(decision.suppressed)++g_native_vis_suppressed175;
         }
     }
+    return target;
+}
+void __fastcall NativeHudVisible175(void*self,bool requested) {
+    bool target=requested;
+    if(!g_hud_owned_write175&&g_hud_repair_ready175.load(std::memory_order_acquire))
+        target=NativeVisibleTarget175(reinterpret_cast<std::uintptr_t>(self),requested);
     ui_hud_visibility175::Key diceKey{};
     if(!g_hud_owned_write175&&DiceKeyR92(diceKey)&&diceKey.object==reinterpret_cast<std::uintptr_t>(self)){
         g_diceNativeVisibleR92.store(requested);if(DiceMarkerLeaseR92())target=false;
@@ -1311,6 +1329,57 @@ void UpdateCombatCrosshairR112(bool enabled,std::uint64_t now) noexcept {
     static int loggedEnabled=-1;
     if(r.written||!complete||loggedEnabled!=int(enabled)){loggedEnabled=int(enabled);char m[300]{};
         std::snprintf(m,sizeof(m),"R112 COMBAT_CROSSHAIR enabled=%d scale=%.2f resolved=%u verified=%u written=%u native=(%.1f,%.1f) target=(%.1f,%.1f) readback=(%.1f,%.1f) complete=%d position=NATIVE",
+            enabled?1:0,double(scale),r.resolved,r.verified,r.written,double(r.before[0].xs),double(r.before[0].ys),double(r.target[0].xs),double(r.target[0].ys),
+            double(r.after[0].xs),double(r.after[0].ys),complete?1:0);
+        diagnostic_trace::Write(m);}
+}
+
+// R145: the yellow message line (InfoText, see ui_prompt_scale120r3::InfoTextR145). same shape as the R112 crosshair
+// owner above: event driven (HUD generation, the InfoText child identity + native scale writes on it, slider value),
+// at most one pass per 100 ms, an incomplete pass retried every 5 s and on the next event, never latched.
+ui_prompt_scale120r3::InfoTextR145 g_info_text_r145;
+void UpdateInfoTextScaleR145(bool enabled,float scale,std::uint64_t now) noexcept {
+    scale=ui_prompt_scale120r3::InfoTextR145::Clamp(scale);
+    std::lock_guard<std::recursive_mutex> drawLock(g_hud_draw_mutex162r1);
+    if(!enabled&&!g_info_text_r145.Active())return; // nothing of ours on the clip: no Flash call
+    static bool lastComplete=true;static std::uint64_t lastRun=0;
+    std::uint64_t key=1469598103934665603ull;
+    for(auto value:{HudGeneration(),g_canvas_lifetime.load(),g_notification_children_r12.Revision(0),g_notification_children_r12.WorkRevision(0)})
+        ui_hud_work59c7::Mix(key,value);
+    ui_hud_work59c7::Mix(key,enabled);{std::uint32_t bits=0;std::memcpy(&bits,&scale,4);ui_hud_work59c7::Mix(key,bits);}
+    if(!lastComplete)ui_hud_work59c7::Mix(key,now/5000ull);
+    else if(enabled&&g_notification_children_r12.Revision(0)<=1)ui_hud_work59c7::Mix(key,now/2000ull); // no native child key yet
+    if(lastRun&&now>=lastRun&&now-lastRun<100)return; // the key keeps the event, the next call after 100 ms takes it
+    static ui_hud_work59c7::Retry retry;
+    if(!retry.Due(key,now))return;
+    lastRun=now;
+    HudHolder holder{};void* hud=nullptr;
+    if(!g_display_verified170||!AcquireHudDirect(holder,hud)){ReleaseHudHolder(holder);lastComplete=false;return;}
+    const auto previous=g_canvas_live_hud.exchange(hud,std::memory_order_acq_rel);
+    if(previous!=hud)g_canvas_lifetime.fetch_add(1,std::memory_order_acq_rel);
+    struct InfoTextBackendR145 : NativeCanvasBackend {
+        bool Resolve(unsigned i,const char* name,std::uintptr_t& id) noexcept {
+            if(i>=1||!NativeCanvasBackend::Resolve(i,name,id))return false;
+            ui_hud_visibility175::Key child{};
+            if(ReadHudKey175(handles[i].clip,hud,HudGeneration(),child)){g_notification_children_r12.Observe(0,child);id=child.object;return true;}
+            NoteHudKeyRefusalR112(name,handles[i].clip,hud);id=reinterpret_cast<std::uintptr_t>(handles[i].clip);return true;
+        }
+        std::uint64_t Revision(unsigned i) const noexcept {return i<1?g_notification_children_r12.Revision(0):0;}
+        bool Set(unsigned i,ui_native_canvas::Geometry value) noexcept {
+            if(i>=1||!Alive())return false;
+            alignas(16) auto bytes=ui_prompt_scale120r3::Notifications::PackScale(value); // flags 0x18: x/y scale only
+            ++g_hud_owned_write175;const bool ok=CallFlashDisplayFnSEH(handles[i].set,handles[i].clip,bytes.data());--g_hud_owned_write175;
+            return ok&&Alive();
+        }
+    }io;io.hud=hud;io.generation=g_canvas_lifetime.load(std::memory_order_acquire);
+    const bool ok=g_info_text_r145.Run(io,io.generation,enabled,scale);
+    const auto& r=g_info_text_r145.LastReport();
+    const bool complete=ok&&(!enabled||(r.resolved==1u&&r.verified==1u));
+    ReleaseHudHolder(holder);
+    retry.Complete(complete);lastComplete=complete;
+    static int loggedEnabled=-1;
+    if(r.written||loggedEnabled!=int(enabled)){loggedEnabled=int(enabled);char m[300]{};
+        std::snprintf(m,sizeof(m),"R145 INFO_TEXT enabled=%d scale=%.2f resolved=%u verified=%u written=%u native=(%.1f,%.1f) target=(%.1f,%.1f) readback=(%.1f,%.1f) complete=%d position=NATIVE",
             enabled?1:0,double(scale),r.resolved,r.verified,r.written,double(r.before[0].xs),double(r.before[0].ys),double(r.target[0].xs),double(r.target[0].ys),
             double(r.after[0].xs),double(r.after[0].ys),complete?1:0);
         diagnostic_trace::Write(m);}
@@ -2473,6 +2542,38 @@ void UpdateCombatCrossArtR125(bool hide,std::uint64_t now) noexcept {
         diagnostic_trace::Write(m);}
 }
 
+// R141 Minimal HUD: the status/popup clips (ui_minimal_hud_r141::kClips) and, in free gameplay, the whole action cursor
+// set invisible on every HUD generation and every 500 ms - the safety net for ActionScript re-shows inside hud.gfx;
+// the game's own wh_ui_Show<Element> cvars (mod.cpp) do the permanent part. zeroMask bit i = cvar i is 0 (the game
+// itself hides that element), so OFF writes visible back only for clips the cvar did not cover. the cursor, compass
+// and health go back to the existing visibility controller (epoch bump), never a blind show. nothing latches.
+void UpdateMinimalHudR141(bool on,bool cursor,unsigned zeroMask,std::uint64_t now) noexcept {
+    static ui_minimal_hud_r141::Rehide schedule;static unsigned hidden=0,loggedMask=~0u;static std::uint64_t generation=0;
+    const auto& names=ui_minimal_hud_r141::kClips;constexpr unsigned cursorBit=1u<<ui_minimal_hud_r141::kClips.size();
+    if(!on&&!hidden)return; // OFF and nothing of ours hidden: no lock, no Flash call (the normal HUD path is untouched)
+    const bool hudReady=g_hud_repair_ready175.load(std::memory_order_acquire)&&retail_build112::Ready(WhBase());
+    const auto current=HudGeneration();
+    std::lock_guard<std::recursive_mutex> drawLock(g_hud_draw_mutex162r1);
+    if(!on){
+        if(!hidden)return;
+        if(hudReady&&current==generation)
+            for(unsigned i=0;i<names.size();++i)if((hidden&(1u<<i))&&!(zeroMask&(1u<<i)))(void)SetHudMovieClipVisible(names[i],true,current);
+        hidden=0;loggedMask=~0u;schedule.Reset();++g_hud_repair_epoch175;
+        diagnostic_trace::Write("R141 MINIMAL_HUD off: clips given back (cvar-covered ones by the game, cursor/compass/health by the HUD controller)");
+        return;
+    }
+    if(!cursor&&(hidden&cursorBit)){hidden&=~cursorBit;++g_hud_repair_epoch175;} // alchemy gaze / station / dialogue: controller owns it again
+    if(!hudReady||!current||!schedule.Due(current,now))return;
+    unsigned mask=0;
+    for(unsigned i=0;i<names.size();++i)if(SetHudMovieClipVisible(names[i],false,current))mask|=1u<<i;
+    if(cursor&&SetHudMovieClipVisible(ui_minimal_hud_r141::kCursorClip,false,current))mask|=cursorBit;
+    hidden=mask;generation=current;schedule.Done(current,now);
+    if(mask!=loggedMask){loggedMask=mask;char m[200]{};
+        std::snprintf(m,sizeof(m),"R141 MINIMAL_HUD rehide mask=%03X/%03X cursor=%d gen=%llu (missing = clip not in this HUD yet, retried every 0.5 s)",
+            mask,(1u<<names.size())-1u|(cursor?cursorBit:0u),cursor?1:0,(unsigned long long)current);
+        diagnostic_trace::Write(m);}
+}
+
 void Uninstall() noexcept {
     dice_marker_r92::flatOwnerReady.store(false);
     (void)dice_marker_r92::hidden.publish({});
@@ -2480,6 +2581,7 @@ void Uninstall() noexcept {
     if(DiceKeyR92(diceKey))(void)SetHudMovieClipVisible("DiceCursor",g_diceNativeVisibleR92.load(),diceKey.generation);
     (void)SetHudMovieClipVisible("DiceCursorRing",true,0); // R98: never leave the native dice ring hidden after unload
     for(const char* n:ui_hud_r112::kCombatCrossArtR125)(void)SetHudMovieClipVisible(n,true,0); // R125: cross art back
+    UpdateMinimalHudR141(false,false,0,GetTickCount64()); // R141: the mod's own hides back (mod.cpp gives the cvars back first)
     (void)g_diceKeyR92.publish({});
     RemovePageObserver19();
     g_hud_repair175.store(false,std::memory_order_release);

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <chrono>
 #include "xr_layer_guard_r104.h"
+#include "vrik/start_facing_r148.h" // R148: head tracked flag + runtime name for the start/load facing recenter
 #include <cmath>
 #include <d3dcompiler.h>
 
@@ -294,6 +295,7 @@ bool XrManager::GetSystem()
             XR_SUCCEEDED(ipr)?XR_VERSION_PATCH(instance_props.runtimeVersion):0u,XR_SUCCEEDED(spr)?system_props.systemName:"<unknown>",
             XR_SUCCEEDED(spr)?system_props.vendorId:0u,XR_SUCCEEDED(spr)?system_props.graphicsProperties.maxLayerCount:0u,
             XR_SUCCEEDED(spr)?system_props.graphicsProperties.maxSwapchainImageWidth:0u,XR_SUCCEEDED(spr)?system_props.graphicsProperties.maxSwapchainImageHeight:0u);
+        kcd2vr::start_facing_r148::setRuntime(XR_SUCCEEDED(ipr)?instance_props.runtimeName:"<unknown>"); // R148: named in the AUTO_RECENTER row
         diagnostic_trace::WriteStatus(rt);
         max_layer_count_r104_=XR_SUCCEEDED(spr)&&system_props.graphicsProperties.maxLayerCount?system_props.graphicsProperties.maxLayerCount:16u;
     }
@@ -536,6 +538,9 @@ void XrManager::NoteEndFrameR105(unsigned kinds,int result,std::uint32_t sitOutM
                 at+=std::snprintf(m+at,sizeof(m)-at," %s{submitted:%llu held:%llu dropped:%llu repaired:%llu}",xr_layer_guard_r104::name(k),
                     (unsigned long long)layer_sent_r104_[k],(unsigned long long)layer_held_r104_[k],(unsigned long long)layer_drop_r104_[k],(unsigned long long)layer_fix_r104_[k]);
             }
+            if(at<int(sizeof(m))-380&&(eye_hold_r141_[0]|eye_hold_r141_[1]|eye_hold_r141_[2]|eye_hold_r141_[3]))
+                at+=std::snprintf(m+at,sizeof(m)-at," EYE_HOLD_R141{reshown:%llu noImage:%llu tooOld:%llu mismatch:%llu}",
+                    (unsigned long long)eye_hold_r141_[0],(unsigned long long)eye_hold_r141_[1],(unsigned long long)eye_hold_r141_[2],(unsigned long long)eye_hold_r141_[3]);
             if(at<int(sizeof(m))-300){m[at++]=' ';hud_layer_v6664::StatusR104(m+at,sizeof(m)-at);}
             diagnostic_trace::WriteStatus(m);
         }
@@ -900,6 +905,8 @@ void XrManager::SetFlatUiMode(bool enabled)
             need_capture = need_capture || !flat_ui_anchor_valid_;
         }
         bool captured = false;
+        char r148[320]{};
+        namespace sf=kcd2vr::start_facing_r148;
         if (need_capture) {
             RenderFrameState f{};
             if (CopyActiveRenderFrameState(f) && f.head_pose_valid) {
@@ -907,8 +914,37 @@ void XrManager::SetFlatUiMode(bool enabled)
                 flat_ui_anchor_pose_ = f.head_pose;
                 flat_ui_anchor_valid_ = true;
                 captured = true;
+                // R148: a re-capture of an open screen right after YOUR runtime recenter is yours: never moved by the look-away rule
+                ui_anchor_user_r148_=previous&&ui_reference_change_r148_;ui_reference_change_r148_=false;ui_away_since_r148_=0;
+                if(!ui_anchor_logged_r148_){
+                    ui_anchor_logged_r148_=true;const auto& q=f.head_pose.orientation;const auto fw=sf::forwardOf(q.x,q.y,q.z,q.w);
+                    std::snprintf(r148,sizeof(r148),"R148 UI_ANCHOR first runtime='%s' yawDeg=%.1f pitchDeg=%.1f tracked=%d user=%d (screen placed in front of this head pose)",
+                        sf::runtime(),double(kcd2vr::start_r111::yawDeg(q.x,q.y,q.z,q.w)),double(sf::pitchDeg(fw)),sf::headTracked.load(std::memory_order_acquire)?1:0,ui_anchor_user_r148_?1:0);
+                }
             }
         }
+        // R148: the automatic Theater screen (intro / main menu / pause) placed from an early SteamVR pose can sit
+        // where the headset pointed before you looked in. a tracked, level head looking > 60 deg away from it for
+        // 1.5 s re-places it in front of you (start_facing_r148.h uiLookAway). only while the automatic Theater is on.
+        if (!captured && native_menu_plane_mode_.load(std::memory_order_acquire)) {
+            RenderFrameState f{};
+            if (CopyActiveRenderFrameState(f) && f.head_pose_valid) {
+                std::lock_guard<std::mutex> lock(flat_ui_mutex_);
+                if (flat_ui_anchor_valid_) {
+                    const auto& h=f.head_pose.orientation;const auto& a=flat_ui_anchor_pose_.orientation;
+                    const auto hf=sf::forwardOf(h.x,h.y,h.z,h.w),af=sf::forwardOf(a.x,a.y,a.z,a.w);
+                    const float angle=sf::angleDeg(hf,af),pitch=sf::pitchDeg(hf);
+                    if(sf::uiLookAway(ui_away_since_r148_,kcd2vr::start_r111::henryEyes.load(std::memory_order_acquire),ui_anchor_user_r148_,
+                                      sf::headTracked.load(std::memory_order_acquire),angle,pitch,std::uint64_t(GetTickCount64()))){
+                        const float before=kcd2vr::start_r111::yawDeg(a.x,a.y,a.z,a.w);
+                        flat_ui_anchor_pose_=f.head_pose;ui_away_since_r148_=0;
+                        std::snprintf(r148,sizeof(r148),"R148 UI_ANCHOR replaced runtime='%s' screenYawDeg before=%.1f after=%.1f awayDeg=%.1f headPitchDeg=%.1f (you looked away from the start/menu screen 1.5 s)",
+                            sf::runtime(),double(before),double(kcd2vr::start_r111::yawDeg(h.x,h.y,h.z,h.w)),double(angle),double(pitch));
+                    }
+                }
+            }
+        }
+        if(r148[0])diagnostic_trace::WriteStatus(r148); // KCD2VR.log only, few rows
         if (!previous || captured) {
             char m[192]{};
             std::snprintf(m, sizeof(m), "V66.20-FLAT-PLANE ON anchor=%s space=LOCAL orientation=YAW-ONLY", captured ? "captured" : "pending");
@@ -3509,7 +3545,7 @@ static std::array<ui_surface_geometry::Eye,2> UiEyes(const XrManager::RenderFram
 // XR-worker-only lifecycle work. Continue polling while stopped so READY can
 // resume the existing session and its already attached action set.
 void XrManager::ResetUiAnchorsR105() noexcept {
-    {std::lock_guard<std::mutex> lock(flat_ui_mutex_);flat_ui_anchor_valid_=false;}
+    {std::lock_guard<std::mutex> lock(flat_ui_mutex_);flat_ui_anchor_valid_=false;ui_anchor_logged_r148_=false;ui_away_since_r148_=0;}
     ui_layer_test_anchor_valid_=false;hud_lag_valid_=false;
     head_receipt_pending_r105_=true;
 }
@@ -3558,7 +3594,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
 {
     diagnostics::xr165::Timer timing165(diagnostics::xr165::Frame);
     PollSessionEventsR105();
-    if (!session_running_.load(std::memory_order_relaxed)) { input_.InvalidateFrameR105();comfort_envelope51_.Reset();Sleep(8);return false; } // R106: no xrWaitFrame pacing while stopped - don't spin the worker
+    if (!session_running_.load(std::memory_order_relaxed)) { kcd2vr::start_facing_r148::headTracked.store(false,std::memory_order_release);input_.InvalidateFrameR105();comfort_envelope51_.Reset();Sleep(8);return false; } // R106: no xrWaitFrame pacing while stopped - don't spin the worker
 
     // V58 live XR-resolution apply. Execute only on the XR worker before
     // xrWaitFrame/acquire, when no image from the new frame is owned. Finish
@@ -3603,6 +3639,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
         pending_reference_changes125_.erase(due,pending_reference_changes125_.end());
         CameraHook::RequestRecenter();
         ResetUiAnchorsR105();
+        {std::lock_guard<std::mutex> lock(flat_ui_mutex_);ui_reference_change_r148_=true;} // R148: the next screen anchor is yours (runtime recenter)
         diagnostic_trace::WriteStatus("R105 XR_REFERENCE runtimeLocalChange=APPLIED_AT_DISPLAY_TIME uiAnchors=RECAPTURE bodyReanchor=ON_VALID_POSE");
     }
 
@@ -3682,6 +3719,8 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
                 debug_trace::WriteCounter("valid_hmd_poses", pose_no);
         }
     }
+    // R148: the start/load facing recenter (start_facing_r148.h) only trusts a head the runtime really tracks
+    kcd2vr::start_facing_r148::headTracked.store(got_pose&&(headFlags59c6&XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT)!=0,std::memory_order_release);
 
     bool inputFresh51=false;
     { diagnostics::xr165::Timer timing165(diagnostics::xr165::Input);inputFresh51=input_.Sync(frame_state.predictedDisplayTime); }
@@ -4101,6 +4140,8 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
     {
         bool acquired[2] = { false, false };
         bool images_ready = true;
+        bool eyes_written_r141 = false;                // R141: this frame's copy wrote the acquired eye images
+        bool released_r141[2] = { false, false };      // R141: released = the image the runtime shows for that swapchain
 
         for (int eye = 0; eye < 2; ++eye)
         {
@@ -4156,6 +4197,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
             const bool copy_ui = ui_ready && (menu_visible || diagnostic_h24 || ui_needs_init);
             bool ui_copy_ok = false;
             images_ready = QueueRenderThreadDiagnosticWork(left, right, ui_ready ? ui_image : nullptr, copy_ui, &ui_copy_ok, presentation59c2);
+            eyes_written_r141 = images_ready;
             if (ui_copy_ok && ui_image_index < menu_ui_image_initialized_.size()) menu_ui_image_initialized_[ui_image_index] = true;
             const bool ui_initialized = ui_ready && ui_image_index < menu_ui_image_initialized_.size() && menu_ui_image_initialized_[ui_image_index];
             have_ui_texture = images_ready && ui_ready && ui_image != nullptr && ui_initialized;
@@ -4205,6 +4247,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
             if (!acquired[eye]) continue;
             XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
             if (XR_FAILED(xrReleaseSwapchainImage(eyes_[eye].swapchain, &release_info))) images_ready = false;
+            else released_r141[eye] = true;
         }
         if (ui_acquired) {
             XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
@@ -4327,6 +4370,43 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
                         layer_frame.eye_pose[0].position.x, layer_frame.eye_pose[1].position.x);
                     debug_trace::Write(m);
                 }
+            }
+            // R141: remember what each released eye image now holds. only a projection picture can be re-shown;
+            // a theater/map frame overwrote the image with something else.
+            const bool projection_r141 = !presentation59c2.policy.flat && !presentation59c2.policy.physical_map;
+            const std::uint64_t now_r141 = GetTickCount64();
+            for (int eye = 0; eye < 2; ++eye) {
+                const int source_eye = swap_eyes ? (eye ^ 1) : eye;
+                if (projection_r141)
+                    xr_eye_hold_r141::Record(eyes_[source_eye].held_r141, image_indices[source_eye],
+                        eye, proj_views[eye].pose, proj_views[eye].fov, active_frame.frame_index, now_r141);
+                else xr_eye_hold_r141::Forget(eyes_[source_eye].held_r141, image_indices[source_eye]);
+            }
+        }
+        else {
+            // R141: this frame wrote no eye image (handoff timed out after 500 ms while the game stalled, no
+            // presentable stereo pair, copy refused). before R141 the frame went out with NO projection and no HUD =
+            // black, and the runtime kept that black until the next good frame (up to ~0.5 s in a stall). the
+            // images just released still hold their last picture: send it again with the pose/fov it was drawn
+            // with (runtime reprojects it world-locked). both eyes or nothing, younger than 2 s, decided every frame.
+            if (eyes_written_r141) {
+                for (int eye = 0; eye < 2; ++eye) xr_eye_hold_r141::Forget(eyes_[eye].held_r141, image_indices[eye]);
+            } else if (xr_eye_hold_r141::enabled.load(std::memory_order_acquire) &&
+                       !presentation59c2.policy.flat && !presentation59c2.policy.physical_map &&
+                       acquired[0] && acquired[1] && released_r141[0] && released_r141[1] &&
+                       production_presentation59c2_.Current(presentation59c2.ticket)) {
+                const bool swap_r141 = swap_eyes_.load(std::memory_order_acquire);
+                for (int eye = 0; eye < 2; ++eye) {
+                    EyeSwapchain& e = eyes_[swap_r141 ? (eye ^ 1) : eye];
+                    proj_views[eye].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
+                    proj_views[eye].subImage.swapchain = e.swapchain;
+                    proj_views[eye].subImage.imageRect.offset = { 0, 0 };
+                    proj_views[eye].subImage.imageRect.extent = { e.width, e.height };
+                }
+                const auto held = xr_eye_hold_r141::Pick(eyes_[0].held_r141, image_indices[0], eyes_[1].held_r141, image_indices[1],
+                    swap_r141, GetTickCount64(), proj_views);
+                ++eye_hold_r141_[static_cast<unsigned>(held)];
+                if (held == xr_eye_hold_r141::Result::Held) { have_layer = true; layer_frame_paired = false; } // old picture: no D61 lead sample
             }
         }
     }

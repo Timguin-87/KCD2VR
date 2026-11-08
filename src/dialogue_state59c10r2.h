@@ -92,6 +92,15 @@ template<class Read> State observe(std::uintptr_t base,std::uintptr_t self,std::
 inline bool embodiedOwner(const State& s,std::uint64_t now) noexcept {
     return fresh(s,now)&&s.active&&(s.camera==Camera::FirstPerson||s.camera==Camera::Dialogue);
 }
+// R142 (Miki 7 Nov: "by starting the dialogue you have 1 second of henry's head zoomed in, then it switches to dialogue
+// immersive view"): CAMERA CHOICE ONLY. the game asks for its own Dialog camera already while the dialogue starts
+// (state 1, log 17:03:53.210) and again while it closes (state 4), with Henry a participant of the listed current
+// dialogue but the native "dialog" input map still/again off. embodiedOwner (eye, body, gameplay suspension) keeps
+// waiting for the map; only the Dialog camera candidate is declined over the whole membership, so the FirstPerson
+// camera stays on until the immersive eye takes over. bone/ui/rider/external cameras stay native (camera Unknown).
+inline bool cameraOwnerR142(const State& s,std::uint64_t now) noexcept {
+    return fresh(s,now)&&s.membership.active&&s.inputOwner.known&&(s.camera==Camera::FirstPerson||s.camera==Camera::Dialogue);
+}
 struct V {float x=0,y=0,z=0;};
 struct Q {float x=0,y=0,z=0,w=1;};
 inline V add(V a,V b) noexcept {return {a.x+b.x,a.y+b.y,a.z+b.z};}

@@ -41,6 +41,10 @@ def main():
        mod.index("r::rotateStick(pad.lx") < mod.index("ApplyRoomscalePad58(pad,padCtx"), "stick turn before the dodge/follow injection")
     ch = text("src/camera_hook.cpp")
     ck("r133::step(holdR133,in)" in ch and "for(auto& v:visual_basis)" in ch, "camera hook runs the hold and turns the view basis")
+    ck("if(record_render_identity&&(plusR133" not in ch and "!busyR133.exchange(true,std::memory_order_acquire)" in ch and
+       ch.count("busyR133.store(false,std::memory_order_release)") == 1, "R142: hold runs in the culling apply too (the rendered camera reuses it), one caller at a time")
+    ck("after!=INT_MIN&&after!=1&&CombatCameraIntWrite142(v,1)" in mod and "after==1&&original!=1&&CombatCameraIntWrite142(v,original)" in mod and
+       "b+0x3DD0020" in mod, "R142: combat camera lease writes the cheat cvar int when Set() is refused (no dev mode), lease and give-back")
     fr = text("src/frik_pose_probe.cpp")
     ck("static CalFrameR133T CalFrameR133()" in fr, "body frame helper")
     sites = {"src/subsystems/vrik/pose_tracking_goals.inl": 1, "src/vrik/weapon_tracking.inl": 1,

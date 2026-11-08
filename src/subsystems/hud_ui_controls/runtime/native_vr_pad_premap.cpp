@@ -3,6 +3,7 @@
 #include "subsystems/throw_drop/hand_claim_t24.h"
 #include "controller_layout_r118.h" // R118: X hold = torch (OPENXR) or inventory (STEAMVR / PS VR2)
 #include "subsystems/experimental/free_targeting_plus_r133.h" // R133: the player's own turn input
+#include "ride_follow_r147.h" // R147: mounted X tap = LB (follow) when the follow prompt is listed
 #include <windows.h>
 #include <algorithm>
 #include <atomic>
@@ -29,6 +30,7 @@ std::uint32_t g_carry_press_r25=0;
 int g_carry_route_r25=-2; // -2 none, -1 awaiting context, 0 utility, 1 carry, 2 retired carry
 bool g_carry_down_r25=false;
 bool g_b_prev59c10=false,g_b_consumed_prev59c10=false,g_menu_prev59c10=false,g_b_rearm_prev59c10=false; // R59.16C10 B transaction edges
+int g_follow_hint147=-1,g_follow_sent147=-1; std::uint64_t g_follow_lb_until147=0; // R147: per press only, cleared on every new press
 
 float Trigger168(float v) noexcept {return std::isfinite(v)?std::clamp(v,0.0f,1.0f):0.0f;}
 float Axis(float v,float dead) noexcept {
@@ -48,6 +50,7 @@ void Reset() noexcept {
     g_x_down_since=0; g_x_prev=g_x_long=g_x_torch58=g_x_visor59c1=g_x_inventory118=g_x_inventory_held118=false;g_talk_until58=0;g_back_hold.Reset();g_menu_close_hold178r6.Reset();
     g_b_prev59c10=g_b_consumed_prev59c10=g_menu_prev59c10=g_b_rearm_prev59c10=false;
     g_visor_until=0;g_x_physical_prev62=g_x_active_known62=g_x_active62=false;g_non_gameplay168=g_x_quarantine168=g_modifier168=false;g_talk_weapon_quarantineH4=false;
+    g_follow_hint147=g_follow_sent147=-1;g_follow_lb_until147=0; // R147
 }
 
 State Build(const ControllerState& l,const ControllerState& r,const Context& c) noexcept {
@@ -221,7 +224,13 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
         // held 0.5 s = torch immediately; LEFT thumbrest + X hold = visor. One pulse per press.
         // R118: on the STEAMVR / PS VR2 layout the 0.5 s hold opens the native Inventory instead of the torch
         // (SteamVR keeps the left Menu button; torch stays on the left-shoulder Trigger gesture). Read per press.
-        if(gameplayX168&&!g_x_prev){g_x_down_since=now;g_x_long=false;g_x_torch58=false;g_x_visor59c1=l.quick_access_touch;}
+        if(gameplayX168&&!g_x_prev){g_x_down_since=now;g_x_long=false;g_x_torch58=false;g_x_visor59c1=l.quick_access_touch;g_follow_hint147=-1;}
+        {   // R147: while a mounted X is held, ask whether the game lists the follow prompt (answered on the dispatch thread)
+            namespace rf=kcd2vr::ride_follow_r147;
+            const bool ask=gameplayX168&&c.mounted_r147&&rf::enabled.load(std::memory_order_relaxed)&&
+                g_x_down_since&&now-g_x_down_since<rf::kTapMs;
+            if(c.follow_query_r147){const int v=c.follow_query_r147(ask);if(ask)g_follow_hint147=rf::Merge(g_follow_hint147,v);}
+        }
         if(gameplayX168&&!g_x_torch58&&g_x_down_since&&now-g_x_down_since>=500ull){
             g_x_torch58=true;g_talk_until58=0;
             if(g_x_visor59c1){g_x_long=true;g_visor_until=now+120ull;}
@@ -229,11 +238,18 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
             else if(l.active)p.torchRequestTick62=now;
         }
         if(!gameplayX168&&g_x_prev){
-            if(!g_x_long&&!g_x_torch58&&!g_x_visor59c1)g_talk_until58=now+120ull;
+            if(!g_x_long&&!g_x_torch58&&!g_x_visor59c1){
+                // R147: mounted tap + listed follow prompt (or unreadable list) = one LB tap; else Quick Speak as before
+                namespace rf=kcd2vr::ride_follow_r147;
+                if(rf::SendLb(rf::enabled.load(std::memory_order_relaxed),c.mounted_r147,g_x_down_since?now-g_x_down_since:~0ull,g_follow_hint147))
+                    {g_follow_lb_until147=now+120ull;g_follow_sent147=g_follow_hint147;}
+                else {g_talk_until58=now+120ull;p.rideFollowTalkR147=c.mounted_r147&&rf::enabled.load(std::memory_order_relaxed)&&g_follow_hint147==0;}
+            }
             g_x_down_since=0;g_x_long=false;g_x_torch58=false;}
         g_x_prev=gameplayX168;
         if(!modifier){
             if(now<g_talk_until58)p.x=true;
+            if(now<g_follow_lb_until147){p.lb=true;p.rideFollowLbR147=g_follow_sent147==1?1:2;} // R147: unowned LB = the game's follow press
             // Torch is dispatched once on the native frame, not duplicated as XI.
             if(now<g_visor_until)p.dpad_up=true;
         }

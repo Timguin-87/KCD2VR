@@ -422,6 +422,47 @@ void UpdateCarryQuery25() noexcept {
     g_carry_answer25.store((std::uint64_t(finish)<<32)|(std::uint64_t(press)<<2)|unsigned(value+1),std::memory_order_release);
 }
 
+// R147: the same verified native hint rows as ReadCarryHint25 (BasicAIActions.lua AddInteractorAction rows, name =
+// action at +0), looking for the follow prompt. metadata only, dispatch thread, only while a mounted X tap asks.
+std::atomic<std::uint32_t> g_follow_want147{0};std::atomic<std::uint64_t> g_follow_answer147{0};
+int ReadFollowHint147(std::uintptr_t base) noexcept {
+    if(!base||!retail_build112::Ready(base))return -1;
+    static const char kName[]="focus_follow_init_interactor_press";
+    __try {
+        static const unsigned char graph[]={0x48,0x8b,0x88,0x28,0x01,0x00,0x00,0x4c,0x8b,0x79,0x58};
+        static const unsigned char stride[]={0x48,0x81,0xc2,0xe0,0x00,0x00,0x00};
+        if(std::memcmp(reinterpret_cast<void*>(base+0x7F402D),graph,sizeof(graph))||
+           std::memcmp(reinterpret_cast<void*>(base+0x8E6521),stride,sizeof(stride)))return -1;
+        const auto game=*reinterpret_cast<const std::uintptr_t*>(base+0x549D388);
+        if(!game)return -1;
+        const auto service=*reinterpret_cast<const std::uintptr_t*>(game+0x128);
+        if(!service)return -1;
+        const auto manager=*reinterpret_cast<const std::uintptr_t*>(service+0x58);
+        if(!manager||*reinterpret_cast<const std::uintptr_t*>(manager)!=base+0x3F60DC0||
+           *reinterpret_cast<const std::uintptr_t*>(manager+8)!=base+0x3F60DD8||
+           !*reinterpret_cast<const unsigned char*>(manager+0x124))return -1;
+        const auto first=*reinterpret_cast<const std::uintptr_t*>(manager+0x50);
+        const auto last=*reinterpret_cast<const std::uintptr_t*>(manager+0x58);
+        if(last<first||(last-first)%0xE0||(last-first)/0xE0>64||(last!=first&&!first))return -1;
+        bool found=false;
+        for(auto row=first;row!=last&&!found;row+=0xE0){
+            const auto name=*reinterpret_cast<const char*const*>(row);
+            bool same=name!=nullptr;
+            for(unsigned k=0;k!=sizeof(kName)&&same;++k)same=name[k]==kName[k];
+            found=same;
+        }
+        if(*reinterpret_cast<const std::uintptr_t*>(manager+0x50)!=first||
+           *reinterpret_cast<const std::uintptr_t*>(manager+0x58)!=last)return -1;
+        return found?1:0;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return -1;}
+}
+void UpdateFollowQuery147() noexcept {
+    const auto want=g_follow_want147.load(std::memory_order_acquire);if(!want)return;
+    const auto now=std::uint32_t(GetTickCount64());if(now-want>80)return;
+    const int value=ReadFollowHint147(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll")));
+    g_follow_answer147.store((std::uint64_t(std::uint32_t(GetTickCount64()))<<2)|unsigned(value+1),std::memory_order_release);
+}
+
 void flush_gamepad_same_dispatch_thread(std::uintptr_t controller,char flag) noexcept {
     const int mode=g_gamepad_mode.load(std::memory_order_acquire); if(mode<2||!g_original) return;
     kcd2vr::pad_dispatch_d84::Frame pad{};
@@ -446,6 +487,7 @@ void flush_gamepad_same_dispatch_thread(std::uintptr_t controller,char flag) noe
     }
     if(mode>=3){
         UpdateCarryQuery25();
+        UpdateFollowQuery147(); // R147
         // V66.178R18 (review F05): combat symbols + ownership + serial come from ONE packet read once.
         const auto pk=kcd2vr::attack_xi178r8::unpack(pad.combat18);
         kcd2vr::attack_xi178r8::emitTriggers51c3(pk,[&](const char* name,float value,bool digital,bool held){
@@ -733,6 +775,15 @@ int QueryCarryContext25(std::uint32_t press) noexcept {
     g_carry_query25.store((std::uint64_t(now)<<32)|press,std::memory_order_release);
     const auto answer=g_carry_answer25.load(std::memory_order_acquire);
     if((std::uint32_t(answer)>>2)!=press||now-std::uint32_t(answer>>32)>80)return -1;
+    return int(answer&3)-1;
+}
+
+int QueryFollowHint147(bool want) noexcept {
+    if(!want||g_gamepad_mode.load(std::memory_order_acquire)!=3){g_follow_want147.store(0,std::memory_order_release);return -1;}
+    const auto now=std::uint32_t(GetTickCount64());
+    g_follow_want147.store(now?now:1u,std::memory_order_release);
+    const auto answer=g_follow_answer147.load(std::memory_order_acquire);
+    if(!answer||now-std::uint32_t(answer>>2)>80)return -1;
     return int(answer&3)-1;
 }
 

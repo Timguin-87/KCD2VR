@@ -101,9 +101,9 @@ if(PtIn(kIxClinch32,x,y)){
 #undef KCD2VR_MENU_DRAW_KIXCLINCH32
 
         DrawButton(dc,font_small_,kTimedPromptsD80,prompt_policy_d80::timed.load()?L"TIMED HINTS: ON":L"TIMED HINTS: OFF",prompt_policy_d80::timed.load()?kAccent:kPanel2);
-        std::swprintf(v,128,L"CRAFT HINTS: %.0f%%",double(prompt_policy_d80::minigameScale.load()*100.f));
+        std::swprintf(v,128,L"CRAFTING UI SIZE: %.0f%%",double(prompt_policy_d80::minigameScale.load()*100.f)); // R145: same value as the VR HUD slider
         DrawButton(dc,font_small_,kPromptScaleD80,v,kPanel2);
-        Text(dc,font_small_,L"Station hints: ten seconds on entry or a new step. Look at an open palm to reveal again. Size: 30 / 40 / 50 / 60 / 100%. Position stays native.",620,566,418,54,kMuted,DT_LEFT|DT_WORDBREAK);
+        Text(dc,font_small_,L"Station hints: ten seconds on entry or a new step. Look at an open palm to reveal again. Crafting UI size (prompts + icons over the station things): 30 / 40 / 50 / 60 / 90 / 100%, any 5% step on VR HUD > INTERACTION / PROMPTS. Position stays native.",620,566,418,54,kMuted,DT_LEFT|DT_WORDBREAK);
 
 #elif defined(KCD2VR_MENU_CLICK_IMMERSIONEXPERIMENTS)
  // R59.16C10R8
