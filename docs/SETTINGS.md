@@ -186,6 +186,14 @@ Combo and defensive-window options leave native eligibility, perks, stamina,
 armor and outcomes in the game. A visible reaction is not proof that a complete
 named combo was accepted.
 
+## Walking direction
+
+Immersive left-stick movement follows the recentered headset heading by default:
+turn your head toward a direction and push forward to walk that way. The VR
+CONFIG > CONTROLS button cycles between `WALK: HMD` and `WALK: STICK`; the INI
+key is `VrHmdWalkingDirectionR134`. Menus, dialogue navigation, authored
+minigames and roomscale follow/dodge input keep their own directions.
+
 ## Room movement and dodge
 
 The physical roomscale experiment uses measured horizontal HMD displacement

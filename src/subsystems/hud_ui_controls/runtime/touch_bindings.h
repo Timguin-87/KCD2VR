@@ -36,6 +36,9 @@ public:
     void SetAttackDirectionMouseEmulation(bool enabled) { attack_direction_mouse_ = enabled; }
     void SetTurnMode(int mode) { turn_mode_ = mode == 0 ? 0 : 1; }
     void SetNativeGamepadAxes(bool left_ready,bool right_ready){ native_left_stick_=left_ready; native_right_stick_=right_ready; }
+    void SetHmdWalkingDirection(bool enabled,float yaw_rad,bool valid) noexcept {
+        hmd_walking_direction_=enabled;hmd_walking_yaw_rad_=yaw_rad;hmd_walking_yaw_valid_=valid;
+    }
     void SetNativeSpecialRoute168(bool enabled){native_special168_=enabled;}
     void SetNativeGamepadActions(bool enabled);
     void SetNativeMinigameOwnership162r1(bool enabled){native_minigame162r1_=enabled;}
@@ -109,6 +112,8 @@ private:
     bool attack_direction_mouse_ = true;
     int turn_mode_ = 1; // 0 snap, 1 smooth
     bool native_left_stick_=false, native_right_stick_=false;
+    bool hmd_walking_direction_=true,hmd_walking_yaw_valid_=false;
+    float hmd_walking_yaw_rad_=0.0f;
     bool native_gamepad_actions_=false,native_special168_=false;
     bool native_minigame162r1_=false;
     bool alchemy_context_=false,alchemy_reading_context_=false;

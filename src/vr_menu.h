@@ -176,6 +176,7 @@ struct VrMenuState
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     int roomscale_mode = 3;                 // V66.178R59: 0 off, 1 follow, 2 follow + dodge (follow needs 6DOF BODY), 3 dodge only (R59.16C5)
     bool smooth_move51 = false;             // C51: shared body movement smoothing, not tracked hand ownership.
+    bool hmd_walking_direction134 = true;   // R134: left-stick walking direction follows recentered HMD yaw.
     bool native_crouch_r93 = false; // accepted native crouch while keeping HMD-height walking
     int body_height_mode98 = 2;             // R98: 0 HMD HEIGHT, 1 NATIVE HEIGHT, 2 HMD + NATIVE (RIDE/CROUCH). INI VrBodyHeightModeR98 (old bool VrHmdBodyHeight).
 #define KCD2VR_M2_HOST_SLOT 272 // M2_SOURCE_SELECTOR

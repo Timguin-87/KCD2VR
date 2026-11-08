@@ -252,12 +252,13 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         DrawButton(dc,dense,kV476GlyphXbox,L"XBOX",s.vr_pad_glyph_style==2?kAccent:kPanel2);
         DrawButton(dc,dense,kV476GlyphPs,L"PLAYSTATION",s.vr_pad_glyph_style==4?kAccent:kPanel2);
         DrawButton(dc,dense,kV6510bPromptLab,s.reading_pages45==0?L"PAGES: FLICK / STICK":s.reading_pages45==1?L"PAGES: STICK ONLY":L"PAGES: NATIVE",s.reading_pages45!=2?kAccent:kPanel2); // C45
-        DrawButton(dc,dense,kV4CtrlLaser,s.vr_laser_visible?L"VR LASER: ON":L"VR LASER: OFF",s.vr_laser_visible?kAccent:kPanel2);
+        DrawButton(dc,dense,kV4CtrlLaser,s.vr_laser_visible?L"LASER: ON":L"LASER: OFF",s.vr_laser_visible?kAccent:kPanel2);
         Text(dc,dense,L"PRESENTATION: AUTO  (F6 = Theater/Immersive switch, L3+R3 click = Immersive)",620,565,418,14,kMuted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
         DrawButton(dc,dense,kV4CtrlDisplayAuto,L"AUTO",s.vr_display_mode==0?kAccent:kPanel2);
         DrawButton(dc,dense,kV4CtrlDisplayTheater,s.vrik_body_follow?L"BODY + WALK FOLLOW: ON (F1)":L"BODY + WALK FOLLOW: OFF (F1)",s.vrik_body_follow?kAccent:kPanel2);
         DrawButton(dc,dense,kRoomscale59,s.roomscale_mode==0?L"ROOMSCALE: OFF":s.roomscale_mode==1?L"ROOMSCALE: PHYSICAL WALKING":s.roomscale_mode==2?L"ROOMSCALE: WALK + HEADSET DODGE":L"HEADSET DODGE ONLY (no walking)",s.roomscale_mode?kAccent:kPanel2); // R59.16C5
-        DrawButton(dc,dense,kSmoothMove51,s.smooth_move51?L"[X] SMOOTH MOVEMENT":L"[ ] SMOOTH MOVEMENT",s.smooth_move51?kAccent:kPanel2);
+        DrawButton(dc,dense,kSmoothMove51,s.smooth_move51?L"[X] BODY SMOOTH":L"[ ] BODY SMOOTH",s.smooth_move51?kAccent:kPanel2);
+        DrawButton(dc,dense,kHmdWalkingDirection134,s.hmd_walking_direction134?L"WALK: HMD":L"WALK: STICK",s.hmd_walking_direction134?kAccent:kPanel2);
         DrawButton(dc,dense,kComfortVignette51,s.comfort_vignette51==0?L"VIGNETTE: OFF":s.comfort_vignette51==1?L"VIGNETTE: LOW":s.comfort_vignette51==2?L"VIGNETTE: MEDIUM":L"VIGNETTE: STRONG",s.comfort_vignette51?kAccent:kPanel2);
         DrawButton(dc,dense,kGestureTalk59c5,s.gesture_talk?L"[X] INDEX-FINGER POINTING QUICK TALK":L"[ ] INDEX-FINGER POINTING QUICK TALK",s.gesture_talk?kAccent:kPanel2);
 
@@ -275,6 +276,7 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         if(PtIn(kV4CtrlDisplayAuto,x,y)){ s.vr_display_mode=0; ApplyState(s); save(); diagnostic_trace::Write("V64.89-DISPLAY AUTO"); return; }
         if(PtIn(kV4CtrlDisplayTheater,x,y)){ s.vrik_body_follow=!s.vrik_body_follow; ApplyState(s); save(); diagnostic_trace::Write(s.vrik_body_follow?"V66.128-CONTROLS 6DOF body=ON":"V66.128-CONTROLS 6DOF body=OFF"); MarkDirty(); return; } // V66.128: retired Theater slot reused
         if(PtIn(kSmoothMove51,x,y)){ s.smooth_move51=!s.smooth_move51; ApplyState(s); save(); diagnostic_trace::Write(s.smooth_move51?"C51-CONTROLS VrSmoothMovement=true":"C51-CONTROLS VrSmoothMovement=false"); MarkDirty(); return; }
+        if(PtIn(kHmdWalkingDirection134,x,y)){ s.hmd_walking_direction134=!s.hmd_walking_direction134; ApplyState(s); save(); diagnostic_trace::Write(s.hmd_walking_direction134?"R134-CONTROLS VrHmdWalkingDirectionR134=true":"R134-CONTROLS VrHmdWalkingDirectionR134=false"); MarkDirty(); return; }
         if(PtIn(kComfortVignette51,x,y)){ s.comfort_vignette51=(std::clamp(s.comfort_vignette51,0,3)+1)%4; ApplyState(s); save(); char m[80]{}; std::snprintf(m,sizeof(m),"C51-CONTROLS VrComfortVignette=%d",s.comfort_vignette51); diagnostic_trace::Write(m); MarkDirty(); return; }
         if(PtIn(kGestureTalk59c5,x,y)){ s.gesture_talk=!s.gesture_talk; ApplyState(s); save(); diagnostic_trace::Write(s.gesture_talk?"R59.16C5-CONTROLS gestureTalk=ON":"R59.16C5-CONTROLS gestureTalk=OFF"); MarkDirty(); return; }
         if(PtIn(kRoomscale59,x,y)){ s.roomscale_mode=(s.roomscale_mode+1)%4; ApplyState(s); save(); diagnostic_trace::Write(s.roomscale_mode==0?"V66.178R59-CONTROLS roomscale=OFF":s.roomscale_mode==1?"V66.178R59-CONTROLS roomscale=FOLLOW":s.roomscale_mode==2?"V66.178R59-CONTROLS roomscale=FOLLOW+DODGE":"R59.16C5-CONTROLS roomscale=DODGE_ONLY"); MarkDirty(); return; } // R59.16C5: 4 states

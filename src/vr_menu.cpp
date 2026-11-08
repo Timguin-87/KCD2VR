@@ -464,8 +464,9 @@ constexpr UiRect kV476GlyphXbox{620,474,820,498};
 constexpr UiRect kV476GlyphPs{838,474,1038,498};
 constexpr UiRect kV6510bPromptLab{620,504,824,532};
 constexpr UiRect kComfortVignette51{834,504,1038,532};
-constexpr UiRect kV4CtrlLaser{620,536,824,562};
-constexpr UiRect kSmoothMove51{834,536,1038,562};
+constexpr UiRect kV4CtrlLaser{620,536,754,562};
+constexpr UiRect kSmoothMove51{762,536,896,562};
+constexpr UiRect kHmdWalkingDirection134{904,536,1038,562};
 constexpr UiRect kV4CtrlDisplayAuto{620,582,820,606};
 constexpr UiRect kV4CtrlDisplayVr{-10,-10,-5,-5}; // V64.89 retired user-facing forced-native mode
 constexpr UiRect kV4CtrlDisplayTheater{838,582,1038,606};

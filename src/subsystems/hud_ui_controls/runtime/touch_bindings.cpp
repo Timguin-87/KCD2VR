@@ -602,10 +602,16 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
     const Dir rd=StickDir(right.thumb_x,right.thumb_y);
 
     if(!modifier && !native_left_stick_) {
-        SetKeyHeld(config_.move_forward, left.thumb_y >  move_dead, w_);
-        SetKeyHeld(config_.move_back, left.thumb_y < -move_dead, s_);
-        SetKeyHeld(config_.move_left, left.thumb_x < -move_dead, a_);
-        SetKeyHeld(config_.move_right, left.thumb_x >  move_dead, d_);
+        float move_x=left.thumb_x,move_y=left.thumb_y;
+        if(hmd_walking_direction_&&hmd_walking_yaw_valid_&&std::isfinite(hmd_walking_yaw_rad_)){
+            const float c=std::cos(hmd_walking_yaw_rad_),s=std::sin(hmd_walking_yaw_rad_);
+            const float x=c*move_x-s*move_y,y=s*move_x+c*move_y;
+            move_x=std::clamp(x,-1.0f,1.0f);move_y=std::clamp(y,-1.0f,1.0f);
+        }
+        SetKeyHeld(config_.move_forward, move_y >  move_dead, w_);
+        SetKeyHeld(config_.move_back, move_y < -move_dead, s_);
+        SetKeyHeld(config_.move_left, move_x < -move_dead, a_);
+        SetKeyHeld(config_.move_right, move_x >  move_dead, d_);
     } else {
         SetKeyHeld(config_.move_forward,false,w_); SetKeyHeld(config_.move_left,false,a_); SetKeyHeld(config_.move_back,false,s_); SetKeyHeld(config_.move_right,false,d_);
     }

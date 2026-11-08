@@ -1018,6 +1018,7 @@ static std::atomic<std::uint64_t> g_apse_close_press_ms{0}; // C25: last owned p
 static std::atomic<bool> g_gesture_talk59c5{false}; // Optional index-finger point holds native Quick Talk choices (INI VrGestureTalk, VR menu)
 static std::atomic<bool> g_alchemy_finish_observer_cb1{false}; // CB1: INI VrAlchemyFinishObserver, read-only native brew result observer
 static std::atomic<bool> g_smooth_move51{false}; // C51: smooth the shared body anchor; tracked head/hands remain owned in either mode.
+static std::atomic<bool> g_hmd_walking_direction134{true}; // R134: rotate gameplay walking axes by recentered HMD yaw.
 static std::atomic<int> g_comfort_vignette51{0}; // C51: 0 off, 1 low, 2 medium, 3 strong.
 static std::atomic<bool> g_roomscale_follow58{false},g_roomscale_dodge58{false}; // V66.178R58 (INI VrRoomscaleFollow / VrRoomscaleDodge; active while 6DOF BODY is on)
 struct CombatCvarLease52 {
@@ -2153,6 +2154,7 @@ void Mod::FillMenuState(VrMenuState& out) const
         (g_roomscale_dodge58.load(std::memory_order_acquire)?3:0); // R59; R59.16C5: 3 = HMD dodge only (no walking, no 6DOF BODY needed)
     out.gesture_talk = g_gesture_talk59c5.load(std::memory_order_acquire); // R59.16C5
     out.smooth_move51 = g_smooth_move51.load(std::memory_order_acquire);
+    out.hmd_walking_direction134 = g_hmd_walking_direction134.load(std::memory_order_acquire);
     out.native_crouch_r93 = frik_pose_probe::NativeCrouchR93();
     out.body_height_mode98 = frik_pose_probe::BodyHeightModeR98(); // R98
     out.chest_dagger54 = frik_pose_probe::ChestDagger54();
@@ -2610,6 +2612,7 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     g_gesture_talk59c5.store(state.gesture_talk,std::memory_order_release); // R59.16C5
     if(g_smooth_move51.exchange(state.smooth_move51)!=state.smooth_move51)frik_pose_probe::SetSmoothBody51(state.smooth_move51);
+    g_hmd_walking_direction134.store(state.hmd_walking_direction134,std::memory_order_release);
     if(frik_pose_probe::NativeCrouchR93()!=state.native_crouch_r93)frik_pose_probe::SetNativeCrouchR93(state.native_crouch_r93);
     if(frik_pose_probe::BodyHeightModeR98()!=state.body_height_mode98)frik_pose_probe::SetBodyHeightModeR98(state.body_height_mode98); // R98
     if(frik_pose_probe::ChestDagger54()!=state.chest_dagger54)frik_pose_probe::SetChestDagger54(state.chest_dagger54);
@@ -3034,6 +3037,7 @@ bool Mod::SaveMenuSettings() const
     ok = wi("VrGripStowButton", kcd2vr::grip_stow_cb1::Button()) && ok;
     ok = wb("VrGestureTalk", g_gesture_talk59c5.load(std::memory_order_acquire)) && ok; // R59.16C5: menu-owned
     ok = wb("VrSmoothMovement", g_smooth_move51.load(std::memory_order_acquire)) && ok;
+    ok = wb("VrHmdWalkingDirectionR134", g_hmd_walking_direction134.load(std::memory_order_acquire)) && ok;
     ok = wb("VrNativeCrouchR93", frik_pose_probe::NativeCrouchR93()) && ok;
     ok = wi("VrBodyHeightModeR98", frik_pose_probe::BodyHeightModeR98()) && ok; // R98: 0 HMD, 1 NATIVE, 2 HMD + NATIVE (ride/crouch)
     ok = wb("VrHmdBodyHeight", frik_pose_probe::HmdBodyHeight54()) && ok; // old bool, kept for older builds
@@ -3734,6 +3738,7 @@ bool Mod::LoadConfig()
     g_roomscale_follow58.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrRoomscaleFollow",false)); // V66.178R58: acts only while 6DOF BODY is on
     g_roomscale_dodge58.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrRoomscaleDodge",true));
     g_smooth_move51.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrSmoothMovement",false));
+    g_hmd_walking_direction134.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHmdWalkingDirectionR134",true));
     subsystems::alchemy::reach_craft1::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCraftProximityTrialH41",false));
     frik_pose_probe::SetChestPitchShareCB(ReadIniFloatExplicit(explicit_ini,"Settings","VrChestPitchShareH41Trial",0.f));
     frik_pose_probe::SetArcherStanceCB(ReadIniBoolExplicit(explicit_ini,"Settings","VrArcherStanceH41Trial",false));
@@ -9259,21 +9264,28 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
                 }
             }
             kcd2vr::gesture_talk59c5::apply54(pad,gestureTalkH4);
-            {   // R133 FREE PLUS: the view is (game camera yaw + offset). turn the walking stick by the same offset so
-                // stick forward = the forward you see (a locked strafe stays a straight sidestep, not a circle around him).
-                // after the fight our right-stick X turns Henry back under the held view until the offset is gone.
-                // only the immersive gameplay pad; menus, dialogue, minigames, theater keep their axes. dodge vectors are
-                // added after this (ApplyRoomscalePad58) and stay as they are.
+            {   // R134: gameplay walking follows the recentered HMD yaw. FREE PLUS adds its absorbed camera turn
+                // because that view offset is also part of the direction the player sees. Transform only the native
+                // gameplay stick; UI/activity axes and roomscale follow/dodge contributions keep their owners.
                 namespace r=kcd2vr::free_targeting_r133;
-                const bool padGameplayR133=pad.gameplay_r133&&!padCtx.vr_menu&&!padCtx.theater&&!padCtx.system_menu&&
+                const bool padGameplayR134=pad.gameplay_r133&&!padCtx.vr_menu&&!padCtx.theater&&!padCtx.system_menu&&
                     !padCtx.dialogue_navigation&&!padCtx.semantic_minigame&&!padCtx.apse_ui&&!padCtx.back_context&&
-                    xr_head_valid&&palmInput36.gameplay&&kcd2vr::free_targeting_d42::mode()==r::FreePlus&&
-                    kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire);
-                if(padGameplayR133){
-                    const double offsetR133=r::offsetView.load(std::memory_order_acquire);
-                    if(std::fabs(offsetR133)>r::kDoneRad&&(std::fabs(pad.lx)>.01f||std::fabs(pad.ly)>.01f)){
-                        r::rotateStick(pad.lx,pad.ly,offsetR133);r::stickFrames.fetch_add(1,std::memory_order_relaxed);}
-                    const int signR133=r::bleedSign.load(std::memory_order_acquire);
+                    xr_head_valid&&palmInput36.gameplay;
+                if(padGameplayR134){
+                    double movementYawR134=0.0;
+                    if(g_hmd_walking_direction134.load(std::memory_order_acquire)){
+                        float hmdYawR134=0.f,hmdPitchR134=0.f;
+                        if(CameraHook::GetHeadAimLocalAngles(hmdYawR134,hmdPitchR134)&&std::isfinite(hmdYawR134))
+                            movementYawR134=double(hmdYawR134);
+                    }
+                    const bool freePlusR133=kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire)&&
+                        kcd2vr::free_targeting_d42::mode()==r::FreePlus;
+                    const double offsetR133=freePlusR133?r::offsetView.load(std::memory_order_acquire):0.0;
+                    if(std::fabs(offsetR133)>r::kDoneRad)movementYawR134+=offsetR133;
+                    if(std::fabs(movementYawR134)>r::kDoneRad&&(std::fabs(pad.lx)>.01f||std::fabs(pad.ly)>.01f)){
+                        r::rotateStick(pad.lx,pad.ly,movementYawR134);
+                        if(freePlusR133&&std::fabs(offsetR133)>r::kDoneRad)r::stickFrames.fetch_add(1,std::memory_order_relaxed);}
+                    const int signR133=freePlusR133?r::bleedSign.load(std::memory_order_acquire):0;
                     if(signR133&&std::fabs(pad.rx)<.05f&&!r::userTurning(GetTickCount64())){
                         pad.rx=r::bleedRx(offsetR133,signR133);r::bleedFrames.fetch_add(1,std::memory_order_relaxed);}
                 }
@@ -9346,6 +9358,9 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
 
         const bool game_flat_menu_context = policy_theater_scene;
         TouchBindings::Events touch_events{};
+        {float movementHmdYaw134=0.f,movementHmdPitch134=0.f;
+         const bool movementHmdYawValid134=xr_head_valid&&CameraHook::GetHeadAimLocalAngles(movementHmdYaw134,movementHmdPitch134);
+         touch_bindings_.SetHmdWalkingDirection(g_hmd_walking_direction134.load(std::memory_order_acquire),movementHmdYaw134,movementHmdYawValid134);}
         if(ui88_input_result.blocks_gameplay&&routeL.menu_down)touch_bindings_.ConsumeMenuUntilRelease174r2();
         if(ui88_input_result.blocks_gameplay)touch_bindings_.QueueInventoryR118(false); // R118: no gameplay Update this frame = no late Inventory
         if(!ui88_input_result.blocks_gameplay){

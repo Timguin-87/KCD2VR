@@ -69,7 +69,7 @@ you can open doors with the your hand too 
 holding grip and trigger - fists for hand-to-hand combat, R3 for kicks
 swings and stabs works for the weapons, blocks are holding your weapons or hands in front of your face roughly parallel to it (it is quite easy to figure out, but you can make extensive options for the speed and size of "block box"), you can also block by parrying the incoming enemy blows with your swings (very cool) or dodge with your HMD
 you can pretty much hold any weapon with two hands for enhanced stability and power, holding right trigger activates "power attack" or feints
-left joystick is for movement, right joystick for turning (snap turning is as option in immersive and controls menu)
+left joystick is for movement, right joystick for turning (snap turning is as option in immersive and controls menu). By default, walking follows your headset direction; switch to stick-relative movement in VR CONFIG > CONTROLS.
 
 **virtual holsters **
 
