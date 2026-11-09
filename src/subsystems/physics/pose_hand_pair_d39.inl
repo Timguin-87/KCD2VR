@@ -6,7 +6,7 @@
         // self geometry through occupancy UNKNOWN only while no other hand
         // presentation owner exists; item/world authority still needs EMPTY.
         tx.handPairD39={};
-        bool pairFreeD39=ph::handSeparationDs1.load(std::memory_order_relaxed)&&
+        bool pairFreeD39=!directHandsR135&&ph::handSeparationDs1.load(std::memory_order_relaxed)&&
             valid[0]&&valid[1]&&selfPresentationD56[0]&&selfPresentationD56[1]&&
             ts.head_valid&&!ts.head_held&&!ts.right_held&&!ts.left_held&&
             ts.source_epoch==kcd2vr::tracking59c6::epoch.load(std::memory_order_acquire)&&

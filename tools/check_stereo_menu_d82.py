@@ -74,7 +74,7 @@ def generate(root: Path, output: Path) -> dict:
     header = (root / "src/vr_menu.h").read_text(encoding="utf-8-sig")
     apply_start = mod.index("bool Mod::ApplyMenuState(")
     apply_stop = mod.index("    const int old_cyclopean", apply_start)
-    commit = line_matching(mod, r"^\s*vr_production_stereo_mode_\.store\(production_stereo[^\n]+")
+    commit = line_matching(mod, r"^\s*vr_production_stereo_mode_\.store\(requested_stereo_mode[^\n]+")  # R149: 0/3/4 incl. alternate-eye
     (output / "actual_mod.inc").write_text(
         mod[apply_start:apply_stop] + commit + "\n    return true;\n}\n" +
         "void Mod::InstallCallbacks(){\n" + callback(mod, "read_upscaler") + "\n" +
@@ -175,7 +175,7 @@ def main() -> int:
         ("discard_stereo_request_until_ready", "actual_mod.inc", "if(!stereo_upscaler_d81r2::canKeep(3,actual>=0,actual))return false;", "if(!stereo_upscaler_d81r2::canKeep(3,actual>=0,actual)||!native_upscaler_stereo_d82::CanEnterStereo(actual))return false;", 1),
         ("missing_readiness_explanation", "actual_mod.inc", "&&native_upscaler_stereo_d82::CanEnterStereo(actual)", "&&true", 1),
         # D85: XeSS is a supported Stereo choice; the old skip must not return.
-        ("stereo_cycle_skips_xess", "actual_menu.inc", "if(stereoD82&&!stereo_upscaler_d81r2::canSelect(s.stereo_mode,nt))", "if(stereoD82&&(nt==4||!stereo_upscaler_d81r2::canSelect(s.stereo_mode,nt)))", 1),
+        ("stereo_cycle_skips_xess", "actual_menu.inc", "stereoD82&&!stereo_upscaler_d81r2::canSelect(s.stereo_mode,nt)&&attempt<8", "stereoD82&&(nt==4||!stereo_upscaler_d81r2::canSelect(s.stereo_mode,nt))&&attempt<8", 1),
         ("save_without_live_switch", "actual_mod.inc", "if(ok)upscaler_live_switch_d85::Instance().Request({tech,quality,preset});", "", 1),
         ("first_draw_erases_restart", "actual_draw.inc", "if(up_status_.load()!=5)", "", 2),
     ]

@@ -11,6 +11,8 @@ using GetIntFn=Result(__fastcall*)(void*,const char*,int*);
 using SetIntFn=void(__fastcall*)(void*,const char*,int);
 using GetFloatFn=Result(__fastcall*)(void*,const char*,float*);
 using GetResourceFn=Result(__fastcall*)(void*,const char*,void**);
+using SetResourceFn=void(__fastcall*)(void*,const char*,void*);
+using GetUIntFn=Result(__fastcall*)(void*,const char*,unsigned int*);
 
 CreateFn g_create=nullptr;
 EvaluateFn g_evaluate=nullptr,g_evaluate_c=nullptr;
@@ -20,6 +22,19 @@ GetIntFn g_get_i=nullptr;
 SetIntFn g_set_i=nullptr;
 GetFloatFn g_get_f=nullptr;
 GetResourceFn g_get_resource=nullptr;
+SetResourceFn g_set_resource=nullptr;
+GetUIntFn g_get_ui=nullptr;
+std::uintptr_t g_wh_base=0; // exact WHGame image recorded by Install (R149 CRenderView reads)
+
+// R149 alternate-eye history: the exact game camera of each eye's last admitted
+// live frame. Plain data, so Invalidate/value-reset of a Pair clears it.
+struct AerEye {
+    double rot[9]{};      // CCamera Matrix34 rotation, columns right/forward/up
+    double pos[3]{};      // world position (eye camera, IPD included)
+    float tanX{},tanY{},nearZ{},farZ{},jitterX{},jitterY{};
+    std::uint32_t frame{};
+    bool valid{};
+};
 
 struct Pair {
     void* native{};
@@ -32,6 +47,8 @@ struct Pair {
     bool have[2]{},reset[2]{true,true},effectiveReset[2]{};
     bool recoverableCut{};
     std::uint32_t cutFrame{};
+    int createFlags{-1};  // DLSS.Feature.Create.Flags from the native creation, -1 unknown
+    AerEye aer[2]{};
 };
 // NGX is not a concurrently callable SDK. Preserve its serialization while
 // protecting the pair registry and the brief scoped Reset parameter mutation.
@@ -47,7 +64,7 @@ struct Receipt {
 std::array<Receipt,16> g_receipts{};
 unsigned g_receipt_next=0;
 std::uint64_t g_next_identity=0,g_receipt_serial=0;
-std::atomic<bool> g_installed{false},g_enabled{false};
+std::atomic<bool> g_installed{false},g_enabled{false},g_alternate_eye{false};
 std::atomic<unsigned> g_live_pairs{0};
 std::atomic<Fault> g_fault{Fault::None};
 std::atomic<std::uint64_t> g_generation{1};
@@ -78,7 +95,18 @@ void Invalidate(Pair& p) noexcept {
     p.recoverableCut=false;
     p.have[0]=p.have[1]=false;p.reset[0]=p.reset[1]=true;
     p.effectiveReset[0]=p.effectiveReset[1]=false;
+    p.aer[0]=AerEye{};p.aer[1]=AerEye{};
 }
+int ReadCreateFlags(void* parameters) noexcept {
+    int flags=0;
+    if(!parameters||!g_get_i||!Success(g_get_i(parameters,"DLSS.Feature.Create.Flags",&flags)))return -1;
+    return flags;
+}
+// R149 alternate-eye evaluation (scoped AFR eye frames only). Production:
+// native_dlss_aer_d82.inl. Host fixtures substitute it; native stereo pairing
+// never reaches it. view is null when the AFR eye identity was unavailable.
+Result EvaluateAlternateEye(EvaluateFn fn,void* command,const void* handle,Pair* p,void* parameters,
+    void* callback,const native_stereo_preflight::UpscalerView* view);
 void ClearReceipt(Receipt& receipt) noexcept {receipt.serial.store(0,std::memory_order_seq_cst);}
 void ClearIdentity(std::uint64_t identity) noexcept {
     for(auto& receipt:g_receipts)if(receipt.identity.load(std::memory_order_seq_cst)==identity)ClearReceipt(receipt);
@@ -112,6 +140,7 @@ Result __fastcall CreateDetour(void* command,int feature,void* parameters,void**
     }
     *p={};p->native=original;p->feature=feature;p->identity=++g_next_identity;
     p->device=CommandDevice(command);p->generation=g_generation.load(std::memory_order_acquire);
+    if(feature==kSuperSampling)p->createFlags=ReadCreateFlags(parameters);
     if(feature!=kSuperSampling || !g_enabled.load(std::memory_order_acquire)) {RestoreNativeError(nativeError);return result;}
     if(!p->device) {Refuse(Fault::Parameters,"creation-device-unavailable");RestoreNativeError(nativeError);return result;}
     // Duplicate only the real, still-live creation call. Parameters are opaque;
@@ -163,12 +192,19 @@ Result Evaluate(EvaluateFn fn,void* command,const void* handle,void* parameters,
     native_stereo_preflight::UpscalerView view{};
     const bool scoped=native_stereo_preflight::InUpscalerView();
     const bool valid=native_stereo_preflight::CurrentUpscalerView(view);
+    if(!scoped && g_alternate_eye.load(std::memory_order_acquire))
+        return EvaluateAlternateEye(fn,command,handle,p,parameters,callback,nullptr); // counted pass-through
     if(!scoped) {
         // Menus/loading/ordinary mono may still use the game's LEFT handle.
         // A subsequent stereo pass must discard that unrelated history.
         if(p)Invalidate(*p);
         ++g_stats.unscoped;return fn(command,handle,parameters,callback);
     }
+    // R149: alternate-eye frames validate on their own path. A refusal there
+    // resets that eye's history and keeps the native evaluation running; it
+    // never latches the stereo-pair terminal faults below.
+    if(g_alternate_eye.load(std::memory_order_acquire))
+        return EvaluateAlternateEye(fn,command,handle,p,parameters,callback,valid?&view:nullptr);
     if(!valid || view.eye>1) {Refuse(Fault::ViewIdentity,"unqualified-native-eye");return kFailure;}
     if(!p) {Refuse(Fault::MissingCreate,"evaluate-without-captured-create");return kFailure;}
     if(!p->right || p->right==p->native) {Refuse(Fault::MissingTwin,"missing-distinct-right-feature");return kFailure;}

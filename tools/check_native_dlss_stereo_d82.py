@@ -57,7 +57,8 @@ def native_contract(path, cpp):
         expected = bytes(int(v.strip(), 16) for v in byte_text.split(','))
         actual = data[offset(rva):offset(rva)+len(expected)]
         pins.append({'name': name, 'rva': hex(rva), 'passed': exports.get(name) == rva and actual == expected})
-    assert len(pins) == 9 and all(p['passed'] for p in pins)
+    # R149: +SetD3d12Resource and +GetUI (alternate-eye vector substitution/subrect reads).
+    assert len(pins) == 11 and all(p['passed'] for p in pins)
     assert struct.unpack_from('<I', data, pe + 8)[0] == 0x6A350E20
     assert struct.unpack_from('<I', data, opt + 56)[0] == 0x5B2D000
     return {'sha256': hashlib.sha256(data).hexdigest(), 'pins': pins, 'executed': False}

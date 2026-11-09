@@ -51,7 +51,8 @@ struct ReviewHook {
 namespace kcd2vr::diagnostic_trace {void Write(const char*) noexcept {}}
 namespace kcd2vr::native_dlss_stereo_d82 {namespace {
 struct Pin {unsigned index;};
-constexpr std::array<Pin,9> kPins{{{0},{1},{2},{3},{4},{5},{6},{7},{8}}};
+// R149: [9] SetD3d12Resource and [10] GetUI serve the alternate-eye path only.
+constexpr std::array<Pin,11> kPins{{{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10}}};
 std::array<std::optional<ReviewHook>,5> g_hooks;
 std::mutex g_install_mutex;bool g_attempted=false;
 bool ExactModule(HMODULE) noexcept {++pinCalls;return pinValid;}

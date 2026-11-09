@@ -2,6 +2,7 @@
 #include "native_upscaler_stereo_d82.h"
 #include "native_svo_right_v6654.h" // V66.54 (must stay at file scope)
 #include "native_stereo_outer_lab.h"
+#include "frame_sync.h"
 #include "stereo_preflight_model_v6602.h"
 #include "stereo_resource_model_v6603.h"
 #include "stereo_eye_control_model_v6604.h"
@@ -388,11 +389,22 @@ bool Install() noexcept {
 
 bool InUpscalerView() noexcept {
     const auto* f=t_eye_flow;
-    return f && IsStereoDesign(*f) && f->pass!=ControlPass::Restore;
+    if(f && IsStereoDesign(*f) && f->pass!=ControlPass::Restore)return true;
+    // AFR has no native left/right re-entry scope. R149: FrameSync resolves the
+    // exact eye of the camera this Normal execute renders (publication-ring
+    // match); never the main thread's newer CurrentEye() outside that owner.
+    return FrameSync::AlternateEyeUpscalerIdentity(nullptr,nullptr,nullptr,nullptr);
 }
 bool CurrentUpscalerView(UpscalerView& out) noexcept {
     out={};const auto* f=t_eye_flow;
-    if(!InUpscalerView() || !f || f->fallback)return false;
+    if(!InUpscalerView())return false;
+    if(!(f && IsStereoDesign(*f) && f->pass!=ControlPass::Restore)){
+        std::uint64_t epoch=0;std::uint32_t frame=0,eye=0;std::uintptr_t pipeline=0;
+        if(!FrameSync::AlternateEyeUpscalerIdentity(&epoch,&frame,&eye,&pipeline))return false;
+        out={epoch,frame,eye&1u,pipeline};
+        return out.epoch!=0&&out.frame!=0&&out.pipeline!=0;
+    }
+    if(f->fallback)return false;
     const unsigned eye=f->pass==ControlPass::Eye1?1u:0u;
     const auto& work=eye?f->eye:f->normal;
     if((eye?!f->selected:!f->leftPrepared) || work.buildReturns!=1 ||

@@ -38,8 +38,10 @@ static DWORD WINAPI ModThreadMain(LPVOID)
         reinterpret_cast<LPCWSTR>(&ModThreadMain),&selfD82)) {
         try {
             const auto ini=kcd2vr::startup_s15::ModulePath(selfD82).parent_path()/L"KCD2VR.ini";
-            const bool wanted=kcd2vr::startup_s15::ReadBool(ini,L"Enabled",true)&&kcd2vr::startup_s15::ProductionMode(ini)==3;
-            kcd2vr::native_upscaler_stereo_d82::InstallEarly(wanted);
+            const int mode=kcd2vr::startup_s15::ProductionMode(ini);
+            const bool alternate=mode==4;
+            const bool wanted=kcd2vr::startup_s15::ReadBool(ini,L"Enabled",true)&&(mode==3||alternate);
+            kcd2vr::native_upscaler_stereo_d82::InstallEarly(wanted,alternate);
         }catch(...){kcd2vr::diagnostic_trace::Write("D82 TEMPORAL_STEREO earlyCapture=UNAVAILABLE reason=profile-path");}
     }
 #ifdef KCD2VR_PROXY_DINPUT8

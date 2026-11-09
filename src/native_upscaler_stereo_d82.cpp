@@ -8,6 +8,7 @@
 
 namespace kcd2vr::native_upscaler_stereo_d82 { namespace {
 std::atomic<bool> stereo{false};
+std::atomic<bool> alternateEye{false};
 std::atomic<int> technology{-1};
 std::atomic<std::uint64_t> epoch{0};
 std::atomic<int> epochTechnology{-1};
@@ -18,26 +19,31 @@ using Reader=int(*)() noexcept;
 std::atomic<Reader> reader{nullptr};
 int ActualTechnology() noexcept {const auto read=reader.load(std::memory_order_acquire);return read?read():technology.load(std::memory_order_acquire);}
 }
-void InstallEarly(bool wanted) noexcept {
+void InstallEarly(bool wanted,bool alternate) noexcept {
     stereo.store(wanted,std::memory_order_release);
+    alternateEye.store(alternate,std::memory_order_release);
+    native_dlss_stereo_d82::SetAlternateEyeMode(alternate);
     native_dlss_stereo_d82::SetEnabled(wanted);
-    native_fsr_stereo_d82::SetEnabled(wanted);
-    native_xess_stereo_d85::SetEnabled(wanted);
+    native_fsr_stereo_d82::SetEnabled(wanted&&!alternate);
+    native_xess_stereo_d85::SetEnabled(wanted&&!alternate);
     (void)native_dlss_stereo_d82::Install();
     (void)native_fsr_stereo_d82::Install();
     (void)native_xess_stereo_d85::Install();
 }
-void SetMode(bool wanted,int tech) noexcept {
+void SetMode(bool wanted,int tech,bool alternate) noexcept {
     technology.store(tech,std::memory_order_release);
     stereo.store(wanted,std::memory_order_release);
+    alternateEye.store(alternate,std::memory_order_release);
     // Capture a future native creation in either backend, including a choice
     // made in the game's settings. No backend SDK is initialized by the mod.
+    native_dlss_stereo_d82::SetAlternateEyeMode(alternate);
     native_dlss_stereo_d82::SetEnabled(wanted);
-    native_fsr_stereo_d82::SetEnabled(wanted);
-    native_xess_stereo_d85::SetEnabled(wanted);
+    native_fsr_stereo_d82::SetEnabled(wanted&&!alternate);
+    native_xess_stereo_d85::SetEnabled(wanted&&!alternate);
 }
 void SetTechnologyReader(Reader read) noexcept {reader.store(read,std::memory_order_release);}
 bool CanEnterStereo(int tech) noexcept {
+    if(alternateEye.load(std::memory_order_acquire)&&tech!=2)return false;
     if(tech==0)return true;
     if(tech==2)return native_dlss_stereo_d82::ReadyForStereo();
     if(tech==1)return native_fsr_stereo_d82::ReadyForStereo();
@@ -46,6 +52,7 @@ bool CanEnterStereo(int tech) noexcept {
 }
 bool TemporalActive() noexcept {return ActualTechnology()!=0;}
 bool PairReady(std::uint64_t pairEpoch,std::uint32_t frame) noexcept {
+    if(alternateEye.load(std::memory_order_acquire))return false; // AFR publishes independently tagged eye images, not a same-frame pair
     const int tech=ActualTechnology();const auto bound=epoch.load(std::memory_order_acquire);
     // Changing the game's technology cannot turn an incomplete temporal pair
     // into an accepted Native pair. A mismatch ends the existing stereo run;
@@ -112,10 +119,11 @@ void BeginEpoch(std::uint64_t value) noexcept {
 void EndEpoch(std::uint64_t expectedEpoch) noexcept {
     if(expectedEpoch)(void)epoch.compare_exchange_strong(expectedEpoch,0,std::memory_order_acq_rel);
 }
-void Stop() noexcept {stereo.store(false,std::memory_order_release);native_dlss_stereo_d82::Stop();native_fsr_stereo_d82::Stop();native_xess_stereo_d85::Stop();}
+void Stop() noexcept {stereo.store(false,std::memory_order_release);alternateEye.store(false,std::memory_order_release);native_dlss_stereo_d82::SetAlternateEyeMode(false);native_dlss_stereo_d82::Stop();native_fsr_stereo_d82::Stop();native_xess_stereo_d85::Stop();}
 void LogStatus(const char* reason) noexcept {
-    char line[256]{};std::snprintf(line,sizeof(line),"D82 TEMPORAL_STEREO reason=%s technology=%d stereo=%d epoch=%llu acceptance=SAME_EPOCH_FRAME_TWO_DISTINCT_VENDOR_HISTORIES",
-        reason?reason:"status",ActualTechnology(),stereo.load(std::memory_order_acquire),static_cast<unsigned long long>(epoch.load(std::memory_order_acquire)));
+    char line[256]{};std::snprintf(line,sizeof(line),"D82 TEMPORAL_STEREO reason=%s technology=%d stereo=%d alternateEye=%d epoch=%llu acceptance=%s",
+        reason?reason:"status",ActualTechnology(),stereo.load(std::memory_order_acquire),alternateEye.load(std::memory_order_acquire),
+        static_cast<unsigned long long>(epoch.load(std::memory_order_acquire)),alternateEye.load(std::memory_order_acquire)?"FRAME_LOCKED_PER_EYE_RESET":"SAME_EPOCH_FRAME_TWO_DISTINCT_VENDOR_HISTORIES");
     diagnostic_trace::Write(line);native_dlss_stereo_d82::LogStatus(reason);native_fsr_stereo_d82::LogStatus(reason);native_xess_stereo_d85::LogStatus(reason);
 }
 }

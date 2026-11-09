@@ -20,6 +20,7 @@
 #include "developer_mode.h"
 #include "graphics_menu_options.h"
 #include "stereo_upscaler_d81r2.h"
+#include "native_dlss_stereo_d82.h" // R149 alternate-eye frame dump button
 #include "upscaler_live_switch_d85.h" // D85 UPSCALERS
 
 #include <commctrl.h>
@@ -167,11 +168,14 @@ constexpr POINT kNavCenters[kNavCount] = {
 // right page slides between uncluttered configuration pages.
 constexpr UiRect kHomeModeMono{130,350,500,388};
 constexpr UiRect kHomeModeCorrected{130,400,500,438};
+constexpr UiRect kHomeModeAlternateEyeR142{130,450,312,488};
+constexpr UiRect kHomeAerWarpR154{318,450,404,488}; // R154: stale-eye warp tier ROT / 6DOF / MV (shown only in ALT EYE)
+constexpr UiRect kHomeAerDumpR149{410,450,500,488}; // R149: alternate-eye 4-frame debug dump (shown only in that mode)
 constexpr UiRect kHomeModePseudo{130,450,500,488};
 constexpr UiRect kCombatProx40{620,230,1038,252},kCombatWeight40{620,300,1038,322},kCombatStats40{620,360,1038,400},kCombatInstant40{620,130,1038,162},kCombatForce40{620,174,1038,206},kCombatMore40{620,540,1038,574},kCombatFlow40{620,590,1038,624};
 constexpr UiRect kHomePseudoEffect{130,535,500,557};
 constexpr UiRect kHomeFps{130,578,500,600};
-constexpr UiRect kVrikExperimentsD61{130,450,500,488};
+constexpr UiRect kVrikExperimentsD61{130,542,500,572};
 constexpr UiRect kVrikLeadD61{620,190,1038,228};
 constexpr UiRect kVrikBaseD61{620,312,1038,346},kVrikTimingD61{620,354,1038,388},kVrikUncappedD67{620,396,1038,430},kVrikElbowD61{620,438,1038,472};
 constexpr UiRect kStabPageD67{620,430,1038,465};
@@ -205,6 +209,22 @@ static_assert(H29SliderLayout(),"H29 sensitivity and finger sliders must fit wit
 
 inline UiRect FingerButton40(int i){return {620+i*84,190,698+i*84,222};}
 constexpr UiRect kHomeF2Fix{320,610,500,638};
+// R150 HAND OFFSETS page: four groups (right pos, right rot, left pos, left rot), three compact sliders each.
+// Slider i = side*6 + {X,Y,Z,pitch,yaw,roll}; the label/value line sits 22 px above each 22 px track.
+constexpr UiRect kHomeHandOffsetsR150{130,610,500,640};
+constexpr int HandOffsetRowTopR150(int row) noexcept {return 112+row*80+(row>=2?18:0);}
+constexpr UiRect HandOffsetSliderR150(unsigned i) noexcept {
+    const int row=int(i/3u),col=int(i%3u),top=HandOffsetRowTopR150(row)+48;
+    return {620+col*144,top,750+col*144,top+22};
+}
+constexpr UiRect kHandOffsetResetRR150{620,470,824,500},kHandOffsetResetLR150{834,470,1038,500};
+constexpr UiRect kHandAlignRR153{620,508,824,538},kHandAlignLR153{834,508,1038,538}; // R153 freeze hand, squeeze grip to solve
+constexpr bool HandOffsetLayoutR150(){
+    for(unsigned i=0;i<12;++i){const auto r=HandOffsetSliderR150(i);if(r.l<620||r.r>1038||r.t-22<HandOffsetRowTopR150(int(i/3u))+22)return false;}
+    return HandOffsetSliderR150(11).b<kHandOffsetResetRR150.t&&kHandOffsetResetRR150.b<kHandAlignRR153.t&&kHandAlignRR153.b<=546;
+}
+static_assert(HandOffsetLayoutR150(),"Hand offset sliders, headers and reset buttons must not overlap");
+inline float HandOffsetTR150(const UiRect& r,int x) noexcept {return std::clamp(float(x-r.l-6)/float(std::max(1,r.r-r.l-12)),0.f,1.f);}
 
 constexpr UiRect kHomeVrConfig{620,132,1028,182};
 constexpr UiRect kHomeGraphics{620,197,1028,247};
@@ -213,8 +233,9 @@ constexpr UiRect kHomeActions{620,392,1028,442};
 constexpr UiRect kHomeDialogue{620,327,1028,377};
 constexpr UiRect kHomeVrikNative{620,452,820,488};
 constexpr UiRect kHomeVrikTracked{838,452,1038,488};
-constexpr UiRect kHomeVrikRecalibrate{620,494,826,520};
-constexpr UiRect kHomeVrikRestore43{832,494,1038,520};  // C43: apply the stored calibration again (no T-pose)
+constexpr UiRect kHomeVrikRecalibrate{620,494,756,520};
+constexpr UiRect kHomeVrikRestore43{762,494,896,520};  // C43: apply the stored calibration again (no T-pose)
+constexpr UiRect kHomeDirectHandsR135{902,494,1038,520};
 constexpr UiRect kHomeBest{620,526,820,550};
 constexpr UiRect kHomeAutoRestore43{832,526,1038,550};  // C43: VrCalibrationAutoRestore checkbox
 constexpr UiRect kHomeHeadSyncOld{-10,-10,-5,-5};
@@ -222,9 +243,9 @@ constexpr UiRect kHomeSave=EH5(experimental_features_h5::kHomeSave);
 constexpr UiRect kHomeFeaturesH5=EH5(experimental_features_h5::kHomeFeatures);
 constexpr UiRect kHomeExperiments=EH5(experimental_features_h5::kHomeCombat);
 constexpr bool HomeNavigationH5(){
-    const UiRect rows[]{kHomeModeMono,kHomeModeCorrected,kVrikExperimentsD61,kH29TuneNav,kHomeFps,
+    const UiRect rows[]{kHomeModeMono,kHomeModeCorrected,kHomeModeAlternateEyeR142,kHomeAerWarpR154,kHomeAerDumpR149,kVrikExperimentsD61,kH29TuneNav,kHomeFps,
         kHomeVrConfig,kHomeGraphics,kHomeUi,kHomeDialogue,kHomeActions,kHomeVrikNative,kHomeVrikTracked,
-        kHomeVrikRecalibrate,kHomeVrikRestore43,kHomeBest,kHomeAutoRestore43,kHomeSave,kHomeFeaturesH5,kHomeExperiments};
+        kHomeVrikRecalibrate,kHomeVrikRestore43,kHomeDirectHandsR135,kHomeBest,kHomeAutoRestore43,kHomeSave,kHomeFeaturesH5,kHomeExperiments,kHomeHandOffsetsR150};
     for(unsigned i=0;i<std::size(rows);++i){const auto r=rows[i];if(r.l<0||r.r>1070||r.t<100||r.b>672)return false;
         for(unsigned j=i+1;j<std::size(rows);++j){const auto s=rows[j];if(r.l<s.r&&s.l<r.r&&r.t<s.b&&s.t<r.b)return false;}}
     return kHomeAutoRestore43.b<kHomeSave.t&&kHomeFeaturesH5.b<kHomeExperiments.t;
@@ -512,9 +533,22 @@ static const wchar_t* UpQualityName(int t,int q) noexcept {
     if(t==4)return xe[std::clamp(q,0,6)];
     if(t==2) return dl[std::clamp(q,0,5)]; if(t==1) return fs[std::clamp(q,0,4)]; return t==0?L"QUALITY: native game AA":L"Select an upscaler to change settings";
 }
+// R151: DLSS render presets as NGX values (Default=0, A=1 .. F=6, J=10, K=11, L=12, M=13). Current DLSS 4.x
+// runtimes only ship F, J, K, L and M; A-E were removed, so the menu cycles Default/F/J/K/L/M. An older saved
+// value (A-E) is still shown by its letter until the user cycles away from it.
+static constexpr int kDlssPresetsR151[]{0,6,10,11,12,13};
 static const wchar_t* UpPresetName(int t,int p) noexcept {
-    static const wchar_t* pr[7]={L"Preset: Default",L"Preset: A",L"Preset: B",L"Preset: C",L"Preset: D",L"Preset: E",L"Preset: F"};
-    return t==2?pr[std::clamp(p,0,6)]:L"Preset: -";
+    static const wchar_t* pr[14]={L"Preset: Default",L"Preset: A",L"Preset: B",L"Preset: C",L"Preset: D",L"Preset: E",L"Preset: F",
+        L"Preset: G",L"Preset: H",L"Preset: I",L"Preset: J (DLSS 4)",L"Preset: K (DLSS 4)",L"Preset: L (DLSS 4.5)",L"Preset: M (DLSS 4.5)"};
+    return t==2?pr[std::clamp(p,0,13)]:L"Preset: -";
+}
+static int StepDlssPresetR151(int current,int dir) noexcept {
+    constexpr int n=int(std::size(kDlssPresetsR151));int idx=-1;
+    for(int i=0;i<n;++i)if(kDlssPresetsR151[i]==current){idx=i;break;}
+    if(idx<0){ // unlisted (legacy A-E): step to the nearest listed value in that direction
+        if(dir>0){for(int i=0;i<n;++i)if(kDlssPresetsR151[i]>current)return kDlssPresetsR151[i];return kDlssPresetsR151[0];}
+        for(int i=n-1;i>=0;--i)if(kDlssPresetsR151[i]<current)return kDlssPresetsR151[i];return kDlssPresetsR151[n-1];}
+    return kDlssPresetsR151[(idx+(dir>0?1:n-1))%n];
 }
 
 constexpr UiRect kV4ModeMono{620,162,1038,204};
@@ -1043,7 +1077,7 @@ void VrMenu::UpdatePageAnimation()
 
 void VrMenu::CyclePage(int direction)
 {
-    static constexpr MenuPage pages[]={MenuPage::Home,MenuPage::VrView,MenuPage::VrHud,MenuPage::VrControls,MenuPage::ReleaseImmersionR92,MenuPage::Dialogue,MenuPage::VrActions,MenuPage::Graphics,MenuPage::LiveExperimentsD39,MenuPage::ExperimentalFeaturesH5,MenuPage::NpcTuning,MenuPage::ClaudeExperimentsH8,MenuPage::CombatTuning49,MenuPage::Experiments2,MenuPage::WeaponFeel59c14,MenuPage::CombatFlow59c17,MenuPage::Kicks26,MenuPage::MeleeSensitivityH29,MenuPage::FistSensitivityH41,MenuPage::GuardSettingsH41,MenuPage::ShieldBoxR120,MenuPage::DefenceWindowsH41,MenuPage::MiscCombat1R109,MenuPage::MiscCombat2R109,MenuPage::MiscCombat3R109}; // R109 MISC pages cycle with the stick too
+    static constexpr MenuPage pages[]={MenuPage::Home,MenuPage::VrView,MenuPage::VrHud,MenuPage::VrControls,MenuPage::HandOffsetsR150,MenuPage::ReleaseImmersionR92,MenuPage::Dialogue,MenuPage::VrActions,MenuPage::Graphics,MenuPage::LiveExperimentsD39,MenuPage::ExperimentalFeaturesH5,MenuPage::NpcTuning,MenuPage::ClaudeExperimentsH8,MenuPage::CombatTuning49,MenuPage::Experiments2,MenuPage::WeaponFeel59c14,MenuPage::CombatFlow59c17,MenuPage::Kicks26,MenuPage::MeleeSensitivityH29,MenuPage::FistSensitivityH41,MenuPage::GuardSettingsH41,MenuPage::ShieldBoxR120,MenuPage::DefenceWindowsH41,MenuPage::MiscCombat1R109,MenuPage::MiscCombat2R109,MenuPage::MiscCombat3R109}; // R109 MISC pages cycle with the stick too
     const auto cur=static_cast<MenuPage>(active_page_.load(std::memory_order_acquire));
     int idx=0;
     for(int i=0;i<static_cast<int>(sizeof(pages)/sizeof(pages[0]));++i) if(pages[i]==cur){ idx=i; break; }
@@ -1083,6 +1117,24 @@ void VrMenu::HandleClick(int x, int y)
             up_status_.store(4);up_seeded_.store(true);GoToPage(MenuPage::Graphics,+1);
         }
     };
+    auto selectAlternateEyeR142=[&](){
+        int actual=-1,quality=0,preset=0;
+        const bool known=callbacks_.read_upscaler&&callbacks_.read_upscaler(callbacks_.context,&actual,&quality,&preset);
+        if(!known||actual!=2){
+            up_tech_.store(2);up_quality_.store(graphics_menu_options::DefaultQuality(2));up_preset_.store(0);
+            up_status_.store(4);up_seeded_.store(true);GoToPage(MenuPage::Graphics,+1);return;
+        }
+        s.stereo_mode=4;s.cyclopean_mode=0;
+        if(ApplyState(s)){
+            save();
+            if(!callbacks_.stereo_ready||!callbacks_.stereo_ready(callbacks_.context)){
+                up_status_.store(5);GoToPage(MenuPage::Graphics,+1);
+            }
+        }else{
+            up_tech_.store(2);up_quality_.store(graphics_menu_options::DefaultQuality(2));up_preset_.store(0);
+            up_status_.store(4);up_seeded_.store(true);GoToPage(MenuPage::Graphics,+1);
+        }
+    };
     if(s.matrix_running){ if(callbacks_.request_safe_mono) callbacks_.request_safe_mono(callbacks_.context); return; }
 
     const auto page=static_cast<MenuPage>(active_page_.load(std::memory_order_acquire));
@@ -1101,6 +1153,18 @@ void VrMenu::HandleClick(int x, int y)
 #undef KCD2VR_RANGED32_CLICK
     }
     if(page==MenuPage::ShieldBoxR120&&PtIn(kPageBack,x,y)){GoToPage(MenuPage::GuardSettingsH41,-1);return;} // R120
+    if(page==MenuPage::HandOffsetsR150){ // R150 HAND OFFSETS
+        if(PtIn(kPageBack,x,y)){GoToPage(MenuPage::Home,-1);return;}
+        if(PtIn(kHandOffsetResetRR150,x,y)||PtIn(kHandOffsetResetLR150,x,y)){
+            const int side=PtIn(kHandOffsetResetRR150,x,y)?0:1;for(int i=0;i<6;++i)s.hand_offset_r150[side*6+i]=0.f;
+            ApplyState(s);save();MarkDirty();return;}
+        if(PtIn(kHandAlignRR153,x,y)||PtIn(kHandAlignLR153,x,y)){ // R153: start, or cancel when already aligning
+            const int side=PtIn(kHandAlignRR153,x,y)?0:1;
+            frik_pose_probe::RequestHandAlignR153(side,frik_pose_probe::HandAlignStateR153(side)==0);MarkDirty();return;}
+        for(unsigned i=0;i<12;++i)if(PtIn(HandOffsetSliderR150(i),x,y)){handOffsetSlotR150_.store(i,std::memory_order_release);
+            drag_control_.store(static_cast<int>(DragControl::HandOffsetR150),std::memory_order_release);HandleDrag(x,y);return;}
+        return;
+    }
     if(page==MenuPage::ImmersionExperiments){
 #define KCD2VR_MENU_CLICK_IMMERSIONEXPERIMENTS
 #include "subsystems/experimental/menu.inl"
@@ -1186,6 +1250,15 @@ void VrMenu::HandleClick(int x, int y)
         if(developer_mode::Enabled()&&PtIn(kH29TuneNav,x,y)){GoToPage(MenuPage::MeleeSensitivityH29,+1);return;}
         if(PtIn(kHomeModeMono,x,y)){ s.stereo_mode=0; s.cyclopean_mode=0; ApplyState(s); save(); return; }
         if(PtIn(kHomeModeCorrected,x,y)){ selectStereoD81R2(); return; }
+        if(PtIn(kHomeModeAlternateEyeR142,x,y)){ selectAlternateEyeR142(); return; }
+        if(s.stereo_mode==4&&PtIn(kHomeAerWarpR154,x,y)){ // R154: MV -> 6DOF -> ROT -> MV
+            s.aer_warp_mode_r154=(std::clamp(s.aer_warp_mode_r154,0,2)+2)%3;ApplyState(s);save();MarkDirty();return;
+        }
+        if(s.stereo_mode==4&&PtIn(kHomeAerDumpR149,x,y)){
+            // Starts 3 s later so the menu can be closed and the problem area looked at.
+            const bool armed=native_dlss_stereo_d82::RequestAerFrameDump(4,3000);
+            MessageBeep(armed?MB_OK:MB_ICONHAND);MarkDirty();return;
+        }
         if(PtIn(kHomeFps,x,y)){
             s.fps_cap_enabled=!s.fps_cap_enabled;
             ApplyState(s);
@@ -1203,6 +1276,8 @@ void VrMenu::HandleClick(int x, int y)
         if(PtIn(kHomeVrikTracked,x,y)){ if(callbacks_.set_vrik_mode) callbacks_.set_vrik_mode(callbacks_.context,true); MarkDirty(); return; }
         if(PtIn(kHomeVrikRecalibrate,x,y)){ if(callbacks_.request_vrik_recalibrate) callbacks_.request_vrik_recalibrate(callbacks_.context); MarkDirty(); return; }
         if(PtIn(kHomeVrikRestore43,x,y)){ if(callbacks_.request_vrik_restore) callbacks_.request_vrik_restore(callbacks_.context); MarkDirty(); return; } // C43
+        if(PtIn(kHomeDirectHandsR135,x,y)){s.direct_controller_hands_r135=!s.direct_controller_hands_r135;ApplyState(s);save();MarkDirty();return;}
+        if(PtIn(kHomeHandOffsetsR150,x,y)){GoToPage(MenuPage::HandOffsetsR150,+1);return;} // R150
         if(PtIn(kHomeAutoRestore43,x,y)){ s.calibration_auto_restore43=!s.calibration_auto_restore43; ApplyState(s); save(); diagnostic_trace::Write(s.calibration_auto_restore43?"C43-HOME VrCalibrationAutoRestore=ON":"C43-HOME VrCalibrationAutoRestore=OFF"); MarkDirty(); return; }
         if(PtIn(kHomeBest,x,y)){ s.balanced_graphics=!s.balanced_graphics; ApplyState(s); save(); return; }
         
@@ -1439,12 +1514,17 @@ void VrMenu::HandleClick(int x, int y)
         if(begin_drag(kV4Fps,DragControl::FpsCap)) return;
         const int t=up_tech_.load();
         const bool stereoD82=stereo_upscaler_d81r2::stereoPolicy(s.stereo_mode);
-        if(PtIn(kUpTechPrev,x,y)||PtIn(kUpTechNext,x,y)){ int nt=graphics_menu_options::Next(t,PtIn(kUpTechNext,x,y)?1:-1); if(stereoD82&&!stereo_upscaler_d81r2::canSelect(s.stereo_mode,nt))nt=graphics_menu_options::Next(nt,PtIn(kUpTechNext,x,y)?1:-1); up_tech_.store(nt); up_quality_.store(graphics_menu_options::DefaultQuality(nt)); up_preset_.store(0); up_status_.store(0); MarkDirty(); return; }
+        if(PtIn(kUpTechPrev,x,y)||PtIn(kUpTechNext,x,y)){
+            const int direction=PtIn(kUpTechNext,x,y)?1:-1;int nt=graphics_menu_options::Next(t,direction);
+            for(int attempt=0;stereoD82&&!stereo_upscaler_d81r2::canSelect(s.stereo_mode,nt)&&attempt<8;++attempt)
+                nt=graphics_menu_options::Next(nt,direction);
+            up_tech_.store(nt);up_quality_.store(graphics_menu_options::DefaultQuality(nt));up_preset_.store(0);up_status_.store(0);MarkDirty();return;
+        }
         const int qc=UpQualityCount(t);
         if(t>0&&PtIn(kUpQualPrev,x,y)){ up_quality_.store((up_quality_.load()+qc-1)%qc); up_status_.store(0); MarkDirty(); return; }
         if(t>0&&PtIn(kUpQualNext,x,y)){ up_quality_.store((up_quality_.load()+1)%qc); up_status_.store(0); MarkDirty(); return; }
-        if(t==2 && PtIn(kUpPresetPrev,x,y)){ up_preset_.store((up_preset_.load()+6)%7); up_status_.store(0); MarkDirty(); return; }
-        if(t==2 && PtIn(kUpPresetNext,x,y)){ up_preset_.store((up_preset_.load()+1)%7); up_status_.store(0); MarkDirty(); return; }
+        if(t==2 && PtIn(kUpPresetPrev,x,y)){ up_preset_.store(StepDlssPresetR151(up_preset_.load(),-1)); up_status_.store(0); MarkDirty(); return; }
+        if(t==2 && PtIn(kUpPresetNext,x,y)){ up_preset_.store(StepDlssPresetR151(up_preset_.load(),+1)); up_status_.store(0); MarkDirty(); return; }
         if(PtIn(kUpApply,x,y)){
             if(!stereo_upscaler_d81r2::canSelect(s.stereo_mode,t)){up_status_.store(4);MarkDirty();return;}
             const bool ok=graphics_menu_options::Supported(t)&&callbacks_.apply_upscaler && callbacks_.apply_upscaler(callbacks_.context,t,up_quality_.load(),up_preset_.load());
@@ -1529,6 +1609,10 @@ void VrMenu::HandleDrag(int x, int y)
     case DragControl::GuardHeightH41:s.guard_height_h41=.10f+t(kGuardHeightD56)*.25f;break;
     case DragControl::GuardEntryH41:s.exp_guard_enter_speed=t(kGuardEntryD56)*5.f;break;
     case DragControl::GuardReleaseH41:s.exp_guard_exit_speed=t(kGuardReleaseD56)*6.f;break;
+    case DragControl::HandOffsetR150:{const unsigned i=handOffsetSlotR150_.load(std::memory_order_acquire); // R150
+        if(i<12){const float u=HandOffsetTR150(HandOffsetSliderR150(i),x);
+            s.hand_offset_r150[i]=(i%6u)<3u?std::round((-20.f+u*40.f)*2.f)*.5f:std::round(-180.f+u*360.f);}
+        break;}
     case DragControl::ShieldBoxR120:{const unsigned i=shieldSlotR120_.load(std::memory_order_acquire); // R120
         if(i<shield_block_r120::Count){const auto& spec=shield_block_r120::kSpecs[i];
             s.shield_box_r120[i]=shield_block_r120::clampValue(i,spec.lo+t(ShieldSliderR120(i))*(spec.hi-spec.lo));}
@@ -1724,7 +1808,7 @@ void VrMenu::CommitDrag(DragControl released)
     if(released==DragControl::HudDistanceR110){ApplyState(s);save();return;} // R125: distance / INF saved on release
     if(released>=DragControl::M1DifficultyR109&&released<=DragControl::M3KillEnergyR109){ApplyState(s);save();return;} // R109 MISC sliders: apply + save on release
     if(released==DragControl::NpcDifficulty||released==DragControl::NpcDefenseSpeed||released==DragControl::NpcUnarmedSpacing){ApplyState(s);save();return;}
-    if(released==DragControl::BladeAxisH41||released==DragControl::FistTravelH41||released==DragControl::GuardDistanceD56||released==DragControl::GuardDepthD61||released==DragControl::GuardWidthH41||released==DragControl::GuardHeightH41||released==DragControl::GuardEntryH41||released==DragControl::GuardReleaseH41||released==DragControl::ShieldBoxR120||released==DragControl::PbWindowH41||released==DragControl::MsWindowH41||released==DragControl::H29TravelR8||released==DragControl::FingerMiddleShiftH31||released==DragControl::FingerMiddleMedialH31||released==DragControl::H29Cut||released==DragControl::H29Stab||released==DragControl::H29Punch||released==DragControl::H29Block||released==DragControl::FingerMiddleLateralC54){ApplyState(s);save();return;}
+    if(released==DragControl::BladeAxisH41||released==DragControl::FistTravelH41||released==DragControl::GuardDistanceD56||released==DragControl::GuardDepthD61||released==DragControl::GuardWidthH41||released==DragControl::GuardHeightH41||released==DragControl::GuardEntryH41||released==DragControl::GuardReleaseH41||released==DragControl::ShieldBoxR120||released==DragControl::HandOffsetR150||released==DragControl::PbWindowH41||released==DragControl::MsWindowH41||released==DragControl::H29TravelR8||released==DragControl::FingerMiddleShiftH31||released==DragControl::FingerMiddleMedialH31||released==DragControl::H29Cut||released==DragControl::H29Stab||released==DragControl::H29Punch||released==DragControl::H29Block||released==DragControl::FingerMiddleLateralC54){ApplyState(s);save();return;}
     if(released==DragControl::GameFov){ save(); return; } // shared setting persists from either slider
     if(released==DragControl::CameraBack || released==DragControl::CameraHeight || released==DragControl::Zoom || released==DragControl::SourceFov || released==DragControl::CenterY || released==DragControl::CorrectedPlanarY || released==DragControl::ProjectionPitchTrim || released==DragControl::FlatScreenScale || released==DragControl::DepthStereoStrength){ save(); return; }
     if(released==DragControl::MergedMesh){ if(callbacks_.apply_merged_mesh) callbacks_.apply_merged_mesh(callbacks_.context,s.merged_mesh_target); save(); return; }
@@ -1794,12 +1878,20 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
 
     const auto page=static_cast<MenuPage>(active_page_.load(std::memory_order_acquire));
     if(page==MenuPage::Home){
-        DrawButton(dc,font_small_,kHomeModeMono,L"MONO",s.stereo_mode!=3?kAccent:kPanel2);
+        DrawButton(dc,font_small_,kHomeModeMono,L"MONO",(s.stereo_mode!=3&&s.stereo_mode!=4)?kAccent:kPanel2);
         DrawButton(dc,font_small_,kHomeModeCorrected,L"STEREO",s.stereo_mode==3?kAccent:kPanel2);
+        DrawButton(dc,font_small_,kHomeModeAlternateEyeR142,L"ALT EYE (DLSS)",s.stereo_mode==4?kAccent:kPanel2);
+        if(s.stereo_mode==4){ // R154: what carries the eye that was not rendered this frame
+            const int wm=std::clamp(s.aer_warp_mode_r154,0,2);
+            DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeAerWarpR154,wm==2?L"WARP MV":wm==1?L"WARP 6DOF":L"WARP ROT",wm>0?kAccent:kPanel2);
+        }
+        if(s.stereo_mode==4)DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeAerDumpR149,
+            native_dlss_stereo_d82::AerFrameDumpBusy()?L"DUMPING":L"DUMP",RGB(176,148,98));
         if(developer_mode::Enabled())DrawButton(dc,font_small_,kVrikExperimentsD61,L"VRIK EXPERIMENTS  >",kPanel2);
         if(developer_mode::Enabled())DrawButton(dc,font_small_,kH29TuneNav,L"WEAPON / FIST SENSITIVITY  >",kPanel2);
         wchar_t fpsHome[96]{}; std::swprintf(fpsHome,96,L"FPS LIMIT: %s  %.0f",s.fps_cap_enabled?L"ON":L"OFF",static_cast<double>(s.fps_cap_target));
         DrawButton(dc,font_small_,kHomeFps,fpsHome,s.fps_cap_enabled?kAccent:kPanel2);
+        DrawButton(dc,font_small_,kHomeHandOffsetsR150,L"HAND OFFSETS  >",kPanel2); // R150
         
     }
     int slide=0;
@@ -1830,8 +1922,11 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
         if(developer_mode::Enabled())DrawButton(dc,font_small_,kHomeExperiments,L"COMBAT EXPERIMENTS",RGB(176,148,98));
         DrawButton(dc,font_small_,kHomeVrikNative,L"NATIVE TOUCH",s.vrik_mode==0?kAccent:kPanel2);
         DrawButton(dc,font_small_,kHomeVrikTracked,L"VRIK",s.vrik_mode!=0?kAccent:kPanel2);
-        DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeVrikRecalibrate,L"RECALIBRATE (SHIFT+F8)",RGB(176,148,98));
-        DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeVrikRestore43,L"RESTORE CALIBRATION",RGB(176,148,98)); // C43: stored F8 profile, no T-pose
+        DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeVrikRecalibrate,
+            s.direct_controller_hands_r135?L"HEIGHT RESET":L"RECALIBRATE",RGB(176,148,98));
+        DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeVrikRestore43,L"RESTORE CAL",RGB(176,148,98)); // C43: stored F8 profile, no T-pose
+        DrawButton(dc,font_tiny_?font_tiny_:font_small_,kHomeDirectHandsR135,
+            s.direct_controller_hands_r135?L"HANDS 1:1 ON":L"HANDS LEGACY",s.direct_controller_hands_r135?kAccent:kPanel2);
         DrawCheck(dc,font_small_,kHomeBest,s.balanced_graphics,L"Best VR settings");
         DrawCheck(dc,font_tiny_?font_tiny_:font_small_,kHomeAutoRestore43,s.calibration_auto_restore43,L"Auto restore calibration"); // C43
         if(s.vrik_calibration_ui_state!=0){
@@ -2061,6 +2156,29 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
         std::swprintf(v,128,L"%.0f%%",double(s.block_sensitivity_h29)*100);DrawSlider(dc,font_small_,kGuardSettleD56,L"Block settling sensitivity",s.block_sensitivity_h29-.5f,v);
         std::swprintf(v,128,L"%.0f cm",double(s.guard_body_distance_d56)*100);DrawSlider(dc,font_small_,kGuardDistanceD56,L"Maximum guard hand distance from chest",(s.guard_body_distance_d56-.35f)/.70f,v);
         Text(dc,font_small_,L"Depth adjusts front-to-back coverage. The separate chest-distance limit still applies to weapons and shields. Native block results remain unchanged.",620,605,418,50,kMuted,DT_LEFT|DT_WORDBREAK);
+} else if(page==MenuPage::HandOffsetsR150){ // R150 hand offsets, controller grip space
+        pageTitle(L"HAND OFFSETS",L"Move / rotate each hand relative to its controller");DrawButton(dc,font_small_,kPageBack,L"< BACK",kPanel2);
+        static constexpr const wchar_t* heads[4]{L"RIGHT HAND  position (cm)",L"RIGHT HAND  rotation (deg)",L"LEFT HAND  position (cm)",L"LEFT HAND  rotation (deg)"};
+        static constexpr const wchar_t* axes[6]{L"X right",L"Y up",L"Z fwd",L"Pitch",L"Yaw",L"Roll"};
+        HFONT tiny=font_tiny_?font_tiny_:font_small_;
+        for(int row=0;row<4;++row)Text(dc,font_small_,heads[row],620,HandOffsetRowTopR150(row),418,22,kAccent,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
+        for(unsigned i=0;i<12;++i){
+            const UiRect r=HandOffsetSliderR150(i);const bool pos=(i%6u)<3u;const float val=s.hand_offset_r150[i];
+            std::swprintf(v,128,pos?L"%ls %+.1f":L"%ls %+.0f",axes[i%6u],double(val));
+            Text(dc,tiny,v,r.l,r.t-22,r.r-r.l,20,kText,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
+            const float u=pos?(val+20.f)/40.f:(val+180.f)/360.f;
+            const int cy=(r.t+r.b)/2,mid=(r.l+r.r)/2,x0=r.l+6,x1=r.r-6,kx=x0+int((x1-x0)*Clamp01(u));
+            Line(dc,x0,cy,x1,cy,kRule,4);Line(dc,mid,cy-6,mid,cy+6,kRule,2);Line(dc,std::min(mid,kx),cy,std::max(mid,kx),cy,kAccent,4);
+            Fill(dc,UiRect{kx-5,cy-8,kx+6,cy+9},kPaperHi);
+        }
+        DrawButton(dc,font_small_,kHandOffsetResetRR150,L"RESET RIGHT",RGB(176,148,98));
+        DrawButton(dc,font_small_,kHandOffsetResetLR150,L"RESET LEFT",RGB(176,148,98));
+        for(int side=0;side<2;++side){ // R153
+            const int st=frik_pose_probe::HandAlignStateR153(side);
+            const wchar_t* label=st==0?(side?L"ALIGN LEFT":L"ALIGN RIGHT"):st==1?L"RELEASE GRIP...":L"SQUEEZE GRIP TO SET";
+            DrawButton(dc,font_small_,side?kHandAlignLR153:kHandAlignRR153,label,st?kAccent:RGB(176,148,98));
+        }
+        Text(dc,font_small_,L"ALIGN freezes that hand. Match the controller to the frozen hand and squeeze grip to set its offsets (click again to cancel). Offsets follow the controller (X right, Y up, Z forward); saved automatically.",620,546,418,90,kMuted,DT_LEFT|DT_WORDBREAK);
 } else if(page==MenuPage::ShieldBoxR120){ // R120 shield block box
         pageTitle(L"SHIELD BLOCK BOX",L"Left-hand shield; weapon block box unchanged");DrawButton(dc,font_small_,kPageBack,L"< BACK",kPanel2);
         DrawButton(dc,font_small_,kWeaponNavH41,L"WEAPONS",kPanel2);DrawButton(dc,font_small_,kFistNavH41,L"FISTS",kPanel2);DrawButton(dc,font_small_,kGuardNavH41,L"BLOCK",kPanel2);

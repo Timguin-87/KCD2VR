@@ -10,6 +10,7 @@
 
 #include "camera_hook.h"
 #include <chrono>
+#include <array>
 #include "xr_manager.h"
 #include "tracking_sample59c6.h"
 #include "debug_trace.h"
@@ -60,6 +61,8 @@ static void RoomscaleXrSample47(const XrPose&,const XrPose&);
 // copied under s_pose_mutex; one publication contains both origin and direction.
 static std::uint64_t g_current_pose_source_epoch_d75=0;
 static core::SnapshotMailbox<visual_ray_d75::Sample> g_visual_ray_d75;
+static constexpr std::size_t kVisualCameraRotationHistoryD75=512;
+static std::array<core::SnapshotMailbox<CameraRotationSample,3>,kVisualCameraRotationHistoryD75> g_visual_camera_rotation_d75{};
 }
 std::mutex CameraHook::s_pose_mutex;
 XrPose CameraHook::s_current_pose{};
@@ -142,6 +145,11 @@ std::atomic<float> CameraHook::s_visual_position_y{0.0f};
 std::atomic<float> CameraHook::s_visual_position_z{0.0f};
 std::atomic<std::uint64_t> CameraHook::s_visual_position_tick_ms{0};
 std::atomic<bool> CameraHook::s_visual_position_valid{false};
+std::atomic<float> CameraHook::s_visual_center_x{0.0f};
+std::atomic<float> CameraHook::s_visual_center_y{0.0f};
+std::atomic<float> CameraHook::s_visual_center_z{0.0f};
+std::atomic<std::uint64_t> CameraHook::s_visual_center_tick_ms{0};
+std::atomic<bool> CameraHook::s_visual_center_valid{false};
 static std::atomic<bool> g_history_persistent_pose{false};
 
 namespace {
@@ -281,7 +289,18 @@ static void PublishVisualRayD75(const Matrix34f& matrix,std::uint64_t sourceEpoc
     const auto sample=visual_ray_d75::make(matrix.m,std::uint64_t(GetTickCount64()),sourceEpoch,cameraGeneration,poseFrame,displayOrigin,worldScaleR92);
     if(!roomscale_d76::recenterPending.load(std::memory_order_acquire)&&
        sourceEpoch==tracking59c6::epoch.load(std::memory_order_acquire)&&
-       cameraGeneration==CameraHook::CurrentFamilyGenerationR24())(void)g_visual_ray_d75.publish(sample);
+       cameraGeneration==CameraHook::CurrentFamilyGenerationR24()) {
+        (void)g_visual_ray_d75.publish(sample);
+    }
+}
+
+static void PublishVisualCameraRotationD75(const Matrix34f& matrix,std::uint64_t poseFrame) noexcept {
+    if(!poseFrame)return;
+    CameraRotationSample rotation{};
+    for(int r=0;r<3;++r)for(int c=0;c<3;++c)rotation.m[r*3+c]=matrix.m[r][c];
+    rotation.pose_frame=poseFrame;rotation.tick_ms=std::uint64_t(GetTickCount64());
+    rotation.camera=reinterpret_cast<std::uintptr_t>(&matrix);
+    (void)g_visual_camera_rotation_d75[poseFrame%kVisualCameraRotationHistoryD75].publish(rotation);
 }
 
 namespace ds=dialogue_state59c10r2;
@@ -813,6 +832,23 @@ void CameraHook::SetAfrIpd(float ipd_meters, float scale)
         s_afr_ipd_scale.store(scale, std::memory_order_release);
 }
 
+namespace { thread_local int t_applied_afr_eye_r150=-1; thread_local float t_applied_afr_offset_world_r154=0.0f; }
+int CameraHook::LastAppliedAfrEye() noexcept { return t_applied_afr_eye_r150; }
+void CameraHook::ClearAppliedAfrEye() noexcept { t_applied_afr_eye_r150=-1; t_applied_afr_offset_world_r154=0.0f; }
+// R154: the signed world-space offset along camera right that went with that eye
+// (IPD x scale x world scale). The stale-eye 6DoF warp reverses it exactly.
+float CameraHook::LastAppliedAfrEyeOffsetWorld() noexcept { return t_applied_afr_eye_r150>=0 ? t_applied_afr_offset_world_r154 : 0.0f; }
+// One read of the AFR eye for both the offset and the record of which eye it was.
+float CameraHook::GetAfrEyeOffsetMetersApplied() noexcept
+{
+    if (!s_afr_enabled.load(std::memory_order_acquire)) { t_applied_afr_eye_r150=-1; return 0.0f; }
+    const int eye = s_afr_eye.load(std::memory_order_acquire) & 1;
+    const float offset = (eye == 0 ? -0.5f : 0.5f) *
+        s_afr_ipd_meters.load(std::memory_order_acquire) * s_afr_ipd_scale.load(std::memory_order_acquire);
+    t_applied_afr_eye_r150 = offset != 0.0f ? eye : -1;
+    return offset;
+}
+
 float CameraHook::GetAfrEyeOffsetMeters()
 {
     if (!s_afr_enabled.load(std::memory_order_acquire)) return 0.0f;
@@ -1015,6 +1051,7 @@ static bool ApplyTrackedPose(uintptr_t camera, const XrPose& pose, const XrPose&
                              const native_roomscale_d76::Origin& roomOriginD76,
                              std::uint64_t visualSourceD75,std::uint64_t visualGenerationD75,std::uint64_t visualFrameD75)
 {
+    t_applied_afr_eye_r150=-1; // R150: set again only where an AFR offset is written
     // Exact RTTI-backed CView gate recovered from the user's retail WHGame.dll.
     // This replaces the old permissive "vtable lies somewhere inside WHGame" test.
     if (!IsExactGameCView(camera)) return false;
@@ -1074,7 +1111,6 @@ static bool ApplyTrackedPose(uintptr_t camera, const XrPose& pose, const XrPose&
         cry_local.z += g_recenter_anchor_z.load(std::memory_order_acquire);
         cry_local.x += CameraHook::GetCameraSideOffsetMeters();
         const float centerLocalXD75=cry_local.x;
-        cry_local.x += CameraHook::GetAfrEyeOffsetMeters();
         // Cry local +Y is camera forward and +Z is up. Positive menu 'back' therefore subtracts Y.
         cry_local.y -= CameraHook::GetCameraBackOffsetMeters();
         cry_local.z += CameraHook::GetCameraHeightOffsetMeters();
@@ -1083,9 +1119,15 @@ static bool ApplyTrackedPose(uintptr_t camera, const XrPose& pose, const XrPose&
             base_right.y * cry_local.x + base_forward.y * cry_local.y + base_up.y * cry_local.z,
             base_right.z * cry_local.x + base_forward.z * cry_local.y + base_up.z * cry_local.z
         };
-        matrix->m[0][3] = base_pos.x + world_delta.x * world_scale;
-        matrix->m[1][3] = base_pos.y + world_delta.y * world_scale;
-        matrix->m[2][3] = base_pos.z + world_delta.z * world_scale;
+        // IPD follows the final HMD-composed camera-right axis. Applying it to
+        // cry_local before composing the tracked rotation kept the two eyes
+        // pointed along the game-facing base axis during physical head turns.
+        const Vec3f eyeRight{matrix->m[0][0],matrix->m[1][0],matrix->m[2][0]};
+        const float eyeOffsetWorld=CameraHook::GetAfrEyeOffsetMetersApplied()*world_scale;
+        t_applied_afr_offset_world_r154=eyeOffsetWorld; // R154
+        matrix->m[0][3] = base_pos.x + world_delta.x * world_scale + eyeRight.x*eyeOffsetWorld;
+        matrix->m[1][3] = base_pos.y + world_delta.y * world_scale + eyeRight.y*eyeOffsetWorld;
+        matrix->m[2][3] = base_pos.z + world_delta.z * world_scale + eyeRight.z*eyeOffsetWorld;
         // Display-only center before IPD, using D76's consumed-origin residual.
         // Keep every rendered position expression and eye-offset load intact.
         displayCenterD75[0]=base_pos.x+(base_right.x*centerLocalXD75+base_forward.x*cry_local.y+base_up.x*cry_local.z)*world_scale;
@@ -1095,6 +1137,7 @@ static bool ApplyTrackedPose(uintptr_t camera, const XrPose& pose, const XrPose&
 
     CameraHook::PublishVisualForwardFromCameraMatrix(matrix);
     CameraHook::PublishVisualPositionFromCameraMatrix(matrix);
+    CameraHook::PublishVisualCenterPositionWorld(displayCenterD75);
     PublishVisualRayD75(*matrix,visualSourceD75,visualGenerationD75,visualFrameD75,displayCenterD75,world_scale);
     return true;
 }
@@ -1155,6 +1198,7 @@ static void RoomscaleBookkeeping58(const Vec3f& base_pos,const Vec3f& cry_local,
 // so KCD2's source camera remains untouched and the transform cannot accumulate.
 bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* out_pose_frame, bool record_render_identity,hj1::Sample* out_family)
 {
+    t_applied_afr_eye_r150=-1; // set again only where an AFR offset is written below
     if(out_family)*out_family={};
     if (!camera || !s_pose_received.load(std::memory_order_acquire) ||
         !s_origin_valid.load(std::memory_order_acquire)) return false;
@@ -1504,7 +1548,6 @@ bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* 
             cry_local.z += g_recenter_anchor_z.load(std::memory_order_acquire);
             cry_local.x += GetCameraSideOffsetMeters();
             const float centerLocalXD75=cry_local.x;
-            cry_local.x += GetAfrEyeOffsetMeters();
             cry_local.y -= GetCameraBackOffsetMeters();
             cry_local.z += GetCameraHeightOffsetMeters();
             const bool use_visual_position_basis=hmd_final_orientation_authority||marriage_mode>=2;
@@ -1515,9 +1558,16 @@ bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* 
                 pos_right.x*cry_local.x+pos_forward.x*cry_local.y+pos_up.x*cry_local.z,
                 pos_right.y*cry_local.x+pos_forward.y*cry_local.y+pos_up.y*cry_local.z,
                 pos_right.z*cry_local.x+pos_forward.z*cry_local.y+pos_up.z*cry_local.z};
-            matrix->m[0][3]=base_pos.x+wd.x*world_scale;
-            matrix->m[1][3]=base_pos.y+wd.y*world_scale;
-            matrix->m[2][3]=base_pos.z+wd.z*world_scale;
+            // Put IPD on the final published camera-right axis. `pos_right`
+            // intentionally remains the position-calibration basis; in the
+            // default marriage mode it can be game-facing while the head is
+            // turned, which made the two AER eye images converge sideways.
+            const Vec3f eyeRight{matrix->m[0][0],matrix->m[1][0],matrix->m[2][0]};
+            const float eyeOffsetWorld=GetAfrEyeOffsetMetersApplied()*world_scale;
+            t_applied_afr_offset_world_r154=eyeOffsetWorld; // R154
+            matrix->m[0][3]=base_pos.x+wd.x*world_scale+eyeRight.x*eyeOffsetWorld;
+            matrix->m[1][3]=base_pos.y+wd.y*world_scale+eyeRight.y*eyeOffsetWorld;
+            matrix->m[2][3]=base_pos.z+wd.z*world_scale+eyeRight.z*eyeOffsetWorld;
             // Alternating eyes share one center-head focus; roomscale and
             // activity bases above remain the exact D76 render calculation.
             displayCenterD75[0]=base_pos.x+(pos_right.x*centerLocalXD75+pos_forward.x*cry_local.y+pos_up.x*cry_local.z)*world_scale;
@@ -1529,7 +1579,9 @@ bool CameraHook::ApplyCurrentPoseToPublishedCamera(void* camera, std::uint64_t* 
         // sample can never transiently expose the pre-translation native camera.
         PublishVisualForwardFromCameraMatrix(matrix);
         PublishVisualPositionFromCameraMatrix(matrix);
+        PublishVisualCenterPositionWorld(displayCenterD75);
         PublishVisualRayD75(*matrix,visualSourceD75,generationR24,pose_frame,displayCenterD75,world_scale);
+        PublishVisualCameraRotationD75(*matrix,pose_frame);
         if(record_render_identity)frik_pose_probe::ObserveImmersiveCamera122(
             matrix->m[0][3],matrix->m[1][3],matrix->m[2][3],GetAfrEye(),pose_frame);
         if(record_render_identity)frik_pose_probe::ObserveBowCamera126(base_pos.x,base_pos.y,base_pos.z,
@@ -1689,7 +1741,9 @@ static void CaptureFrustumRotationSample(std::uintptr_t camera,
     g_frustum_rotation_seq.fetch_add(1,std::memory_order_release); // even
 }
 
-static void CaptureFrustumPosedMatrix(std::uintptr_t camera,std::uint64_t pose_frame,const hj1::Sample* family=nullptr) noexcept
+static int g_frustum_posed_afr_eye_r150=-1; // published under g_frustum_pose_seq with the matrix
+static float g_frustum_posed_afr_offset_r154=0.0f; // R154: that eye's world offset, same sequence
+static void CaptureFrustumPosedMatrix(std::uintptr_t camera,std::uint64_t pose_frame,const hj1::Sample* family=nullptr,int afrEye=-1,float afrOffsetWorld=0.0f) noexcept
 {
     if(!camera) return;
     CameraRotationSample sample{};
@@ -1709,6 +1763,8 @@ static void CaptureFrustumPosedMatrix(std::uintptr_t camera,std::uint64_t pose_f
     const auto beginSeqR24=g_frustum_pose_seq.fetch_add(1,std::memory_order_acq_rel)+1; // odd
     g_frustum_posed_sample=sample;
     g_frustum_posed_matrix=full;
+    g_frustum_posed_afr_eye_r150=afrEye;
+    g_frustum_posed_afr_offset_r154=afrOffsetWorld;
     const auto completedSeqR24=g_frustum_pose_seq.fetch_add(1,std::memory_order_release)+1; // even
     if(hj1::enabled.load(std::memory_order_acquire)){
         FrustumFamilyR24 receipt{};receipt.latchSequence=completedSeqR24;
@@ -1729,6 +1785,16 @@ bool CameraHook::GetLatestFrustumRotationSample(CameraRotationSample& out)
     return false;
 }
 
+bool CameraHook::GetCameraRotationForPoseFrame(std::uint64_t pose_frame,CameraRotationSample& out)
+{
+    out={};if(!pose_frame)return false;
+    CameraRotationSample sample{};
+    if(!g_visual_camera_rotation_d75[pose_frame%kVisualCameraRotationHistoryD75].read(sample)||
+       sample.pose_frame!=pose_frame||!sample.tick_ms)return false;
+    for(float value:sample.m)if(!std::isfinite(value))return false;
+    out=sample;return true;
+}
+
 static void TraceCameraApplication() noexcept
 {
     g_last_camera_apply_tick_ms.store(static_cast<std::uint64_t>(GetTickCount64()), std::memory_order_release);
@@ -1744,8 +1810,12 @@ bool CameraHook::ApplyLatestCullingPoseToPublishedCamera(void* camera, std::uint
 {
     if(out_family)*out_family={};
     if(!camera) return false;
+    t_applied_afr_eye_r150=-1;
+    t_applied_afr_offset_world_r154=0.0f;
     CameraRotationSample sample{};
     Matrix34f full{};
+    int posedAfrEye=-1;
+    float posedAfrOffset=0.0f;
     bool got=false;
     std::uint64_t stable_seq=0;
     for(int attempt=0; attempt<4; ++attempt) {
@@ -1753,6 +1823,8 @@ bool CameraHook::ApplyLatestCullingPoseToPublishedCamera(void* camera, std::uint
         if(a==0 || (a&1ull)) continue;
         sample=g_frustum_posed_sample;
         full=g_frustum_posed_matrix;
+        posedAfrEye=g_frustum_posed_afr_eye_r150;
+        posedAfrOffset=g_frustum_posed_afr_offset_r154;
         const auto b=g_frustum_pose_seq.load(std::memory_order_acquire);
         if(a==b && !(b&1ull)) { got=true; stable_seq=b; break; }
     }
@@ -1775,6 +1847,8 @@ bool CameraHook::ApplyLatestCullingPoseToPublishedCamera(void* camera, std::uint
            CameraFamilyCurrentR24(receipt.family))*out_family=receipt.family;
     }
     if(out_pose_frame) *out_pose_frame=sample.pose_frame;
+    t_applied_afr_eye_r150=posedAfrEye; // the reused culling matrix carries the eye of its posing
+    t_applied_afr_offset_world_r154=posedAfrOffset; // R154: and that eye's exact offset
     g_frustum_pose_consumed_seq.store(stable_seq,std::memory_order_release);
     s_last_applied_pose_frame_index.store(sample.pose_frame,std::memory_order_release);
     frik_pose_probe::ObserveImmersiveCamera122(full.m[0][3],full.m[1][3],full.m[2][3],GetAfrEye(),sample.pose_frame);
@@ -1835,6 +1909,20 @@ void CameraHook::PublishVisualPositionFromCameraMatrix(const void* camera_matrix
     s_visual_position_valid.store(ok,std::memory_order_release);
 }
 
+void CameraHook::PublishVisualCenterPositionWorld(const float* xyz) noexcept
+{
+    if(!xyz){s_visual_center_valid.store(false,std::memory_order_release);return;}
+    const float x=xyz[0],y=xyz[1],z=xyz[2];
+    const bool ok=std::isfinite(x)&&std::isfinite(y)&&std::isfinite(z);
+    if(ok){
+        s_visual_center_x.store(x,std::memory_order_relaxed);
+        s_visual_center_y.store(y,std::memory_order_relaxed);
+        s_visual_center_z.store(z,std::memory_order_relaxed);
+        s_visual_center_tick_ms.store(static_cast<std::uint64_t>(GetTickCount64()),std::memory_order_release);
+    }
+    s_visual_center_valid.store(ok,std::memory_order_release);
+}
+
 void CameraHook::SetHistoryPersistentPose(bool enabled)
 {
     const bool was=g_history_persistent_pose.exchange(enabled,std::memory_order_acq_rel);
@@ -1881,6 +1969,19 @@ bool CameraHook::GetLatestVisualPositionWorld(float& x, float& y, float& z, std:
     if(!std::isfinite(lx)||!std::isfinite(ly)||!std::isfinite(lz)) return false;
     x=lx; y=ly; z=lz;
     return true;
+}
+
+bool CameraHook::GetLatestVisualCenterPositionWorld(float& x,float& y,float& z,std::uint64_t max_age_ms)
+{
+    if(!s_visual_center_valid.load(std::memory_order_acquire))return false;
+    const auto tick=s_visual_center_tick_ms.load(std::memory_order_acquire);
+    const auto now=static_cast<std::uint64_t>(GetTickCount64());
+    if(!tick||now<tick||now-tick>max_age_ms)return false;
+    const float cx=s_visual_center_x.load(std::memory_order_relaxed);
+    const float cy=s_visual_center_y.load(std::memory_order_relaxed);
+    const float cz=s_visual_center_z.load(std::memory_order_relaxed);
+    if(!std::isfinite(cx)||!std::isfinite(cy)||!std::isfinite(cz))return false;
+    x=cx;y=cy;z=cz;return true;
 }
 
 bool CameraHook::GetLatestVisualRayD75(visual_ray_d75::Sample& out,std::uint64_t max_age_ms)
@@ -2060,7 +2161,8 @@ uintptr_t __fastcall CameraHook::FrustumDetour(uintptr_t camera) noexcept
                 hj1::enabled.load(std::memory_order_acquire)?&applied_family_r24:nullptr);
             if (applied) {
                 CaptureFrustumRotationSample(camera,applied_pose_frame);
-                CaptureFrustumPosedMatrix(camera,applied_pose_frame,hj1::enabled.load(std::memory_order_acquire)?&applied_family_r24:nullptr);
+                CaptureFrustumPosedMatrix(camera,applied_pose_frame,hj1::enabled.load(std::memory_order_acquire)?&applied_family_r24:nullptr,
+                    CameraHook::LastAppliedAfrEye(),CameraHook::LastAppliedAfrEyeOffsetWorld());
                 const uintptr_t result=V6659CallWidened(camera,s_cull_frustum_scale.load(std::memory_order_acquire),
                     [](std::uintptr_t c)->std::uintptr_t{ return s_original(c); });
                 __try { *reinterpret_cast<Matrix34f*>(camera)=backup; }

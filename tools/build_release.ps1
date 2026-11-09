@@ -86,7 +86,11 @@ try {
     if($OptionalGoreSource){$companionArguments+=@('--optional-gore-source',[IO.Path]::GetFullPath($OptionalGoreSource))}
     Native $python $companionArguments
     $proxy=if($Asi){'OFF'}else{'ON'}
-    $configure=@('-S',$source,'-B',$BuildDirectory,'-G','Visual Studio 17 2022','-A','x64',
+    $vsVer=(& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion | Select-Object -First 1)
+    $generator='Visual Studio 17 2022'
+    if($vsVer -and $vsVer.StartsWith('18.')){ $generator='Visual Studio 18 2026' }
+    elseif($vsVer -and $vsVer.StartsWith('16.')){ $generator='Visual Studio 16 2019' }
+    $configure=@('-S',$source,'-B',$BuildDirectory,'-G',$generator,'-A','x64',
         ('-DCMAKE_PREFIX_PATH='+$DetourModKitRoot),('-DPython3_EXECUTABLE='+$python))
     if($OpenXrSdkSource){
         if(-not (Test-Path -LiteralPath (Join-Path $OpenXrSdkSource 'src/loader/CMakeLists.txt'))){throw 'Invalid OpenXrSdkSource'}

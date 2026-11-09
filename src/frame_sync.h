@@ -26,6 +26,28 @@ struct SystemRenderMarkR24 {SystemRenderFamilyR24 previous{};std::uint64_t enter
 
 struct CameraWriteMarkR24 {std::uint64_t entered=0,previous=0;bool counted=false;};
 
+// R149 alternate-eye render identity. Every gameplay publication records the
+// exact eye camera it handed to the engine; the Normal pipeline execute matches
+// the CRenderView camera it is actually rendering against that ring. Render-thread
+// consumers (DLSS routing, PRESENT eye tagging) therefore use the eye of the
+// pixels, not the main thread's newer publication counter.
+struct AerRenderIdentity {
+    std::uint64_t publishSerial{0};  // FrameSync serial of the matched publication (0 = unmatched)
+    std::uint64_t poseFrame{0};      // XR pose frame applied to that publication
+    std::uint64_t mainSerial{0};     // CurrentFrameSerial() at the same moment (diagnostic)
+    std::uint64_t tickMs{0};
+    std::uintptr_t crv{0}, pipeline{0};
+    std::uint32_t renderFrame{0};    // CRenderView+0x2C frame of the executing Normal pipeline
+    int eye{-1};                     // eye whose IPD offset produced the rendered camera
+    int mainEye{-1};                 // CurrentEye() at the same moment (diagnostic)
+    int source{0};                   // 1 exact publication match, 2 render-frame parity, 3 main-thread fallback
+    float matchPosM{-1.0f}, matchRot{-1.0f};
+    // R154: signed eye offset along the camera's right axis (world units) that the
+    // matched publication applied; valid only with source==1.
+    float eyeOffsetWorld{0.0f};
+    bool eyeOffsetKnown{false};
+};
+
 struct HeadOwnershipSummary {
     int level{0};
     std::uint64_t published_samples{0};
@@ -54,9 +76,28 @@ public:
     static bool SetPipelineProbeEnabled(bool enabled);
     static bool PipelineProbeEnabled();
     static void SetStereoMode(int mode);
+    static int StereoMode();
+    static void SetAlternateEyeUpscalerScope(bool enabled) noexcept;
+    static bool AlternateEyeUpscalerScope() noexcept;
+    static std::uint64_t AlternateEyeUpscalerEpoch() noexcept;
+    // R149: exact identity of the Normal pipeline currently executing on this
+    // thread (false outside that execute or outside alternate-eye mode).
+    static bool CurrentAerRenderIdentity(AerRenderIdentity& out) noexcept;
+    // Newest identity published by any Normal execute, for PRESENT tagging.
+    static bool LatestAerRenderIdentity(AerRenderIdentity& out, std::uint64_t max_age_ms) noexcept;
+    // Upscaler scope for alternate-eye DLSS: true only inside the Normal pipeline
+    // execute while the AER upscaler scope is armed. Null outputs are allowed.
+    static bool AlternateEyeUpscalerIdentity(std::uint64_t* epoch, std::uint32_t* frame,
+        std::uint32_t* eye, std::uintptr_t* pipeline) noexcept;
+    // [0] exact matches, [1] parity, [2] main-thread fallback, [3] main-eye disagreements,
+    // [4] ambiguous matches, [5] publications recorded.
+    static void AerIdentityStats(std::uint64_t out[6]) noexcept;
+    // Oldest-first copy of the most recent render identities (diagnostics).
+    static unsigned AerIdentityHistory(AerRenderIdentity* out, unsigned max) noexcept;
     static std::uint64_t CurrentFrameSerial();
     static int CurrentEye();
     static int CurrentPipelineViewType(); // thread-local: -1 outside pipeline execute
+    static std::uintptr_t CurrentPipelineIdentity(); // thread-local exact Execute owner
     static std::uint64_t PipelineCount(int view_type);
     // V54 aggressive native-stereo diagnostics. 0=off, 1=dual execute +/-IPD/2, 2=dual execute + selector 0/1.
     static void SetNativeStereoReentryMode(int mode, float ipd_meters);
@@ -106,6 +147,8 @@ private:
     static std::atomic<std::uint64_t> s_frame_serial;
     static std::atomic<int> s_eye;
     static std::atomic<int> s_mode;
+    static std::atomic<bool> s_alternate_eye_upscaler_scope;
+    static std::atomic<std::uint64_t> s_alternate_eye_epoch;
     static std::atomic<std::uint64_t> s_pipeline_counts[4];
     static std::atomic<int> s_native_stereo_reentry_mode;
     static std::atomic<float> s_native_stereo_ipd;
@@ -117,6 +160,7 @@ private:
     static std::atomic<bool> s_dense_rotation_probe;
     static std::atomic<bool> s_pipeline_probe_enabled;
     static thread_local int s_pipeline_view_type;
+    static thread_local std::uintptr_t s_pipeline_identity;
 };
 
 } // namespace kcd2vr

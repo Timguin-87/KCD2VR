@@ -10,7 +10,7 @@
     bool selfPresentationD56[2]{};
     for(int side=0;side<2;++side)selfPresentationD56[side]=freeContact164R1[side]||
         (valid[side]&&contactYield164R1[side]==16u&&!otherOwnerH50[side]&&!doorPose66[side]&&!doorPoseH40[side]);
-    if(collisionMode&&selfContact167&&!nativeFingerCapture){
+    if(collisionMode&&selfContact167&&!directHandsR135&&!nativeFingerCapture){
         const V3 original164[2]{goals[0],goals[1]};
         V3 palm164[2][6]{};bool geometry164[2]{};kcd2vr::hand_shape59c7f::Shape handShape59c7f[2]{};
         for(int side=0;side<2;++side)if(selfPresentationD56[side]){FingerContactGeometry103 geometry{};
@@ -34,7 +34,7 @@
     if(physicalMode&&!nativeFingerCapture)(void)StageShieldPat54(tx);
     // C54: own sword vs exact empty hand. Physical weapon intent/trajectory are
     // untouched; the hand proceeds through the existing world and fixed-arm solve.
-    if(collisionMode&&!nativeFingerCapture&&tx.physicalActive){
+    if(collisionMode&&!directHandsR135&&!nativeFingerCapture&&tx.physicalActive){
         kcd2vr::grasp13::Acquisition54 acquisition{};
         const bool acquiring=g_graspAcquisition54&&g_graspAcquisition54(acquisition)&&
             kcd2vr::grasp13::freshAcquisition54(acquisition,contactNow164R1)&&
@@ -57,7 +57,7 @@
     // AFTER reach retargeting too, so profile mapping cannot undo a wall result.
     // All public hand modes query current world geometry. Balanced uses seven
     // stable features without collision-driven curls or optional recovery rays.
-    if(collisionMode&&!perfContactModeDs2){
+    if(collisionMode&&!directHandsR135&&!perfContactModeDs2){
         HandContactPending6695 pendingContactH25[2]{};
         kcd2vr::passive169r1::Sample contactSourceH25[2]{};
         V3 contactPalmH25[2][7]{};FingerContactGeometry103 contactGeometryH25[2]{};

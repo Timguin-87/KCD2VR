@@ -55,6 +55,13 @@ public:
     // issued from the render-thread callback does not recursively hit our hook.
     static bool ExecuteCommandListsBypass(
         ID3D12CommandQueue* queue, UINT count, ID3D12CommandList* const* lists);
+    // R154: record barriers on ANY list (a game list included) without the
+    // ResourceBarrier detour seeing them. The detour takes every transition to
+    // PRESENT on a game list as the game presenting that texture, and
+    // D3D12_RESOURCE_STATE_COMMON == PRESENT == 0, so our own textures returning
+    // to COMMON on a game list would be captured as the frame to show.
+    static void ResourceBarrierBypass(
+        ID3D12GraphicsCommandList* list, UINT count, const D3D12_RESOURCE_BARRIER* barriers);
 
     // V37 active bridge: returns the most recent texture the game transitioned
     // to PRESENT. Caller receives an AddRef and must Release().

@@ -232,8 +232,8 @@ int main(){
         attach(mod,menu,mode);menu.up_tech_=tech;menu.up_quality_=graphics_menu_options::QualityCount(tech)-1;
         click(menu,Page::Graphics,kUpQualNext);check(menu.up_quality_==0,"Temporal quality next wraps under both production modes");
         click(menu,Page::Graphics,kUpQualPrev);check(menu.up_quality_==graphics_menu_options::QualityCount(tech)-1,"Temporal quality previous wraps under both production modes");
-        menu.up_preset_=6;click(menu,Page::Graphics,kUpPresetNext);check(menu.up_preset_==(tech==2?0:6),"Preset arrows change DLSS only");
-        if(tech==2){click(menu,Page::Graphics,kUpPresetPrev);check(menu.up_preset_==6,"DLSS preset previous wraps to exact native preset6");}
+        menu.up_preset_=6;click(menu,Page::Graphics,kUpPresetNext);check(menu.up_preset_==(tech==2?10:6),"Preset arrows change DLSS only (F -> J)");
+        if(tech==2){click(menu,Page::Graphics,kUpPresetPrev);check(menu.up_preset_==6,"DLSS preset previous returns J -> F");}
         check(io.saveCalls==0,"Quality/preset staging does not write config");
     }
     attach(mod,menu);menu.up_tech_=0;menu.up_quality_=0;menu.up_preset_=0;

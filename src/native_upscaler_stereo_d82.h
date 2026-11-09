@@ -3,8 +3,8 @@
 namespace kcd2vr::native_upscaler_stereo_d82 {
 // Install on the startup worker, outside DllMain. This only intercepts the
 // game's existing vendor APIs; it never initializes a second device or SDK.
-void InstallEarly(bool stereoWanted) noexcept;
-void SetMode(bool stereo, int nativeTechnology) noexcept;
+void InstallEarly(bool stereoWanted, bool alternateEye = false) noexcept;
+void SetMode(bool stereo, int nativeTechnology, bool alternateEye = false) noexcept;
 void SetTechnologyReader(int (*reader)() noexcept) noexcept;
 bool CanEnterStereo(int nativeTechnology) noexcept;
 // Native keeps its existing path. Every bound epoch requires an unchanged

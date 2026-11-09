@@ -1,6 +1,7 @@
 /build*/
 /build*.log
 /dist/
+/test_build/
 /delivery/
 __pycache__/
 *.pyc

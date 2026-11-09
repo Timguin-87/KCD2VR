@@ -300,6 +300,8 @@ constexpr int cycle(int value,int count) noexcept {return value>=0&&value<count?
 // R118: the real VrMenuState has the R113 modifier field; portable test views may not (C++17, no requires).
 template<class S,class=void> struct HasFaceTouchR118:std::false_type{};
 template<class S> struct HasFaceTouchR118<S,std::void_t<decltype(std::declval<S&>().quick_access_face_touch_r112)>>:std::true_type{};
+template<class S,class=void> struct HasLeftThumbrestR143:std::false_type{};
+template<class S> struct HasLeftThumbrestR143<S,std::void_t<decltype(std::declval<S&>().quick_access_left_thumbrest_r143)>>:std::true_type{};
 template<class S,class=void> struct HasMsModeR120:std::false_type{};
 template<class S> struct HasMsModeR120<S,std::void_t<decltype(std::declval<S&>().exp_ms_stab_only47)>>:std::true_type{};
 template<std::size_t N> inline float next(float value,const std::array<float,N>& values) noexcept {
@@ -428,9 +430,17 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::ControllerLayoutR118: // R118: never refused; choosing a layout applies its modifier preset (PS VR2 = face touch)
         d.controllerLayoutR118=controller_layout_r118::Next(d.controllerLayoutR118);
         if constexpr(HasFaceTouchR118<S>::value)s.quick_access_face_touch_r112=controller_layout_r118::FaceTouchFor(d.controllerLayoutR118);
+        if constexpr(HasLeftThumbrestR143<S>::value)s.quick_access_left_thumbrest_r143=false;
         break;
     case Id::QuickAccessFaceTouchR118: // R118: the R113 VrQuickAccessFaceTouchR112 key, never refused
-        if constexpr(HasFaceTouchR118<S>::value){s.quick_access_face_touch_r112=!s.quick_access_face_touch_r112;break;}
+        if constexpr(HasFaceTouchR118<S>::value){
+            if constexpr(HasLeftThumbrestR143<S>::value){
+                if(s.quick_access_face_touch_r112){s.quick_access_face_touch_r112=false;s.quick_access_left_thumbrest_r143=false;}
+                else if(s.quick_access_left_thumbrest_r143){s.quick_access_left_thumbrest_r143=false;s.quick_access_face_touch_r112=true;}
+                else s.quick_access_left_thumbrest_r143=true;
+            }else s.quick_access_face_touch_r112=!s.quick_access_face_touch_r112;
+            break;
+        }
         else return false;
     case Id::AlchemyViewSelectR116:d.alchemyViewSelectR116=!d.alchemyViewSelectR116;break; // R116: never refused
     case Id::PropFirmHoldR116:d.propFirmHoldR116=!d.propFirmHoldR116;break; // R116: never refused
@@ -598,7 +608,7 @@ template<class S> void label(const S& s,const Row& row,wchar_t* out,std::size_t 
     case Id::StartHenryEyesR111:value=on(d.startHenryEyesR111);break; // R111
     case Id::QuickSlotFadeR112:value=on(d.quickSlotFadeR112);break; // R112
     case Id::ControllerLayoutR118:value=controller_layout_r118::Name(d.controllerLayoutR118);break; // R118
-    case Id::QuickAccessFaceTouchR118:if constexpr(HasFaceTouchR118<S>::value)value=s.quick_access_face_touch_r112?L"FACE TOUCH":L"THUMBREST";break; // R118
+    case Id::QuickAccessFaceTouchR118:if constexpr(HasFaceTouchR118<S>::value)value=s.quick_access_face_touch_r112?L"FACE TOUCH":[] (const S& v){if constexpr(HasLeftThumbrestR143<S>::value)return v.quick_access_left_thumbrest_r143?L"LEFT THUMBREST":L"RIGHT THUMBREST";else return L"THUMBREST";}(s);break; // R143
     case Id::AlchemyViewSelectR116:value=on(d.alchemyViewSelectR116);break; // R116
     case Id::PropFirmHoldR116:value=on(d.propFirmHoldR116);break; // R116
     case Id::ShieldBlockBoxR120:value=on(d.shieldBlockBoxR120);break; // R120

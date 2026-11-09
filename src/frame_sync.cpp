@@ -220,6 +220,111 @@ bool MatchHeadOwnershipRendererCamera(const float renderer[12],std::uint64_t& ou
     // harmless float normalization does not convert a real match into a miss.
     return out_serial!=0 && out_rot<=0.20f && out_pos<=0.004f;
 }
+
+// R149 AER render identity. The main thread selects the eye at publication and
+// advances FrameSync's serial/eye immediately; the render thread executes that
+// camera one to several frames later. CurrentEye() on the render thread is
+// therefore the eye of the NEXT camera whenever the main thread has already
+// published it. This ring keeps the exact full eye camera of each publication
+// (IPD included, unlike the V66.46 matcher), so the Normal pipeline can recover
+// the eye of the camera it is rendering.
+struct AerPublishSample {
+    std::atomic<std::uint64_t> seq{0};
+    std::uint64_t serial{0},pose{0};
+    int eye{-1};
+    float m[12]{};
+    float offsetWorld{0.0f}; // R154: the applied eye offset along camera right
+};
+constexpr std::size_t kAerPublishRing=24;
+std::array<AerPublishSample,kAerPublishRing> g_aer_publish_ring{};
+std::atomic<std::uint64_t> g_aer_publish_seq{0};
+std::atomic<int> g_aer_parity{-1}; // matched eye ^ (renderFrame&1); calibrates the parity fallback
+std::atomic<std::uint64_t> g_aer_stats[6]{};
+std::atomic<std::uint64_t> g_aer_latest_seq{0};
+AerRenderIdentity g_aer_latest{}; // seqlock-published by the render thread
+thread_local AerRenderIdentity t_aer_identity{};
+thread_local bool t_aer_identity_valid=false;
+// R150: the hooked 0x57278C is the pipeline UPDATE step. The render thread then
+// runs Standard Execute (0x57362C, where NGX evaluates) for the same CRenderView
+// after Update returned, so the scoped identity above is already gone there.
+// Keep the identity of this thread's last Normal Update; consumers accept it
+// only while that pipeline still renders the same CRenderView.
+thread_local AerRenderIdentity t_aer_last_update{};
+thread_local bool t_aer_last_update_valid=false;
+// Last identities for diagnostics (frame dump), render thread writer.
+constexpr unsigned kAerIdentityHistory=48;
+std::array<AerRenderIdentity,kAerIdentityHistory> g_aer_identity_history{};
+std::atomic<unsigned> g_aer_identity_history_count{0};
+
+void PublishAerSample(std::uint64_t serial,std::uint64_t pose,int eye,const float m[12],float offsetWorld) noexcept {
+    if(!m||eye<0||eye>1)return;
+    const auto seq=g_aer_publish_seq.fetch_add(1,std::memory_order_acq_rel)+1;
+    auto& slot=g_aer_publish_ring[seq%kAerPublishRing];
+    slot.seq.store(0,std::memory_order_release);
+    slot.serial=serial;slot.pose=pose;slot.eye=eye;std::memcpy(slot.m,m,sizeof(slot.m));slot.offsetWorld=offsetWorld;
+    slot.seq.store(seq,std::memory_order_release);
+    g_aer_stats[5].fetch_add(1,std::memory_order_relaxed);
+}
+
+// Full 12-float comparison. The eyes of one head pose differ by the whole IPD
+// (>=40 mm), so a 4 mm/0.2 deg acceptance cannot select the wrong eye. Two
+// candidates of different eyes inside the window are reported as ambiguous.
+bool MatchAerPublication(const float r[12],std::uint64_t& serial,std::uint64_t& pose,int& eye,
+                         float& posM,float& rotDiff,bool& ambiguous,float& offsetWorld) noexcept {
+    serial=pose=0;eye=-1;posM=rotDiff=-1.0f;ambiguous=false;offsetWorld=0.0f;
+    float best=std::numeric_limits<float>::max();int bestEye=-1;
+    for(auto& slot:g_aer_publish_ring){
+        const auto a=slot.seq.load(std::memory_order_acquire);if(!a)continue;
+        float m[12]{};std::memcpy(m,slot.m,sizeof(m));
+        const auto s=slot.serial,p=slot.pose;const int e=slot.eye;const float off=slot.offsetWorld;
+        const auto b=slot.seq.load(std::memory_order_acquire);if(a!=b)continue;
+        float rot=0.0f;
+        for(int row=0;row<3;++row)for(int col=0;col<3;++col)rot=std::max(rot,std::fabs(m[row*4+col]-r[row*4+col]));
+        const float dx=m[3]-r[3],dy=m[7]-r[7],dz=m[11]-r[11];
+        const float pos=std::sqrt(dx*dx+dy*dy+dz*dz);
+        if(!std::isfinite(pos)||!std::isfinite(rot)||pos>0.004f||rot>0.0035f)continue;
+        const float score=pos+rot*0.5f;
+        if(bestEye>=0&&e!=bestEye)ambiguous=true;
+        if(score<best||(score==best&&s>serial)){best=score;serial=s;pose=p;eye=e;posM=pos;rotDiff=rot;bestEye=e;offsetWorld=off;}
+    }
+    return eye>=0&&!ambiguous;
+}
+
+AerRenderIdentity ResolveAerIdentity(void* self,void* crv,int mainEye,std::uint64_t mainSerial) noexcept {
+    AerRenderIdentity id{};
+    id.crv=reinterpret_cast<std::uintptr_t>(crv);id.pipeline=reinterpret_cast<std::uintptr_t>(self);
+    id.tickMs=static_cast<std::uint64_t>(GetTickCount64());id.mainSerial=mainSerial;id.mainEye=mainEye&1;
+    const auto frame=SafeReadU32(crv,0x2C);id.renderFrame=frame==0xFFFFFFFFu?0u:frame;
+    float m[12]{};bool readable=false;
+    __try{std::memcpy(m,reinterpret_cast<const void*>(reinterpret_cast<std::uintptr_t>(crv)+0x8EE8),sizeof(m));readable=true;}
+    __except(EXCEPTION_EXECUTE_HANDLER){readable=false;}
+    if(readable)for(float v:m)if(!std::isfinite(v))readable=false;
+    if(readable){
+        bool ambiguous=false;int eye=-1;float offsetWorld=0.0f;
+        if(MatchAerPublication(m,id.publishSerial,id.poseFrame,eye,id.matchPosM,id.matchRot,ambiguous,offsetWorld)){
+            id.eye=eye;id.source=1;g_aer_stats[0].fetch_add(1,std::memory_order_relaxed);
+            // R154: a real offset is a few cm and its sign names the eye (left negative).
+            id.eyeOffsetWorld=offsetWorld;
+            id.eyeOffsetKnown=std::isfinite(offsetWorld)&&std::fabs(offsetWorld)>1.0e-4f&&std::fabs(offsetWorld)<1.0f&&
+                ((offsetWorld<0.0f)==(eye==0));
+            if(id.renderFrame)g_aer_parity.store(eye^static_cast<int>(id.renderFrame&1u),std::memory_order_release);
+        } else if(ambiguous) g_aer_stats[4].fetch_add(1,std::memory_order_relaxed);
+    }
+    if(id.source==0){
+        const int parity=g_aer_parity.load(std::memory_order_acquire);
+        if(parity>=0&&id.renderFrame){id.eye=static_cast<int>(id.renderFrame&1u)^parity;id.source=2;g_aer_stats[1].fetch_add(1,std::memory_order_relaxed);}
+        else {id.eye=id.mainEye;id.source=3;g_aer_stats[2].fetch_add(1,std::memory_order_relaxed);}
+    }
+    if(id.eye!=id.mainEye)g_aer_stats[3].fetch_add(1,std::memory_order_relaxed);
+    return id;
+}
+void PublishLatestAerIdentity(const AerRenderIdentity& id) noexcept {
+    g_aer_latest_seq.fetch_add(1,std::memory_order_acq_rel); // odd: writing
+    std::atomic_thread_fence(std::memory_order_release);
+    std::memcpy(&g_aer_latest,&id,sizeof(id));
+    std::atomic_thread_fence(std::memory_order_release);
+    g_aer_latest_seq.fetch_add(1,std::memory_order_acq_rel); // even: stable
+}
 }
 
 FrameSync::PublishViewCameraFunc FrameSync::s_publish_original = nullptr;
@@ -229,6 +334,8 @@ std::optional<hook::Hook> FrameSync::s_pipeline_hook;
 std::atomic<std::uint64_t> FrameSync::s_frame_serial{0};
 std::atomic<int> FrameSync::s_eye{0};
 std::atomic<int> FrameSync::s_mode{0};
+std::atomic<bool> FrameSync::s_alternate_eye_upscaler_scope{false};
+std::atomic<std::uint64_t> FrameSync::s_alternate_eye_epoch{1};
 std::atomic<std::uint64_t> FrameSync::s_pipeline_counts[4]{};
 std::atomic<int> FrameSync::s_native_stereo_reentry_mode{0};
 std::atomic<float> FrameSync::s_native_stereo_ipd{0.064f};
@@ -238,6 +345,7 @@ std::atomic<std::uint64_t> FrameSync::s_published_fov_samples{0};
 std::atomic<bool> FrameSync::s_dense_rotation_probe{false};
 std::atomic<bool> FrameSync::s_pipeline_probe_enabled{false};
 thread_local int FrameSync::s_pipeline_view_type = -1;
+thread_local std::uintptr_t FrameSync::s_pipeline_identity = 0;
 thread_local bool FrameSync::s_native_stereo_reentry_active = false;
 thread_local int FrameSync::s_native_stereo_pass_eye = -1;
 
@@ -331,9 +439,74 @@ void FrameSync::SetStereoMode(int mode)
     // PRESENT tag on the same frame serial so the two cache images are truly
     // separated views rather than two temporally displaced mono images.
     CameraHook::SetAfrStereoEnabled(mode == 1);
-    if (mode != 1) { s_eye.store(0, std::memory_order_release); CameraHook::SetAfrEye(0); }
+    if (mode != 1) {
+        s_eye.store(0, std::memory_order_release); CameraHook::SetAfrEye(0);
+        if(s_alternate_eye_upscaler_scope.exchange(false,std::memory_order_acq_rel))
+            s_alternate_eye_epoch.fetch_add(1,std::memory_order_acq_rel);
+    }
 }
 
+int FrameSync::StereoMode() { return s_mode.load(std::memory_order_acquire); }
+void FrameSync::SetAlternateEyeUpscalerScope(bool enabled) noexcept {
+    if(s_alternate_eye_upscaler_scope.exchange(enabled,std::memory_order_acq_rel)!=enabled)
+        s_alternate_eye_epoch.fetch_add(1,std::memory_order_acq_rel);
+}
+bool FrameSync::AlternateEyeUpscalerScope() noexcept { return s_alternate_eye_upscaler_scope.load(std::memory_order_acquire); }
+std::uint64_t FrameSync::AlternateEyeUpscalerEpoch() noexcept { return s_alternate_eye_epoch.load(std::memory_order_acquire); }
+bool FrameSync::CurrentAerRenderIdentity(AerRenderIdentity& out) noexcept {
+    out={};
+    if(t_aer_identity_valid&&t_aer_identity.eye>=0){out=t_aer_identity;return true;}
+    const auto& id=t_aer_last_update;
+    if(!t_aer_last_update_valid||id.eye<0||!id.pipeline||!id.crv)return false;
+    const auto now=static_cast<std::uint64_t>(GetTickCount64());
+    if(now<id.tickMs||now-id.tickMs>500)return false;
+    if(SafeReadPtr(reinterpret_cast<const void*>(id.pipeline),0x1978)!=id.crv)return false;
+    out=id;return true;
+}
+unsigned FrameSync::AerIdentityHistory(AerRenderIdentity* out, unsigned max) noexcept {
+    if(!out||!max)return 0;
+    const unsigned count=g_aer_identity_history_count.load(std::memory_order_acquire);
+    const unsigned n=std::min({max,count,kAerIdentityHistory});
+    for(unsigned i=0;i<n;++i)out[i]=g_aer_identity_history[(count-n+i)%kAerIdentityHistory];
+    return n;
+}
+bool FrameSync::LatestAerRenderIdentity(AerRenderIdentity& out, std::uint64_t max_age_ms) noexcept {
+    out={};
+    for(int attempt=0;attempt<4;++attempt){
+        const auto a=g_aer_latest_seq.load(std::memory_order_acquire);
+        if(a&1u)continue;
+        AerRenderIdentity copy{};
+        std::atomic_thread_fence(std::memory_order_acquire);
+        std::memcpy(&copy,&g_aer_latest,sizeof(copy));
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if(g_aer_latest_seq.load(std::memory_order_acquire)!=a)continue;
+        if(!a||copy.eye<0||!copy.tickMs)return false;
+        const auto now=static_cast<std::uint64_t>(GetTickCount64());
+        if(now<copy.tickMs||now-copy.tickMs>max_age_ms)return false;
+        out=copy;return true;
+    }
+    return false;
+}
+bool FrameSync::AlternateEyeUpscalerIdentity(std::uint64_t* epoch, std::uint32_t* frame,
+    std::uint32_t* eye, std::uintptr_t* pipeline) noexcept {
+    if(!s_alternate_eye_upscaler_scope.load(std::memory_order_acquire)||s_mode.load(std::memory_order_acquire)!=1)return false;
+    AerRenderIdentity id{};
+    if(!CurrentAerRenderIdentity(id))return false;
+    // The CRenderView frame is the render-side clock; the publication serial is
+    // only used if that field was unreadable for this execute.
+    const std::uint64_t clock=id.renderFrame?id.renderFrame:id.mainSerial;
+    const auto aerEpoch=s_alternate_eye_epoch.load(std::memory_order_acquire);
+    if(!clock||!aerEpoch)return false;
+    if(epoch)*epoch=aerEpoch;
+    if(frame)*frame=static_cast<std::uint32_t>(clock);
+    if(eye)*eye=static_cast<std::uint32_t>(id.eye&1);
+    if(pipeline)*pipeline=id.pipeline;
+    return true;
+}
+void FrameSync::AerIdentityStats(std::uint64_t out[6]) noexcept {
+    if(!out)return;
+    for(int i=0;i<6;++i)out[i]=g_aer_stats[i].load(std::memory_order_relaxed);
+}
 std::uint64_t FrameSync::CurrentFrameSerial() { return s_frame_serial.load(std::memory_order_acquire); }
 int FrameSync::CurrentEye() { return s_eye.load(std::memory_order_acquire) & 1; }
 
@@ -353,6 +526,7 @@ int FrameSync::NativeStereoReentryMode() { return s_native_stereo_reentry_mode.l
 std::uint64_t FrameSync::NativeStereoReentryPasses() { return s_native_stereo_reentry_passes.load(std::memory_order_acquire); }
 int FrameSync::CurrentNativeStereoPassEye() { return s_native_stereo_pass_eye; }
 int FrameSync::CurrentPipelineViewType() { return s_pipeline_view_type; }
+std::uintptr_t FrameSync::CurrentPipelineIdentity() { return s_pipeline_identity; }
 
 std::uint64_t FrameSync::PipelineCount(int view_type)
 {
@@ -536,13 +710,14 @@ void __fastcall FrameSync::PublishViewCameraDetour(void* system, void* camera) n
             "V64.48-XR-GATE camera n=%llu mode=%d ok=%d xrFrame=%llu waitMs=%llu burstReuse=%d",
             (unsigned long long)gn,xr_gate_mode,gate_ok?1:0,(unsigned long long)gate_frame,(unsigned long long)waited,burst_reuse?1:0); debug_trace::Write(gm); }
     }
-    // Preselect the AFR eye for the camera about to be published so V51's
-    // reversible publish transform uses the same eye offset that will tag it.
-    if (s_mode.load(std::memory_order_acquire) == 1) {
-        const auto next_serial=s_frame_serial.load(std::memory_order_acquire)+1ull;
-        const int next_eye=static_cast<int>((next_serial-1ull)&1ull);
-        s_eye.store(next_eye,std::memory_order_release); CameraHook::SetAfrEye(next_eye);
-    }
+    // R150: no eye preselection here. The production publish reuses the
+    // culling pose (V61.44 frame nexus), which was posed BEFORE this detour with
+    // the eye selected at the end of the previous publication. Preselecting a new
+    // eye at this point made the record (and the fresh-pose fallback) disagree
+    // with the camera actually rendered. The eye is chosen once per frame, at the
+    // end of the previous publication, and recorded from what was applied.
+    CameraHook::ClearAppliedAfrEye();
+    float aer_publish_matrix[12]{}; bool aer_publish_matrix_valid=false;
     if (camera && CameraHook::GetInjectionMode() == 1) {
         __try { std::memcpy(camera_backup,camera,sizeof(camera_backup)); have_backup=true; }
         __except(EXCEPTION_EXECUTE_HANDLER) { have_backup=false; }
@@ -608,6 +783,15 @@ void __fastcall FrameSync::PublishViewCameraDetour(void* system, void* camera) n
         __try { std::memcpy(ownership_publish_matrix,camera,sizeof(ownership_publish_matrix)); ownership_publish_matrix_valid=true; }
         __except(EXCEPTION_EXECUTE_HANDLER) { ownership_publish_matrix_valid=false; }
     }
+    // The eye whose IPD offset is actually in this matrix (fresh pose or the
+    // reused culling pose); -1 when no AFR offset was written.
+    const int aer_publish_eye = (s_mode.load(std::memory_order_acquire)==1 && publish_pose_applied) ?
+        CameraHook::LastAppliedAfrEye() : -1;
+    const float aer_publish_offset_world = aer_publish_eye>=0 ? CameraHook::LastAppliedAfrEyeOffsetWorld() : 0.0f; // R154
+    if(camera && publish_pose_applied && aer_publish_eye>=0){
+        __try { std::memcpy(aer_publish_matrix,camera,sizeof(aer_publish_matrix)); aer_publish_matrix_valid=true; }
+        __except(EXCEPTION_EXECUTE_HANDLER) { aer_publish_matrix_valid=false; }
+    }
     if(wantFamilyR24&&publish_pose_applied&&publishFamilyR24.ok)familyMatrixKnownR24=ReadCameraMatrixR24(camera,familyMatrixR24);
     if (s_publish_original) {
         s_publish_original(system, camera);
@@ -620,6 +804,7 @@ void __fastcall FrameSync::PublishViewCameraDetour(void* system, void* camera) n
     }
     const auto serial = s_frame_serial.fetch_add(1, std::memory_order_acq_rel) + 1;
     if(ownership_publish_matrix_valid) PublishHeadOwnershipSample(serial,publish_pose_frame,ownership_publish_matrix);
+    if(aer_publish_matrix_valid) PublishAerSample(serial,publish_pose_frame,aer_publish_eye,aer_publish_matrix,aer_publish_offset_world);
     if (publish_pose_applied && (serial <= 8 || (serial % 900ull)==0) && g_head_probe_level.load(std::memory_order_acquire)>0) {
         char pm[240]{}; std::snprintf(pm,sizeof(pm),
             "V51-TRACK-PUBLISH serial=%llu poseFrame=%llu reversible=true tid=%lu",
@@ -627,7 +812,11 @@ void __fastcall FrameSync::PublishViewCameraDetour(void* system, void* camera) n
             static_cast<unsigned long>(GetCurrentThreadId())); debug_trace::Write(pm);
     }
     if (s_mode.load(std::memory_order_acquire) == 1) {
-        const int eye = static_cast<int>((serial - 1ull) & 1ull);
+        // R150: the next frame (its culling pose and this fallback publish) uses
+        // the opposite of the eye this publication actually rendered, so the
+        // rendered sequence strictly alternates whichever pose path was taken.
+        const int rendered = aer_publish_eye>=0 ? aer_publish_eye : (CameraHook::GetAfrEye()&1);
+        const int eye = rendered ^ 1;
         s_eye.store(eye, std::memory_order_release);
         CameraHook::SetAfrEye(eye);
     } else {
@@ -738,7 +927,27 @@ void __fastcall FrameSync::GraphicsPipelineExecuteDetour(void* self) noexcept
     }
 
     const int previous_type = s_pipeline_view_type;
+    const auto previous_pipeline = s_pipeline_identity;
     s_pipeline_view_type = static_cast<int>(view_type);
+    s_pipeline_identity = reinterpret_cast<std::uintptr_t>(self);
+    // R149: alternate-eye identity of the camera this Normal execute renders.
+    const auto previous_aer_identity = t_aer_identity;
+    const bool previous_aer_identity_valid = t_aer_identity_valid;
+    t_aer_identity_valid = false;
+    if (view_type == 0u && crv && selector == 0u && s_mode.load(std::memory_order_acquire) == 1) {
+        t_aer_identity = ResolveAerIdentity(self, crv, s_eye.load(std::memory_order_acquire),
+                                            s_frame_serial.load(std::memory_order_acquire));
+        t_aer_identity_valid = t_aer_identity.eye >= 0;
+        t_aer_last_update = t_aer_identity; t_aer_last_update_valid = t_aer_identity_valid;
+        if (t_aer_identity_valid) {
+            PublishLatestAerIdentity(t_aer_identity);
+            const auto slot = g_aer_identity_history_count.load(std::memory_order_relaxed);
+            g_aer_identity_history[slot % kAerIdentityHistory] = t_aer_identity;
+            g_aer_identity_history_count.store(slot + 1, std::memory_order_release);
+        }
+    } else if (view_type == 0u && selector == 0u && s_mode.load(std::memory_order_acquire) != 1) {
+        t_aer_last_update_valid = false;
+    }
 
     // V54: same-epoch dual scene-render experiment. This is deliberately gated to
     // Normal CRenderView only and never recursively re-enters itself. The camera
@@ -807,6 +1016,9 @@ void __fastcall FrameSync::GraphicsPipelineExecuteDetour(void* self) noexcept
     }
     native_stereo_outer_lab::NotifyPipelineExecuteReturn(self, crv, view_type, selector);
     s_pipeline_view_type = previous_type;
+    s_pipeline_identity = previous_pipeline;
+    t_aer_identity = previous_aer_identity;
+    t_aer_identity_valid = previous_aer_identity_valid;
 }
 
 } // namespace kcd2vr

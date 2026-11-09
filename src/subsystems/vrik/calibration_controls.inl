@@ -11,6 +11,7 @@ void SetCalibrationAutoRestore43(bool on) noexcept {g_cal_auto_restore43.store(o
 bool CalibrationAutoRestore43() noexcept {return g_cal_auto_restore43.load(std::memory_order_acquire);}
 void ForceCalibrationRestore43() noexcept {g_cal_restore_force43.store(true,std::memory_order_release);}
 void SetViewPositionProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept {g_view_position_probe43.store(probe,std::memory_order_release);}
+void SetViewForwardProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept {g_view_forward_probe43.store(probe,std::memory_order_release);}
 bool CalibrationStored43() noexcept {return !g_arm_capture_active66100.load()&&g_saved_arm_ready66100.load(std::memory_order_acquire);}
 float StandingEyeShift43() noexcept {
     // R111: VrStartAtHenryEyesR111 ON = every recenter takes the headset where it is now as Henry's eyes (no standing
@@ -19,6 +20,7 @@ float StandingEyeShift43() noexcept {
         g_eye_floor_valid107.load(std::memory_order_acquire),g_eye_floor_m107.load(std::memory_order_acquire),g_standing_eye_floor_m107.load(std::memory_order_acquire)));
 }
 bool RestoreCalibration43(const char* owner) noexcept {
+    if(g_direct_controller_hands_r135.load(std::memory_order_acquire))return false; // R135 uses only the saved standing-eye height; session reanchor owns the head anchor.
     // Edge action only (owner exits, mode on, menu). The calibrated head anchor is re-asserted; a live anchor that
     // differs (the re-seat/lazy latch took a stance, knockdown or activity pose) is reported as drift.
     static kcd2vr::calibration_restore43::Debounce debounce{};
@@ -51,7 +53,7 @@ void RequestTrackingReanchor() noexcept {
     g_pose_epoch6689.fetch_add(1,std::memory_order_acq_rel);g_committed_pose_valid6689=false;
     kcd2vr::kick34::ledger.retire(kcd2vr::kick34::Why::EpochChanged); // C37
     g_cal_center_reanchor125=true;
-    if(g_saved_arm_ready66100.load())g_cal_reanchor66100=true;
+    if(g_saved_arm_ready66100.load()||g_direct_controller_hands_r135.load(std::memory_order_acquire))g_cal_reanchor66100=true;
     else { // R59.16C10: the camera recentered but the VRIK body cannot re-seat without a saved arm profile - say so once per request
         diagnostic_trace::Write("R59.16C10 REANCHOR_SKIPPED cameraRecenter=1 bodyReanchor=0 reason=NO_SAVED_ARM_PROFILE (F8 once; hands/head keep the old tracking base)");
     }
@@ -142,7 +144,28 @@ void RequestCalibrationFromRecenter() noexcept {
         hadCalibration?"PRESERVED-UNTIL-REPLACED":"NONE");
     diagnostic_trace::Write(cm);
 }
-bool CalibrationReady() noexcept { return !g_arm_capture_active66100.load() && (g_cal_state.load(std::memory_order_acquire)==2 || g_saved_arm_ready66100.load(std::memory_order_acquire)); }
+bool CalibrationReady() noexcept { return !g_arm_capture_active66100.load() &&
+    (g_cal_state.load(std::memory_order_acquire)==2 || g_saved_arm_ready66100.load(std::memory_order_acquire) ||
+     g_direct_controller_hands_r135.load(std::memory_order_acquire)); }
+void SetDirectControllerHandsR135(bool on) noexcept {
+    const bool previous=g_direct_controller_hands_r135.exchange(on,std::memory_order_acq_rel);
+    if(previous==on)return;
+    if(on){g_cal_reanchor66100.store(true,std::memory_order_release);g_cal_center_reanchor125.store(true,std::memory_order_release);}
+    g_pose_epoch6689.fetch_add(1,std::memory_order_acq_rel);
+    g_committed_pose_valid6689.store(false,std::memory_order_release);
+    diagnostic_trace::Write(on?
+        "R135 HAND_MAPPING mode=DIRECT_CONTROLLER F8_ARM_CALIBRATION=NOT_USED standingEyeHeight=RETAINED wristOffset=0 autoPalm=OFF smoothing=OFF freeHandContacts=OFF":
+        "R135 HAND_MAPPING mode=LEGACY F8_ARM_CALIBRATION=ACTIVE savedSettings=RETAINED");
+}
+bool DirectControllerHandsR135() noexcept {return g_direct_controller_hands_r135.load(std::memory_order_acquire);}
+void SetHandOffsetsR150(const float (&v)[12]) noexcept {
+    for(int i=0;i<12;++i){const float lim=(i%6)<3?20.f:180.f;const float x=std::isfinite(v[i])?std::clamp(v[i],-lim,lim):0.f;
+        g_hand_offset_r150[i].store(x,std::memory_order_relaxed);}
+}
+void RequestHandAlignR153(int side,bool start) noexcept {if(side==0||side==1)g_hand_align_req_r153[side].store(start?1:2,std::memory_order_release);}
+int HandAlignStateR153(int side) noexcept {return (side==0||side==1)?g_hand_align_state_r153[side].load(std::memory_order_acquire):0;}
+unsigned HandAlignSerialR153() noexcept {return g_hand_align_serial_r153.load(std::memory_order_acquire);}
+void HandOffsetsR150(float (&v)[12]) noexcept {for(int i=0;i<12;++i)v[i]=g_hand_offset_r150[i].load(std::memory_order_relaxed);}
 void BeginGuidedCalibrationPose(int pose) noexcept {
     pose=1;
     while(g_guided_cal_lock.test_and_set(std::memory_order_acquire)){}

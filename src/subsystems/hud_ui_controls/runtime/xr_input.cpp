@@ -415,8 +415,11 @@ bool XrInput::Sync(XrTime display_time)
     // R112: explicit sensor selection, never guessed from a zero/released value.
     // Read only the selected optional action. Failure/inactivity releases the
     // modifier this frame; current reads recover directly without a latch.
-    const bool faceTouchR112=quick_access_r112::FaceTouch();
+    const int modifierModeR143=quick_access_r112::Mode();
+    const bool faceTouchR112=modifierModeR143==quick_access_r112::FaceTouchMode;
+    const bool leftThumbrestR143=modifierModeR143==quick_access_r112::LeftThumbrestMode;
     const XrAction modifierR112=faceTouchR112?quick_access_face_touch_action_r112_:quick_access_touch_action_;
+    bool leftModifierActiveR143=false,leftModifierValidR143=false;
     if(modifierR112){bool ignoredPressed=false,active=false;
         left_.quick_access_touch_valid=GetBoolState(modifierR112,left_path_,left_.quick_access_touch,ignoredPressed,&active)&&active;
         right_.quick_access_touch_valid=GetBoolState(modifierR112,right_path_,right_.quick_access_touch,ignoredPressed,&active)&&active;
@@ -428,7 +431,19 @@ bool XrInput::Sync(XrTime display_time)
         left_.quick_access_touch=left_.quick_access_touch&&yValidR112&&!left_.y_down;
         right_.quick_access_touch=right_.quick_access_touch&&right_.b_valid&&!right_.b_down;
     }
-    quick_access_r112::PublishAvailable(faceTouchR112,(left_.quick_access_touch_valid?1u:0u)|(right_.quick_access_touch_valid?2u:0u));
+    leftModifierActiveR143=left_.quick_access_touch;
+    leftModifierValidR143=left_.quick_access_touch_valid;
+    // The selected left sensor drives the common modifier state consumed by
+    // the existing utility chord. Keep the physical left touch published too:
+    // X-hold's independent visor shortcut still sees its actual hand sensor.
+    if(leftThumbrestR143){
+        right_.quick_access_touch=leftModifierActiveR143;
+        right_.quick_access_touch_valid=leftModifierValidR143;
+    }
+    const unsigned availableR143=leftThumbrestR143?(leftModifierValidR143?1u:0u):
+        faceTouchR112?((left_.quick_access_touch_valid?1u:0u)|(right_.quick_access_touch_valid?2u:0u)):
+        (right_.quick_access_touch_valid?2u:0u);
+    quick_access_r112::PublishAvailable(modifierModeR143,availableR143);
     // R59.16C5: trigger touch fails closed to 'finger on trigger' (no pointing) when unavailable/erroring.
     left_.trigger_touch=true; right_.trigger_touch=true;
     if(trigger_touch_action_){

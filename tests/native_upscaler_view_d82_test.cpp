@@ -2,6 +2,20 @@
 #include <cstdint>
 #include <cstdio>
 #include <thread>
+// R149: alternate-eye identity owner. Production FrameSync resolves it from the
+// exact publication-ring match inside the Normal pipeline execute.
+namespace kcd2vr {
+struct FrameSync {
+    static inline bool aerActive=false;
+    static inline std::uint64_t aerEpoch=5;static inline std::uint32_t aerFrame=77,aerEye=1;
+    static inline std::uintptr_t aerPipeline=0x3000;
+    static bool AlternateEyeUpscalerIdentity(std::uint64_t* epoch,std::uint32_t* frame,std::uint32_t* eye,std::uintptr_t* pipeline) noexcept {
+        if(!aerActive)return false;
+        if(epoch)*epoch=aerEpoch;if(frame)*frame=aerFrame;if(eye)*eye=aerEye;if(pipeline)*pipeline=aerPipeline;
+        return true;
+    }
+};
+}
 namespace kcd2vr::native_stereo_preflight { namespace {
 enum class ControlPass {Normal,Eye1,Restore};
 struct Work {unsigned buildReturns=1;bool builtPointerValid=true,cameraSourceValid=true,standardStateValid=true;};
@@ -48,5 +62,16 @@ int main() {
     f.pass=ControlPass::Normal;testSelector=0;f.leftPrepared=false;check(!CurrentUpscalerView(out));f.leftPrepared=true;
     f.designStage=0;check(!InUpscalerView());f.designStage=4;
     bool foreign=false;std::thread other([&]{UpscalerView v;foreign=InUpscalerView()||CurrentUpscalerView(v);});other.join();check(!foreign);check(CurrentUpscalerView(out));
+    // R149 AFR: only FrameSync's exact render identity opens the scope, also
+    // while a non-design eye flow object is present on the thread.
+    using kcd2vr::FrameSync;
+    t_eye_flow=nullptr;check(!InUpscalerView());check(!CurrentUpscalerView(out));
+    FrameSync::aerActive=true;check(InUpscalerView());check(CurrentUpscalerView(out));
+    check(out.epoch==5&&out.frame==77&&out.eye==1&&out.pipeline==0x3000);
+    FrameSync::aerEye=0;check(CurrentUpscalerView(out)&&out.eye==0);
+    f.designStage=0;t_eye_flow=&f;check(InUpscalerView());check(CurrentUpscalerView(out)&&out.frame==77&&out.pipeline==0x3000);
+    FrameSync::aerFrame=0;check(!CurrentUpscalerView(out));FrameSync::aerFrame=77;
+    FrameSync::aerActive=false;check(!InUpscalerView());check(!CurrentUpscalerView(out));
+    f.designStage=4;check(CurrentUpscalerView(out)&&out.eye==0&&out.frame==9);
     std::printf("Native TLS view checks=%d failures=%d\n",checks,failures);return failures?1:0;
 }

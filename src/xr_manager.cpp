@@ -16,6 +16,8 @@
 #include "diagnostics/xr_timing165.h"
 #include "device_hook.h"
 #include "frame_sync.h"
+#include "native_dlss_aer_dump_d82.h"
+#include "aer_warp_r154.h"
 #include "native_stereo_outer_lab.h"
 #include "vrik/hand_same_frame_hj1.h"
 #include "vrik/smooth_lab_f2.h"
@@ -70,6 +72,8 @@ static void ApplyExtraHandsD69(XrInput& input,tracking59c6::Frame& family,
 }
 
 namespace {
+// R154: blit descriptor table per eye: t0 colour, t1 depth, t2 HUD, t3 stale-eye warp offsets.
+constexpr UINT kBlitSrvPerEyeR154 = 4;
 static DWORD TimedFenceWait165(HANDLE event,DWORD timeout) noexcept {
     diagnostics::xr165::Timer timing(diagnostics::xr165::FenceWait);
     return WaitForSingleObject(event,timeout);
@@ -115,6 +119,20 @@ static XrQuaternionf QFromAxes(const V3f& x,const V3f& y,const V3f& z){
         q.w=(m10-m01)/ss; q.x=(m02+m20)/ss; q.y=(m12+m21)/ss; q.z=0.25f*ss;
     }
     return q;
+}
+static bool CameraRotationQuatD75(const CameraRotationSample& sample,XrQuaternionf& out) noexcept {
+    V3f x{sample.m[0],sample.m[3],sample.m[6]};
+    // Cry columns are right/forward/up; the shader ray uses OpenXR
+    // right/up/back coordinates.
+    V3f y{sample.m[2],sample.m[5],sample.m[8]};
+    V3f z{-sample.m[1],-sample.m[4],-sample.m[7]};
+    x=VNormalize(x);y=VNormalize({y.x-VDot(x,y)*x.x,y.y-VDot(x,y)*x.y,y.z-VDot(x,y)*x.z});
+    z=VNormalize(VCross(x,y));
+    if(VLength(x)<0.9f||VLength(y)<0.9f||VLength(z)<0.9f||VDot(z,{-sample.m[1],-sample.m[4],-sample.m[7]})<0.5f)return false;
+    out=QFromAxes(x,y,z);
+    const float qn=std::sqrt(out.x*out.x+out.y*out.y+out.z*out.z+out.w*out.w);
+    if(!std::isfinite(qn)||qn<1.0e-5f)return false;
+    out={out.x/qn,out.y/qn,out.z/qn,out.w/qn};return true;
 }
 static XrQuaternionf QYawOnly(const XrQuaternionf& q){
     // Extract OpenXR Y-up yaw and intentionally discard pitch/roll so comfort
@@ -1048,6 +1066,16 @@ float XrManager::WriteColorAndDepthDescriptors(ID3D12Resource* color_source, DXG
         hud_cpu.ptr += static_cast<SIZE_T>(srv_descriptor_size_);
         d3d12_device_->CreateShaderResourceView(color_source, &csrv, hud_cpu);
         g_v6678_hud_active_for_blit = false;
+        // R154: t3 = stale-eye warp offsets. Null (no warp) unless the AER blit
+        // overwrites it for the stale eye after this call.
+        D3D12_CPU_DESCRIPTOR_HANDLE warp_cpu = hud_cpu;
+        warp_cpu.ptr += static_cast<SIZE_T>(srv_descriptor_size_);
+        D3D12_SHADER_RESOURCE_VIEW_DESC wsrv{};
+        wsrv.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        wsrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        wsrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        wsrv.Texture2D.MipLevels = 1;
+        d3d12_device_->CreateShaderResourceView(nullptr, &wsrv, warp_cpu);
     }
     if (weight == 0.0f) {
         // No usable depth this frame (disabled, not yet found, or SRV creation
@@ -1069,6 +1097,10 @@ bool XrManager::CreateBlitPipeline()
 Texture2D srcTex : register(t0);
 Texture2D<float> DepthTex : register(t1);
 Texture2D hudTex : register(t2);
+// R154: stale-eye warp offsets on the target camera's image grid (aer_warp_r154).
+// xy = offset to the stale image's uv, z = depth (same-surface test), w = tier
+// (+16 = debug tint). A null descriptor (0x0) means no warp for this draw.
+Texture2D<float4> warpOffsets : register(t3);
 SamplerState srcSampler : register(s0);
 cbuffer PresentParams : register(b0) { float2 uvScale; float2 uvOffset; float4 xrTan; float2 sourceTan; float2 fovFlags; float2 texelSize; float sharpenStrength; float presentPad; float4 poseDeltaQ; float4 reprojParams; float4 colorAdjust; float2 depthTexelSize; float hudEnable; float comfortVignette; };
 struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -1081,6 +1113,15 @@ VSOut VSMain(uint id : SV_VertexID) {
 }
 float3 QRotateVec(float4 q, float3 v) {
     return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}
+void ApplyPitchCorrection(inout float tanX, inout float tanY, float pitchRad) {
+    if (abs(pitchRad) <= 1e-5) return;
+    float cp = cos(pitchRad), sp = sin(pitchRad);
+    float denom = -tanY * sp + cp;
+    denom = abs(denom) < 1e-4 ? (denom < 0.0 ? -1e-4 : 1e-4) : denom;
+    float tanY2 = (tanY * cp + sp) / denom;
+    float tanX2 = tanX / denom;
+    tanX = tanX2; tanY = tanY2;
 }
 float DepthPushMod(float2 uv01) {
     // Legacy UV-offset path. Kept as a strict no-op unless a caller actually
@@ -1111,14 +1152,94 @@ float4 DepthAwareTans(float2 uv01) {
     float effectiveAsym = 1.0 - 0.30 * saturate(presentPad) * nearness;
     return poseDeltaQ + effectiveAsym * (xrTan - poseDeltaQ);
 }
+// R154 SCREEN-LOCKED PIXELS. In ALT EYE the game's HUD is drawn into every eye
+// image at the same place (it has no depth); moving it by the scene depth behind
+// it would tear it apart. A pixel that is identical in the stale image and the
+// live image (bound to t2 for the stale eye's draw) at the same position, with
+// an identical neighbour pair on one axis, stays where it is. Flat colour passes
+// the same test, where keeping or moving it looks the same.
+bool SameTexelR154(int2 p) {
+    const float3 d = abs(srcTex.Load(int3(p, 0)).rgb - hudTex.Load(int3(p, 0)).rgb);
+    return max(d.x, max(d.y, d.z)) <= 2.5 / 255.0;
+}
+bool ScreenLockedR154(float2 uv) {
+    uint w = 0, h = 0;
+    srcTex.GetDimensions(w, h);
+    const int2 p = int2(uv * float2(w, h));
+    if (p.x < 1 || p.y < 1 || p.x >= (int)w - 1 || p.y >= (int)h - 1) return false;
+    if (!SameTexelR154(p)) return false;
+    return (SameTexelR154(p + int2(1, 0)) && SameTexelR154(p - int2(1, 0))) ||
+           (SameTexelR154(p + int2(0, 1)) && SameTexelR154(p - int2(0, 1)));
+}
+
+// R154: uv is where this pixel sits in the TARGET camera's image (the live
+// mapping); the offset map says where that surface is in the stale image. Offsets
+// are blended only across one surface, so silhouettes stay hard.
+float2 ApplyStaleWarp(float2 uv, out float tier) {
+    tier = 0.0;
+    uint ow = 0, oh = 0;
+    warpOffsets.GetDimensions(ow, oh);
+    if (ow < 2 || oh < 2) return uv;
+    const float2 grid = float2(ow, oh);
+    const int2 hi = int2(ow - 1, oh - 1);
+    const float2 tc = uv * grid - 0.5;
+    const int2 b = int2(floor(tc));
+    const float2 f = tc - float2(b);
+    const float4 o00 = warpOffsets.Load(int3(clamp(b, int2(0, 0), hi), 0));
+    const float4 o10 = warpOffsets.Load(int3(clamp(b + int2(1, 0), int2(0, 0), hi), 0));
+    const float4 o01 = warpOffsets.Load(int3(clamp(b + int2(0, 1), int2(0, 0), hi), 0));
+    const float4 o11 = warpOffsets.Load(int3(clamp(b + int2(1, 1), int2(0, 0), hi), 0));
+    const float4 on = warpOffsets.Load(int3(clamp(int2(floor(uv * grid)), int2(0, 0), hi), 0));
+    tier = on.w;
+    const float zmin = min(min(o00.z, o10.z), min(o01.z, o11.z));
+    const float zmax = max(max(o00.z, o10.z), max(o01.z, o11.z));
+    float2 off = on.xy;
+    if (zmin > 0.0 && zmax <= zmin * 1.03)
+        off = lerp(lerp(o00.xy, o10.xy, f.x), lerp(o01.xy, o11.xy, f.x), f.y);
+    // Only a pixel the warp would actually move needs the screen-locked test.
+    if (dot(off * grid, off * grid) > 0.25 && ScreenLockedR154(uv)) {
+        tier = (tier > 15.5 ? 16.0 : 0.0) + 8.0;
+        return uv;
+    }
+    return uv + off;
+}
+
 float4 PSMainInner51(VSOut i) {
     float2 uv;
+    float warpTier = 0.0;
     if (fovFlags.x > 1.5) {
         // Flat UI: uvScale > 1 shrinks the source into a centered virtual screen;
         // out-of-range pixels become the black surround below.
         uv = (i.uv - 0.5) * uvScale + 0.5 + uvOffset;
     } else if (fovFlags.x > 0.5) {
-        if (reprojParams.x > 3.5) {
+        if (reprojParams.x > 5.5) {
+            // R144 alternate-eye stale-frame warp. Build the current eye ray,
+            // apply the user's optical pitch correction in that current basis,
+            // then rotate the ray back into the head orientation that rendered
+            // this cached eye. Translation remains untouched because this first
+            // step has no depth-based disocclusion handling.
+            float tanX = lerp(xrTan.x, xrTan.y, i.uv.x);
+            float tanY = lerp(xrTan.w, xrTan.z, i.uv.y);
+            ApplyPitchCorrection(tanX,tanY,colorAdjust.w);
+            float3 rr = normalize(float3(tanX,tanY,-1.0));
+            rr = QRotateVec(poseDeltaQ,rr);
+            float rif = 1.0 / max(-rr.z,1e-4);
+            tanX = rr.x * rif;
+            tanY = rr.y * rif;
+            if (reprojParams.y > 1e-4 && reprojParams.z > 1e-4) {
+                // Clean Correct-FOV mode maps to the user's selected VR FOV.
+                float targetTanX = reprojParams.y;
+                float targetTanY = reprojParams.z;
+                uv.x = 0.5 + tanX / (2.0 * targetTanX);
+                uv.y = 0.5 - tanY / (2.0 * targetTanY);
+            } else {
+                // Other clean-map modes keep their configured source tangent
+                // mapping; only the stale frame's orientation changes.
+                uv.x = 0.5 + tanX / (2.0 * max(sourceTan.x,1e-4));
+                uv.y = 0.5 - tanY / (2.0 * max(sourceTan.y,1e-4));
+            }
+            uv = (uv - 0.5) * uvScale + 0.5 + uvOffset;
+        } else if (reprojParams.x > 3.5 && reprojParams.x < 4.5) {
             // V65.77 TRUE-STEREO OPENXR MAP. xrTan is the current/submitted
             // OpenXR eye frustum. poseDeltaQ carries the source eye frustum
             // that generated the native COUNT2 eye record: {L,R,D,U} tangents.
@@ -1149,15 +1270,7 @@ float4 PSMainInner51(VSOut i) {
             float tanX = eyeTanX;
             float tanY = eyeTanY;
 
-            float pitchRad = colorAdjust.w;
-            if (abs(pitchRad) > 1e-5) {
-                float cp = cos(pitchRad), sp = sin(pitchRad);
-                float denom = -tanY * sp + cp;
-                denom = abs(denom) < 1e-4 ? (denom < 0.0 ? -1e-4 : 1e-4) : denom;
-                float tanY2 = (tanY * cp + sp) / denom;
-                float tanX2 = tanX / denom;
-                tanX = tanX2; tanY = tanY2;
-            }
+            ApplyPitchCorrection(tanX,tanY,colorAdjust.w);
 
             // Treat the complete captured KCD raster as the image plane of the
             // user-selected VR FOV. This intentionally compresses a wider Game
@@ -1188,23 +1301,21 @@ float4 PSMainInner51(VSOut i) {
             // the exact camera orientation that rendered the captured PRESENT,
             // then continue through the existing projection-center correction.
             if (reprojParams.x > 0.5 && reprojParams.x < 1.5) {
+                // Projection-center pitch is an optical offset in the current
+                // HMD/eye basis. Apply it before mapping that ray into the stale
+                // render basis; reversing these non-commuting rotations made a
+                // yaw change the effective pitch axis and look like world roll.
+                ApplyPitchCorrection(tanX,tanY,colorAdjust.w);
                 float3 rr = normalize(float3(tanX, tanY, -1.0));
                 rr = QRotateVec(poseDeltaQ, rr);
                 float rif = 1.0 / max(-rr.z, 1e-4);
                 tanX = rr.x * rif;
                 tanY = rr.y * rif;
             }
-            // V64.42: real angular vertical projection correction. colorAdjust.w
-            // carries radians; this rotates tangent rays rather than shifting UVs.
-            float pitchRad = colorAdjust.w;
-            if (abs(pitchRad) > 1e-5) {
-                float cp = cos(pitchRad), sp = sin(pitchRad);
-                float denom = -tanY * sp + cp;
-                denom = abs(denom) < 1e-4 ? (denom < 0.0 ? -1e-4 : 1e-4) : denom;
-                float tanY2 = (tanY * cp + sp) / denom;
-                float tanX2 = tanX / denom;
-                tanX = tanX2; tanY = tanY2;
-            }
+            // V64.42: angular vertical projection correction. For late
+            // reprojection it was already applied in the current eye basis above.
+            if (!(reprojParams.x > 0.5 && reprojParams.x < 1.5))
+                ApplyPitchCorrection(tanX,tanY,colorAdjust.w);
             uv.x = 0.5 + tanX / (2.0 * max(sourceTan.x, 1e-4));
             uv.y = 0.5 - tanY / (2.0 * max(sourceTan.y, 1e-4));
             uv = (uv - 0.5) * uvScale + 0.5 + uvOffset;
@@ -1233,6 +1344,8 @@ float4 PSMainInner51(VSOut i) {
             uv = (i.uv - 0.5) * uvScale + 0.5 + uvOffset;
         }
     }
+    // R154 stale-eye 6DoF / motion-vector warp (bound only for that eye's draw).
+    uv = ApplyStaleWarp(uv, warpTier);
     // V46 route-identification marker. fovFlags.y = 1 for canonical LEFT
     // texture, 2 for canonical RIGHT texture. It is intentionally drawn in
     // output-eye coordinates BEFORE both black-bar rejection and final OpenXR
@@ -1249,7 +1362,7 @@ float4 PSMainInner51(VSOut i) {
     // reprojParams.z carries mode. The intent is to preserve the good FOV-110
     // geometry everywhere except the missing lower strip.
     int bottomMode = (int)round(reprojParams.z);
-    if (fovFlags.x > 0.5 && bottomMode > 0) {
+    if (fovFlags.x > 0.5 && bottomMode > 0 && reprojParams.x < 5.5) {
         if (bottomMode == 1) {
             // Pure vertical translation: trades some upper coverage for lower.
             uv.y -= 0.080;
@@ -1296,11 +1409,22 @@ float4 PSMainInner51(VSOut i) {
         c.rgb = h.rgb + c.rgb * (1.0 - saturate(h.a));
     }
     // V62.6: crash-safe VR-output color adjustment. The KCD2 renderer remains untouched.
-    float gammaSafe = max(colorAdjust.x, 0.05);
+    float gammaSafe = max(abs(colorAdjust.x), 0.05);
     float3 adjusted = (c.rgb - 0.5) * colorAdjust.z + 0.5 + colorAdjust.y;
     adjusted = saturate(adjusted);
     adjusted = pow(max(adjusted, 0.0), 1.0 / gammaSafe);
     c.rgb = saturate(adjusted);
+    // R154 debug tint: which tier moved this stale-eye pixel (static world untinted).
+    if (warpTier > 16.5) {
+        const uint t = (uint)round(warpTier - 16.0);
+        const float3 tc = t == 2 ? float3(0.2, 0.45, 1.0) : t == 3 ? float3(0.2, 1.0, 0.3) : t == 4 ? float3(0.2, 1.0, 1.0) :
+                          t == 5 ? float3(1.0, 1.0, 0.2) : t == 6 ? float3(1.0, 0.55, 0.1) : t == 8 ? float3(1.0, 1.0, 1.0) :
+                          float3(1.0, 0.2, 1.0);
+        if (t >= 2) c.rgb = lerp(c.rgb, tc, 0.35);
+    }
+    // R152: display-encoded UNORM source into an sRGB RTV - decode so the RTV's encode restores the original bytes.
+    if (colorAdjust.x < 0.0)
+        c.rgb = c.rgb <= 0.04045 ? c.rgb / 12.92 : pow((c.rgb + 0.055) / 1.055, 2.4);
     return c;
 }
 
@@ -1346,7 +1470,7 @@ float4 PSMain(VSOut i) : SV_TARGET {
 
     D3D12_DESCRIPTOR_RANGE range{};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    range.NumDescriptors = 3; // V61.35: t0=color, t1=depth; V66.78: t2=HUD
+    range.NumDescriptors = kBlitSrvPerEyeR154; // V61.35: t0=color, t1=depth; V66.78: t2=HUD; R154: t3=stale-eye warp offsets
     range.BaseShaderRegister = 0;
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -1429,7 +1553,7 @@ float4 PSMain(VSOut i) : SV_TARGET {
     if (FAILED(hr)) return false;
 
     D3D12_DESCRIPTOR_HEAP_DESC heap{};
-    heap.NumDescriptors = 6; // V66.78: 3 slots (color,depth,hud) x 2 eyes // V61.35: 2 slots (color,depth) per eye x 2 eyes for AFR; mono uses only the first pair
+    heap.NumDescriptors = 2 * kBlitSrvPerEyeR154; // R154: 4 slots (color,depth,hud,warp offsets) x 2 eyes; mono uses only the first set
     heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     hr = d3d12_device_->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&srv_heap_));
@@ -1449,15 +1573,115 @@ static DXGI_FORMAT Kcd2VrSrvFormat(DXGI_FORMAT fmt)
     }
 }
 
+// R152 COLOR SPACE: the eye RTV uses the swapchain format. With an sRGB swapchain (R114 default) the hardware
+// sRGB-encodes every shader write. A source viewed through an *_SRGB SRV is decoded on sample, so that cancels out.
+// A plain UNORM source (the game backbuffer: main menu, loading screens, flat UI, physical map) holds bytes that are
+// already display-encoded; sampling returns them raw and the RTV encoded them a second time = washed out (VDXR).
+// For that pairing the blit shader now decodes sRGB -> linear before the write. Carried in the sign of the gamma
+// constant (present[24]); its magnitude is still the user's output gamma.
+static bool Kcd2VrIsSrgbFormat(DXGI_FORMAT f) noexcept {
+    return f==DXGI_FORMAT_R8G8B8A8_UNORM_SRGB||f==DXGI_FORMAT_B8G8R8A8_UNORM_SRGB||f==DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
+}
+static bool Kcd2VrDisplayEncodedUnorm(DXGI_FORMAT f) noexcept {
+    return f==DXGI_FORMAT_R8G8B8A8_UNORM||f==DXGI_FORMAT_B8G8R8A8_UNORM||f==DXGI_FORMAT_B8G8R8X8_UNORM||f==DXGI_FORMAT_R10G10B10A2_UNORM;
+}
+static float Kcd2VrGammaWithDecodeR152(float gamma, DXGI_FORMAT swapchain, DXGI_FORMAT srv, const char* path) noexcept {
+    const bool decode=Kcd2VrIsSrgbFormat(swapchain)&&Kcd2VrDisplayEncodedUnorm(srv);
+    static std::atomic<unsigned> logged{0};
+    const unsigned key=(unsigned(srv)<<9)|(unsigned(swapchain)<<1)|(decode?1u:0u);
+    if(logged.exchange(key,std::memory_order_acq_rel)!=key){
+        char m[200]{};std::snprintf(m,sizeof(m),"R152 COLOR_SPACE path=%s eyeRtv=%d sourceSrv=%d decodeSrgb=%d",path,int(swapchain),int(srv),decode?1:0);
+        diagnostic_trace::WriteStatus(m);
+    }
+    const float g=std::max(std::fabs(gamma),0.05f);
+    return decode?-g:g;
+}
+
 
 void XrManager::DestroyAfrCaches()
 {
     for (int eye = 0; eye < 2; ++eye) {
         afr_cache_valid_[eye] = false;
+        afr_cache_camera_frame_[eye] = 0;
         if (afr_cache_[eye]) { afr_cache_[eye]->Release(); afr_cache_[eye] = nullptr; }
     }
     afr_cache_desc_ = {};
     afr_last_present_serial_ = 0;
+    afr_cache_serial_[0] = afr_cache_serial_[1] = 0;
+}
+
+void XrManager::ResetAfrCachesOnGenerationR156()
+{
+    const auto generation = stereo_experiment_generation_.load(std::memory_order_acquire);
+    if (afr_cache_mode_generation_ == generation) return;
+    afr_cache_valid_[0] = afr_cache_valid_[1] = false;
+    afr_cache_camera_frame_[0] = afr_cache_camera_frame_[1] = 0;
+    afr_cache_serial_[0] = afr_cache_serial_[1] = 0;
+    afr_last_present_serial_ = 0;
+    afr_cache_mode_generation_ = generation;
+}
+
+// R156: every game PRESENT the current batch submitted goes into the cache of the
+// eye it rendered. Before, only the PRESENT an XR frame happened to pick up was
+// cached; with the game near or above the headset rate the pickup phase-locked
+// onto one eye's frames for long stretches, so the other eye's image froze (and
+// the flat menu, which shows the left image, never appeared). Runs in the render
+// thread callback right after the game's batch (DeviceHook serializes these), so
+// queue order makes the copy read exactly this frame.
+void XrManager::CacheAfrPresentR156()
+{
+    if (!DeviceHook::CurrentExecuteSubmittedPresent() || !d3d12_queue_ || !fence_ ||
+        !session_running_.load(std::memory_order_acquire) || !nonblocking_pair_submit_.load(std::memory_order_acquire))
+        return;
+    ID3D12Resource* source = nullptr;
+    int eye = 0;
+    std::uint64_t serial = 0, camera_frame = 0;
+    if (!DeviceHook::TryGetLatestPresentResourceTagged(&source, &eye, &serial, &camera_frame) || !source) return;
+    struct ReleaseR156 { ID3D12Resource* r; ~ReleaseR156() { r->Release(); } } release_source{source};
+    if (serial == 0 || serial == afr_last_present_serial_) return;
+    ResetAfrCachesOnGenerationR156();
+    // A new size or format reallocates the caches; only the XR blit does that,
+    // after waiting for the GPU. Until then it caches the newest frame itself.
+    const D3D12_RESOURCE_DESC desc = source->GetDesc();
+    if (!afr_cache_[0] || !afr_cache_[1] || afr_cache_desc_.Width != desc.Width || afr_cache_desc_.Height != desc.Height ||
+        afr_cache_desc_.Format != desc.Format || afr_cache_desc_.SampleDesc.Count != desc.SampleDesc.Count)
+        return;
+    StereoSubmitSlot* slot = AcquireStereoSubmitSlot();
+    if (!slot) return;
+    eye &= 1;
+    if (FAILED(slot->allocator->Reset()) || FAILED(slot->list->Reset(slot->allocator, nullptr))) return;
+    DeviceHook::SetInternalVrCommandList(slot->list);
+    struct RestoreR156 {
+        ID3D12GraphicsCommandList* prior;
+        ~RestoreR156() { DeviceHook::SetInternalVrCommandList(prior); }
+    } restore_internal_list{command_list_};
+    D3D12_RESOURCE_BARRIER b[2]{};
+    b[0].Type = b[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    b[0].Transition.pResource = source;
+    b[1].Transition.pResource = afr_cache_[eye];
+    b[0].Transition.Subresource = b[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    b[0].Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT; b[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;  b[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+    DeviceHook::ResourceBarrierBypass(slot->list, 2, b);
+    slot->list->CopyResource(afr_cache_[eye], source);
+    std::swap(b[0].Transition.StateBefore, b[0].Transition.StateAfter);
+    std::swap(b[1].Transition.StateBefore, b[1].Transition.StateAfter);
+    DeviceHook::ResourceBarrierBypass(slot->list, 2, b);
+    if (FAILED(slot->list->Close())) return;
+    ID3D12CommandList* lists[] = { slot->list };
+    if (!DeviceHook::ExecuteCommandListsBypass(d3d12_queue_, 1, lists)) return;
+    ++fence_value_;
+    if (FAILED(d3d12_queue_->Signal(fence_, fence_value_))) {
+        stereo_submit_ring_disabled_ = true; // queued without a fence: keep the slot pinned, stop using the ring
+        return;
+    }
+    slot->fence_value = fence_value_;
+    afr_cache_valid_[eye] = true;
+    afr_cache_camera_frame_[eye] = camera_frame;
+    afr_cache_serial_[eye] = serial;
+    afr_last_present_serial_ = serial;
+    ++aer_perf_r154_.newFrames;
+    ++aer_perf_r154_.cachedAtSubmit;
 }
 
 bool XrManager::EnsureAfrCaches(const D3D12_RESOURCE_DESC& source_desc)
@@ -1567,7 +1791,7 @@ bool XrManager::EnsureStereoSubmitRing()
         if(FAILED(slot.list->Close())) { DestroyStereoSubmitRing(); stereo_submit_ring_disabled_=true; return false; }
 
         D3D12_DESCRIPTOR_HEAP_DESC heap{};
-        heap.NumDescriptors=6; // V66.78: 3 per eye
+        heap.NumDescriptors=2*kBlitSrvPerEyeR154; // R154: 4 per eye
         heap.Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         heap.Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         hr=d3d12_device_->CreateDescriptorHeap(&heap,IID_PPV_ARGS(&slot.srv_heap));
@@ -1795,13 +2019,13 @@ bool XrManager::BlitBridgePairStableToEyes(ID3D12Resource* left_source, ID3D12Re
         // V61.35: 2 contiguous heap slots per eye now (color, depth) instead
         // of 1, so eye 0 -> slots[0,1], eye 1 -> slots[2,3].
         D3D12_CPU_DESCRIPTOR_HANDLE color_cpu = active_srv_heap->GetCPUDescriptorHandleForHeapStart();
-        color_cpu.ptr += static_cast<SIZE_T>(eye) * 3 * srv_descriptor_size_;
+        color_cpu.ptr += static_cast<SIZE_T>(eye) * kBlitSrvPerEyeR154 * srv_descriptor_size_;
         D3D12_CPU_DESCRIPTOR_HANDLE depth_cpu = color_cpu;
         depth_cpu.ptr += static_cast<SIZE_T>(srv_descriptor_size_);
         const float depth_weight = WriteColorAndDepthDescriptors(
             eye_sources[eye], Kcd2VrSrvFormat(cache_desc.Format), color_cpu, depth_cpu);
         D3D12_GPU_DESCRIPTOR_HANDLE srv_gpu = active_srv_heap->GetGPUDescriptorHandleForHeapStart();
-        srv_gpu.ptr += static_cast<UINT64>(eye) * 3 * srv_descriptor_size_;
+        srv_gpu.ptr += static_cast<UINT64>(eye) * kBlitSrvPerEyeR154 * srv_descriptor_size_;
         active_list->SetGraphicsRootDescriptorTable(0, srv_gpu);
 
         D3D12_VIEWPORT vp{};
@@ -1835,7 +2059,7 @@ bool XrManager::BlitBridgePairStableToEyes(ID3D12Resource* left_source, ID3D12Re
         float present[32] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker ? static_cast<float>(eye + 1) : 0.0f,
                               1.0f / static_cast<float>(std::max<UINT64>(1, cache_desc.Width)), 1.0f / static_cast<float>(std::max<UINT>(1, cache_desc.Height)), sharp, 0.0f };
         present[15] = depth_weight; // V61.35: presentPad now carries depthPushWeight (see WriteColorAndDepthDescriptors)
-        present[24] = output_gamma_.load(std::memory_order_acquire);
+        present[24] = Kcd2VrGammaWithDecodeR152(output_gamma_.load(std::memory_order_acquire), static_cast<DXGI_FORMAT>(swapchain_format_), Kcd2VrSrvFormat(cache_desc.Format), "bridge"); // R152
         present[25] = output_brightness_.load(std::memory_order_acquire);
         present[26] = output_contrast_.load(std::memory_order_acquire);
         { const auto dw=depth_tex_width_.load(std::memory_order_acquire); const auto dh=depth_tex_height_.load(std::memory_order_acquire);
@@ -1994,13 +2218,48 @@ bool XrManager::BlitBridgePairStableToEyes(ID3D12Resource* left_source, ID3D12Re
 }
 
 bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std::uint64_t serial,
-                                     ID3D12Resource* left, ID3D12Resource* right, D3D12_RESOURCE_STATES source_state)
+                                     ID3D12Resource* left, ID3D12Resource* right, D3D12_RESOURCE_STATES source_state,
+                                     std::uint64_t render_frame_index)
 {
     if (!source || !left || !right || !command_allocator_ || !command_list_ || !fence_ ||
         !d3d12_queue_ || !blit_pipeline_state_ || !blit_root_signature_ || !srv_heap_) return false;
     source_eye &= 1;
     const D3D12_RESOURCE_DESC src_desc = source->GetDesc();
+    const auto blitStartR154 = std::chrono::steady_clock::now();
+    if (!aer_timestamp_frequency_set_r154_) {
+        UINT64 frequency = 0;
+        if (SUCCEEDED(d3d12_queue_->GetTimestampFrequency(&frequency))) aer_warp_r154::SetTimestampFrequency(frequency);
+        aer_timestamp_frequency_set_r154_ = true;
+    }
+    // R154 PERF: this runs at the tail of the GAME's own ExecuteCommandLists (its
+    // render thread). It used to Signal and then CPU-wait for the GPU to finish
+    // the whole queue - the frame just submitted included - every frame, which
+    // serialized the game's CPU and GPU. Like the native-stereo pair path (V66.34)
+    // it now submits through the fence-gated ring and returns; OpenXR's D3D12
+    // binding owns this same queue, so xrReleaseSwapchainImage needs no CPU wait.
+    // Blocking remains only for the R149 dump (it reads back right after), cache
+    // reallocation, or a busy/disabled ring.
+    const bool aerDumpWanted = native_dlss_stereo_d82::AerDumpXrWanted();
+    const bool afr_cache_same = afr_cache_[0] && afr_cache_[1] &&
+        afr_cache_desc_.Width == src_desc.Width && afr_cache_desc_.Height == src_desc.Height &&
+        afr_cache_desc_.Format == src_desc.Format && afr_cache_desc_.SampleDesc.Count == src_desc.SampleDesc.Count;
+    StereoSubmitSlot* submit_slot = nullptr;
+    if (!aerDumpWanted && afr_cache_same && nonblocking_pair_submit_.load(std::memory_order_acquire))
+        submit_slot = AcquireStereoSubmitSlot();
+    const bool nonblocking = submit_slot != nullptr;
+    if (!nonblocking && fence_->GetCompletedValue() < fence_value_) {
+        // One fence covers the ring slots too: everything queued before is done,
+        // so the single list may be reset and the caches reallocated.
+        const auto waitStart = std::chrono::steady_clock::now();
+        if (FAILED(fence_->SetEventOnCompletion(fence_value_, fence_event_))) return false;
+        if (TimedFenceWait165(fence_event_, 1000) != WAIT_OBJECT_0) return false;
+        aer_perf_r154_.waitMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - waitStart).count();
+    }
     if (!EnsureAfrCaches(src_desc)) return false;
+    ID3D12CommandAllocator* active_allocator = nonblocking ? submit_slot->allocator : command_allocator_;
+    ID3D12GraphicsCommandList* active_list = nonblocking ? submit_slot->list : command_list_;
+    ID3D12DescriptorHeap* active_srv_heap = nonblocking ? submit_slot->srv_heap : srv_heap_;
+    ResetAfrCachesOnGenerationR156();
 
     const int presentation_mode = presentation_mode_.load(std::memory_order_acquire);
     const float presentation_zoom = presentation_zoom_.load(std::memory_order_acquire) *
@@ -2013,12 +2272,14 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
     const float eye_offset_y[2] = {
         eye_offset_y_[0].load(std::memory_order_acquire), eye_offset_y_[1].load(std::memory_order_acquire) };
 
-    if (fence_->GetCompletedValue() < fence_value_) {
-        if (FAILED(fence_->SetEventOnCompletion(fence_value_, fence_event_))) return false;
-        if (TimedFenceWait165(fence_event_, 1000) != WAIT_OBJECT_0) return false;
-    }
-    HRESULT hr = command_allocator_->Reset(); if (FAILED(hr)) return false;
-    hr = command_list_->Reset(command_allocator_, blit_pipeline_state_); if (FAILED(hr)) return false;
+    HRESULT hr = active_allocator->Reset(); if (FAILED(hr)) return false;
+    hr = active_list->Reset(active_allocator, blit_pipeline_state_); if (FAILED(hr)) return false;
+    // Device hooks skip our own list (same contract as the pair path).
+    DeviceHook::SetInternalVrCommandList(active_list);
+    struct InternalListRestoreR154 {
+        ID3D12GraphicsCommandList* prior;
+        ~InternalListRestoreR154() { DeviceHook::SetInternalVrCommandList(prior); }
+    } restoreInternalList{command_list_};
 
     const bool new_frame = serial != 0 && serial != afr_last_present_serial_;
     if (new_frame) {
@@ -2033,21 +2294,29 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
         copy_begin[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         copy_begin[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
         copy_begin[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-        command_list_->ResourceBarrier(2, copy_begin);
-        command_list_->CopyResource(afr_cache_[source_eye], source);
+        active_list->ResourceBarrier(2, copy_begin);
+        active_list->CopyResource(afr_cache_[source_eye], source);
         D3D12_RESOURCE_BARRIER copy_end[2] = { copy_begin[0], copy_begin[1] };
         copy_end[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
         copy_end[0].Transition.StateAfter = source_state;
         copy_end[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
         copy_end[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
-        command_list_->ResourceBarrier(2, copy_end);
+        active_list->ResourceBarrier(2, copy_end);
     }
 
     ID3D12Resource* eye_sources[2] = {
         afr_cache_valid_[0] ? afr_cache_[0] : afr_cache_[source_eye],
         afr_cache_valid_[1] ? afr_cache_[1] : afr_cache_[source_eye]
     };
+    // Alternate-eye output reuses the prior cached image for the unrendered eye.
+    // R144 rotates that stale raster using the render-pose pair below; translation
+    // and disocclusion are intentionally outside this first warp step.
     if (new_frame) eye_sources[source_eye] = afr_cache_[source_eye];
+    // R156: a flat UI frame (menus, loading screens, map) is not stereo. Both eyes
+    // show the newest image: the flat layer displays the LEFT image, which used to
+    // freeze whenever the menu's PRESENTs were all tagged with the right eye.
+    const bool flat_ui_frame = render_presentation59c2_.policy.flat || render_presentation59c2_.policy.physical_map;
+    if (flat_ui_frame) eye_sources[0] = eye_sources[1] = afr_cache_[source_eye];
 
     // V46: cached AFR textures are ours and start in COMMON, so transition
     // only those to SRV. OpenXR color swapchain images are already guaranteed
@@ -2066,34 +2335,66 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
     }
     ID3D12Resource* dsts[2] = { left, right }; // canonical L->L, R->R; swap only at final XR layer
     bool used_openxr_fov_this_blit = false;
-    if (begin_count) command_list_->ResourceBarrier(begin_count, begin);
+    if (begin_count) active_list->ResourceBarrier(begin_count, begin);
+    // R149 AER frame dump: the exact constants/poses each eye was composed with.
+    struct AerDumpEyeR149 {
+        float present[32]{};
+        std::uint64_t targetPoseFrame{}, frameIndex{}, cachedPoseFrame{};
+        bool haveFrame{}, headValid{}, stereoViews{}, warp{}, cameraWarp{};
+        XrPosef head{}, eyePose{}; XrFovf fov{};
+    } aerDumpEye[2]{};
 
-    ID3D12DescriptorHeap* heaps[] = { srv_heap_ };
-    command_list_->SetDescriptorHeaps(1, heaps);
-    command_list_->SetGraphicsRootSignature(blit_root_signature_);
-    command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // R154 stale-eye warp: rotation + 6DoF (the stale eye's own depth) + motion
+    // vectors (the live eye's game motion). Both eyes are declared at the live
+    // frame's render pose (PRESENT pairing), so the stale eye is carried to the
+    // camera the live frame WOULD have rendered for it. Any missing input leaves
+    // the R144 rotation warp below in charge.
+    const int stale_eye = source_eye ^ 1;
+    ID3D12Resource* stale_offsets = nullptr;
+    const char* stale_warp_reason = "off";
+    if (aer_warp_r154::Mode() >= aer_warp_r154::kSixDof && alternate_eye_warp_enabled_.load(std::memory_order_acquire) &&
+        !flat_ui_frame && presentation_mode == 3 && afr_cache_valid_[stale_eye] && afr_cache_camera_frame_[stale_eye] != 0 &&
+        render_frame_index != 0 && present_pose_pairing_mode_.load(std::memory_order_acquire) != 0 &&
+        !afr_per_eye_historical_pose_.load(std::memory_order_acquire)) {
+        aer_warp_r154::StaleWarpRequest request{};
+        request.staleEye = stale_eye;
+        request.stalePoseFrame = afr_cache_camera_frame_[stale_eye];
+        request.livePoseFrame = render_frame_index;
+        aer_warp_r154::StaleWarpResult result{};
+        if (aer_warp_r154::WarpStaleEye(active_list, request, result)) stale_offsets = result.offsets;
+        stale_warp_reason = result.reason;
+        active_list->SetPipelineState(blit_pipeline_state_); // the warp's compute PSO replaced it
+    } else if (aer_warp_r154::Mode() >= aer_warp_r154::kSixDof) {
+        stale_warp_reason = flat_ui_frame ? "flat-ui" : presentation_mode != 3 ? "presentation" :
+            !afr_cache_valid_[stale_eye] ? "no-stale-image" : "pose-pairing";
+    }
+    bool stale_warp_bound = false;
+
+    ID3D12DescriptorHeap* heaps[] = { active_srv_heap };
+    active_list->SetDescriptorHeaps(1, heaps);
+    active_list->SetGraphicsRootSignature(blit_root_signature_);
+    active_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     for (int eye = 0; eye < 2; ++eye) {
         const D3D12_RESOURCE_DESC cache_desc = eye_sources[eye]->GetDesc();
-        // V61.35: 2 contiguous heap slots per eye now (color, depth) instead
-        // of 1, so eye 0 -> slots[0,1], eye 1 -> slots[2,3].
-        D3D12_CPU_DESCRIPTOR_HANDLE color_cpu = srv_heap_->GetCPUDescriptorHandleForHeapStart();
-        color_cpu.ptr += static_cast<SIZE_T>(eye) * 3 * srv_descriptor_size_;
+        // R154: 4 contiguous heap slots per eye (color, depth, hud, warp offsets).
+        D3D12_CPU_DESCRIPTOR_HANDLE color_cpu = active_srv_heap->GetCPUDescriptorHandleForHeapStart();
+        color_cpu.ptr += static_cast<SIZE_T>(eye) * kBlitSrvPerEyeR154 * srv_descriptor_size_;
         D3D12_CPU_DESCRIPTOR_HANDLE depth_cpu = color_cpu;
         depth_cpu.ptr += static_cast<SIZE_T>(srv_descriptor_size_);
         const float depth_weight = WriteColorAndDepthDescriptors(
             eye_sources[eye], Kcd2VrSrvFormat(cache_desc.Format), color_cpu, depth_cpu);
-        D3D12_GPU_DESCRIPTOR_HANDLE srv_gpu = srv_heap_->GetGPUDescriptorHandleForHeapStart();
-        srv_gpu.ptr += static_cast<UINT64>(eye) * 3 * srv_descriptor_size_;
-        command_list_->SetGraphicsRootDescriptorTable(0, srv_gpu);
+        D3D12_GPU_DESCRIPTOR_HANDLE srv_gpu = active_srv_heap->GetGPUDescriptorHandleForHeapStart();
+        srv_gpu.ptr += static_cast<UINT64>(eye) * kBlitSrvPerEyeR154 * srv_descriptor_size_;
+        active_list->SetGraphicsRootDescriptorTable(0, srv_gpu);
 
         D3D12_VIEWPORT vp{};
         vp.Width = static_cast<float>(eyes_[eye].width); vp.Height = static_cast<float>(eyes_[eye].height);
         vp.MinDepth = 0.0f; vp.MaxDepth = 1.0f;
         D3D12_RECT sc{0, 0, eyes_[eye].width, eyes_[eye].height};
-        command_list_->RSSetViewports(1, &vp); command_list_->RSSetScissorRects(1, &sc);
+        active_list->RSSetViewports(1, &vp); active_list->RSSetScissorRects(1, &sc);
         const auto rtv = GetRtvHandle(dsts[eye]);
-        command_list_->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+        active_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
         const float src_aspect = static_cast<float>(cache_desc.Width) / static_cast<float>(cache_desc.Height);
         const float dst_aspect = static_cast<float>(eyes_[eye].width) / static_cast<float>(eyes_[eye].height);
@@ -2102,7 +2403,22 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
         else if (presentation_mode == 2) { if (src_aspect > dst_aspect) sx = dst_aspect / src_aspect; else sy = src_aspect / dst_aspect; }
         const float zoom = presentation_zoom < 0.25f ? 0.25f : (presentation_zoom > 4.0f ? 4.0f : presentation_zoom);
         RenderFrameState frame_snapshot{};
-        const bool have_frame = CopyActiveRenderFrameState(frame_snapshot);
+        // The projection layer is normally submitted with the exact game-camera
+        // frame attached to this PRESENT, not the newest xrWaitFrame snapshot.
+        // Use that same frame for the blit intrinsics and alternate-eye warp so
+        // both eye images share one render-pose reference (SnowRunner's stale-eye
+        // warp follows the same rule). Diagnostic pose mode 0 intentionally keeps
+        // targeting the active XR frame.
+        bool have_frame = false;
+        const bool historical_per_eye_pose = afr_per_eye_historical_pose_.load(std::memory_order_acquire) &&
+            present_pose_pairing_mode_.load(std::memory_order_acquire) != 0;
+        std::uint64_t target_pose_frame = render_frame_index;
+        if (historical_per_eye_pose && eye != source_eye)
+            target_pose_frame = afr_cache_camera_frame_[eye];
+        if (target_pose_frame != 0 && present_pose_pairing_mode_.load(std::memory_order_acquire) != 0)
+            have_frame = CopyRenderFrameStateByIndex(target_pose_frame, frame_snapshot);
+        if (!have_frame)
+            have_frame = CopyActiveRenderFrameState(frame_snapshot);
         const bool flat_ui = render_presentation59c2_.policy.flat || render_presentation59c2_.policy.physical_map;
         const bool have_fov = !flat_ui && presentation_mode == 3 && have_frame && frame_snapshot.stereo_views_valid;
         const float vfov_deg = source_vertical_fov_deg < 20.0f ? 20.0f : (source_vertical_fov_deg > 160.0f ? 160.0f : source_vertical_fov_deg);
@@ -2118,7 +2434,7 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
         float present[32] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker ? static_cast<float>(eye + 1) : 0.0f,
                               1.0f / static_cast<float>(std::max<UINT64>(1, cache_desc.Width)), 1.0f / static_cast<float>(std::max<UINT>(1, cache_desc.Height)), sharp, 0.0f };
         present[15] = depth_weight; // V61.35: presentPad now carries depthPushWeight (see WriteColorAndDepthDescriptors)
-        present[24] = output_gamma_.load(std::memory_order_acquire);
+        present[24] = Kcd2VrGammaWithDecodeR152(output_gamma_.load(std::memory_order_acquire), static_cast<DXGI_FORMAT>(swapchain_format_), Kcd2VrSrvFormat(cache_desc.Format), "afr"); // R152
         present[25] = output_brightness_.load(std::memory_order_acquire);
         present[26] = output_contrast_.load(std::memory_order_acquire);
         { const auto dw=depth_tex_width_.load(std::memory_order_acquire); const auto dh=depth_tex_height_.load(std::memory_order_acquire);
@@ -2193,6 +2509,77 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
                     present[23] = 1.0f;
                 }
             }
+            // R154: the 6DoF / motion-vector offsets carry this stale eye to the live
+            // frame's camera; it is then mapped exactly like a live eye (no R144).
+            if (eye == stale_eye && stale_offsets) {
+                // t2 (the retired HUD composite slot, hudEnable stays 0) carries the
+                // LIVE image for the screen-locked test (ScreenLockedR154).
+                D3D12_CPU_DESCRIPTOR_HANDLE live_cpu = color_cpu;
+                live_cpu.ptr += static_cast<SIZE_T>(2) * srv_descriptor_size_;
+                ID3D12Resource* live_image = eye_sources[source_eye];
+                D3D12_SHADER_RESOURCE_VIEW_DESC lsrv{};
+                lsrv.Format = Kcd2VrSrvFormat(live_image->GetDesc().Format);
+                lsrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+                lsrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+                lsrv.Texture2D.MipLevels = 1;
+                d3d12_device_->CreateShaderResourceView(live_image, &lsrv, live_cpu);
+                D3D12_CPU_DESCRIPTOR_HANDLE warp_cpu = color_cpu;
+                warp_cpu.ptr += static_cast<SIZE_T>(3) * srv_descriptor_size_;
+                D3D12_SHADER_RESOURCE_VIEW_DESC wsrv{};
+                wsrv.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+                wsrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+                wsrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+                wsrv.Texture2D.MipLevels = 1;
+                d3d12_device_->CreateShaderResourceView(stale_offsets, &wsrv, warp_cpu);
+                stale_warp_bound = true;
+            }
+            if (!(eye == stale_eye && stale_warp_bound) &&
+                alternate_eye_warp_enabled_.load(std::memory_order_acquire) &&
+                eye != source_eye && afr_cache_valid_[eye] &&
+                afr_cache_camera_frame_[eye] != 0 && frame_snapshot.head_pose_valid) {
+                RenderFrameState cached_eye_frame{};
+                if (CopyRenderFrameStateByIndex(afr_cache_camera_frame_[eye],cached_eye_frame) &&
+                    cached_eye_frame.head_pose_valid) {
+                    // Map rays from this eye's retained render pose into the
+                    // pose used for its submitted projection view. In ordinary
+                    // AFR that is the fresh eye's exact PRESENT frame; with the
+                    // per-eye historical projection option it is this stale
+                    // eye's own retained frame, so the two poses naturally agree.
+                    XrQuaternionf warp_q{};
+                    CameraRotationSample cachedCameraRotation{},targetCameraRotation{};
+                    XrQuaternionf cachedCameraQ{},targetCameraQ{};
+                    const bool haveCameraWarp=CameraHook::GetCameraRotationForPoseFrame(
+                        afr_cache_camera_frame_[eye],cachedCameraRotation) &&
+                        CameraHook::GetCameraRotationForPoseFrame(frame_snapshot.frame_index,targetCameraRotation) &&
+                        CameraRotationQuatD75(cachedCameraRotation,cachedCameraQ) &&
+                        CameraRotationQuatD75(targetCameraRotation,targetCameraQ);
+                    if(haveCameraWarp) {
+                        // These bases are the exact final game camera matrices
+                        // paired with the live/stale pixels, so this relative
+                        // rotation includes both game turns and HMD turns.
+                        warp_q=QMul(QConj(cachedCameraQ),targetCameraQ);
+                    } else {
+                        warp_q=QMul(QConj(cached_eye_frame.head_pose.orientation),
+                                    frame_snapshot.head_pose.orientation);
+                    }
+                    aerDumpEye[eye].cameraWarp=haveCameraWarp;
+                    present[16]=warp_q.x;
+                    present[17]=warp_q.y;
+                    present[18]=warp_q.z;
+                    present[19]=warp_q.w;
+                    present[20]=6.0f;
+                    if (uv_reproj_mode == 5) {
+                        const float target_vfov=std::clamp(corrected_view_vertical_fov_deg_.load(std::memory_order_acquire),60.0f,150.0f);
+                        const float target_y=std::tan(target_vfov*0.5f*0.01745329251994329577f);
+                        present[21]=target_y*src_aspect;
+                        present[22]=target_y;
+                    } else {
+                        present[21]=0.0f;
+                        present[22]=0.0f;
+                    }
+                    present[23]=0.0f;
+                }
+            }
             const XrFovf& f = mapped_fov;
             present[4] = std::tan(f.angleLeft);
             present[5] = std::tan(f.angleRight);
@@ -2211,8 +2598,17 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
             present[1] = safe_scale;
         }
         present[30] = g_v6678_hud_active_for_blit ? 1.0f : 0.0f; present[31] = render_presentation59c2_.comfort_vignette51; // one captured value for both eyes
-        command_list_->SetGraphicsRoot32BitConstants(1, 32, present, 0);
-        command_list_->DrawInstanced(3, 1, 0, 0);
+        if (aerDumpWanted) {
+            auto& de = aerDumpEye[eye];
+            std::memcpy(de.present, present, sizeof(de.present));
+            de.targetPoseFrame = target_pose_frame; de.haveFrame = have_frame; de.frameIndex = frame_snapshot.frame_index;
+            de.headValid = frame_snapshot.head_pose_valid; de.head = frame_snapshot.head_pose;
+            de.eyePose = frame_snapshot.eye_pose[eye]; de.fov = frame_snapshot.eye_fov[eye];
+            de.stereoViews = frame_snapshot.stereo_views_valid; de.warp = present[20] > 5.5f;
+            de.cachedPoseFrame = afr_cache_camera_frame_[eye];
+        }
+        active_list->SetGraphicsRoot32BitConstants(1, 32, present, 0);
+        active_list->DrawInstanced(3, 1, 0, 0);
     }
 
     D3D12_RESOURCE_BARRIER end[2]{};
@@ -2226,18 +2622,132 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
         b.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
         b.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
     }
-    if (end_count) command_list_->ResourceBarrier(end_count, end);
-    hr = command_list_->Close(); if (FAILED(hr)) return false;
-    ID3D12CommandList* lists[] = { command_list_ };
-    if (!DeviceHook::ExecuteCommandListsBypass(d3d12_queue_, 1, lists)) return false;
+    if (end_count) active_list->ResourceBarrier(end_count, end);
+    // R149 AER dump: the post-DLSS image cached for the fresh eye and both
+    // submitted eye images, copied on this same synchronous list.
+    native_dlss_stereo_d82::AerDumpXrCapture* aerDump =
+        aerDumpWanted ? native_dlss_stereo_d82::AerDumpXrBegin(d3d12_device_) : nullptr;
+    if (aerDump) {
+        if (new_frame)
+            (void)native_dlss_stereo_d82::AerDumpXrCopy(aerDump, active_list, afr_cache_[source_eye],
+                D3D12_RESOURCE_STATE_COMMON, "present_source");
+        (void)native_dlss_stereo_d82::AerDumpXrCopy(aerDump, active_list, left, D3D12_RESOURCE_STATE_RENDER_TARGET, "xr_eye0");
+        (void)native_dlss_stereo_d82::AerDumpXrCopy(aerDump, active_list, right, D3D12_RESOURCE_STATE_RENDER_TARGET, "xr_eye1");
+    }
+    auto aerDumpFail = [&]() { native_dlss_stereo_d82::AerDumpXrCommit(aerDump, false, new_frame); return false; };
+    hr = active_list->Close(); if (FAILED(hr)) return aerDumpFail();
+    ID3D12CommandList* lists[] = { active_list };
+    if (!DeviceHook::ExecuteCommandListsBypass(d3d12_queue_, 1, lists)) return aerDumpFail();
     ++fence_value_;
-    if (FAILED(d3d12_queue_->Signal(fence_, fence_value_))) return false;
-    if (FAILED(fence_->SetEventOnCompletion(fence_value_, fence_event_))) return false;
-    if (TimedFenceWait165(fence_event_, 1000) != WAIT_OBJECT_0) return false;
+    if (FAILED(d3d12_queue_->Signal(fence_, fence_value_))) {
+        // The list is queued: keep the slot pinned (no fence value) and stop using the ring.
+        if (nonblocking) stereo_submit_ring_disabled_ = true;
+        return aerDumpFail();
+    }
+    if (nonblocking) {
+        submit_slot->fence_value = fence_value_; // slot reuse waits for exactly this submission
+    } else {
+        const auto waitStart = std::chrono::steady_clock::now();
+        if (FAILED(fence_->SetEventOnCompletion(fence_value_, fence_event_))) return aerDumpFail();
+        if (TimedFenceWait165(fence_event_, 1000) != WAIT_OBJECT_0) return aerDumpFail();
+        aer_perf_r154_.waitMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - waitStart).count();
+    }
 
     if (new_frame) {
         afr_cache_valid_[source_eye] = true;
+        afr_cache_camera_frame_[source_eye] = render_frame_index;
+        afr_cache_serial_[source_eye] = serial;
         afr_last_present_serial_ = serial;
+    }
+    {   // R154: one always-on line every 30 s on what AER costs on this thread and how the stale eye was made.
+        auto& p = aer_perf_r154_;
+        const double cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - blitStartR154).count();
+        ++p.blits; if (new_frame) ++p.newFrames;
+        // R156: how many game frames the stale eye's image trails the live one.
+        if (!flat_ui_frame && afr_cache_valid_[0] && afr_cache_valid_[1] &&
+            afr_cache_serial_[source_eye] > afr_cache_serial_[stale_eye] && afr_cache_serial_[stale_eye] != 0) {
+            const std::uint64_t age = afr_cache_serial_[source_eye] - afr_cache_serial_[stale_eye];
+            ++p.ageSamples; p.ageSum += age; p.ageMax = std::max(p.ageMax, age); if (age > 2) ++p.ageOver2;
+        }
+        if (nonblocking) ++p.nonblocking; else ++p.blocking;
+        p.cpuMs += cpuMs; p.maxCpuMs = std::max(p.maxCpuMs, cpuMs);
+        if (stale_warp_bound) ++p.warped; else { ++p.rotation; p.lastFallback = stale_warp_reason; }
+        const auto now = static_cast<std::uint64_t>(GetTickCount64());
+        if (!p.lastLog) p.lastLog = now;
+        if (now - p.lastLog >= 30000) {
+            const double secs = double(now - p.lastLog) / 1000.0;
+            char m[640]{};
+            std::snprintf(m, sizeof(m),
+                "R154 AER_PERF 30s gameEyeFrames/s=%.1f xrBlits/s=%.1f submit{ring:%llu blocking:%llu cpuWaitMsTotal:%.1f} "
+                "blitCpuMs{avg:%.3f max:%.3f} staleEye{warp6dofMv:%llu rotationOnly:%llu lastFallback:%s} warpMode=%d "
+                "R156{cachedAtSubmit:%llu staleAgeFrames{avg:%.2f max:%llu over2:%llu}}",
+                double(p.newFrames) / secs, double(p.blits) / secs, (unsigned long long)p.nonblocking, (unsigned long long)p.blocking,
+                p.waitMs, p.blits ? p.cpuMs / double(p.blits) : 0.0, p.maxCpuMs,
+                (unsigned long long)p.warped, (unsigned long long)p.rotation, p.lastFallback ? p.lastFallback : "", aer_warp_r154::Mode(),
+                (unsigned long long)p.cachedAtSubmit, p.ageSamples ? double(p.ageSum) / double(p.ageSamples) : 0.0,
+                (unsigned long long)p.ageMax, (unsigned long long)p.ageOver2);
+            diagnostic_trace::WriteStatus(m);
+            p = AerPerfR154{};
+            p.lastLog = now;
+        }
+    }
+    if (aerDump) {
+        std::string j; j.reserve(6144);
+        char b[768]{};
+        auto add = [&](const char* fmt, auto... args) { std::snprintf(b, sizeof(b), fmt, args...); j += b; };
+        AerRenderIdentity latest{}; const bool latestKnown = FrameSync::LatestAerRenderIdentity(latest, 1000);
+        add("\"serial\":%llu,\"sourceEye\":%d,\"newFrame\":%s,\"renderFrameIndex\":%llu,\"sourceState\":%u,",
+            (unsigned long long)serial, source_eye, new_frame ? "true" : "false", (unsigned long long)render_frame_index, (unsigned)source_state);
+        add("\"cacheSerial\":[%llu,%llu],", (unsigned long long)afr_cache_serial_[0], (unsigned long long)afr_cache_serial_[1]); // R156
+        add("\"cacheCameraFrame\":[%llu,%llu],\"cacheValid\":[%s,%s],\"presentationMode\":%d,\"uvReprojMode\":%d,\"alternateEyeWarp\":%s,",
+            (unsigned long long)afr_cache_camera_frame_[0], (unsigned long long)afr_cache_camera_frame_[1],
+            afr_cache_valid_[0] ? "true" : "false", afr_cache_valid_[1] ? "true" : "false", presentation_mode, uv_reproj_mode,
+            alternate_eye_warp_enabled_.load(std::memory_order_acquire) ? "true" : "false");
+        add("\"perEyeHistoricalPose\":%s,\"presentPosePairing\":%d,\"correctedViewVfovDeg\":%.6f,\"sourceVfovDeg\":%.6f,\"swapEyes\":%s,",
+            afr_per_eye_historical_pose_.load(std::memory_order_acquire) ? "true" : "false",
+            (int)present_pose_pairing_mode_.load(std::memory_order_acquire),
+            (double)corrected_view_vertical_fov_deg_.load(std::memory_order_acquire), (double)source_vertical_fov_deg,
+            swap_eyes_.load(std::memory_order_acquire) ? "true" : "false");
+        add("\"sourceDesc\":{\"width\":%llu,\"height\":%u,\"format\":%u},",
+            (unsigned long long)src_desc.Width, src_desc.Height, (unsigned)src_desc.Format);
+        add("\"latestIdentity\":{\"known\":%s,\"source\":%d,\"eye\":%d,\"publishSerial\":%llu,\"poseFrame\":%llu,\"renderFrame\":%u,\"mainEye\":%d},\"eyes\":[",
+            latestKnown ? "true" : "false", latest.source, latest.eye, (unsigned long long)latest.publishSerial,
+            (unsigned long long)latest.poseFrame, latest.renderFrame, latest.mainEye);
+        for (int eye = 0; eye < 2; ++eye) {
+            const auto& de = aerDumpEye[eye];
+            const auto ed = dsts[eye]->GetDesc();
+            add("%s{\"width\":%d,\"height\":%d,\"swapchainFormat\":%u,\"targetPoseFrame\":%llu,\"cachedPoseFrame\":%llu,\"frameIndex\":%llu,",
+                eye ? "," : "", eyes_[eye].width, eyes_[eye].height, (unsigned)ed.Format, (unsigned long long)de.targetPoseFrame,
+                (unsigned long long)de.cachedPoseFrame, (unsigned long long)de.frameIndex);
+            add("\"haveFrame\":%s,\"headValid\":%s,\"stereoViews\":%s,\"warp\":%s,\"cameraWarp\":%s,",
+                de.haveFrame ? "true" : "false", de.headValid ? "true" : "false", de.stereoViews ? "true" : "false",
+                de.warp ? "true" : "false", de.cameraWarp ? "true" : "false");
+            add("\"head\":{\"position\":[%.9g,%.9g,%.9g],\"orientation\":[%.9g,%.9g,%.9g,%.9g]},",
+                (double)de.head.position.x, (double)de.head.position.y, (double)de.head.position.z,
+                (double)de.head.orientation.x, (double)de.head.orientation.y, (double)de.head.orientation.z, (double)de.head.orientation.w);
+            add("\"eyePose\":{\"position\":[%.9g,%.9g,%.9g],\"orientation\":[%.9g,%.9g,%.9g,%.9g]},",
+                (double)de.eyePose.position.x, (double)de.eyePose.position.y, (double)de.eyePose.position.z,
+                (double)de.eyePose.orientation.x, (double)de.eyePose.orientation.y, (double)de.eyePose.orientation.z, (double)de.eyePose.orientation.w);
+            add("\"fov\":[%.9g,%.9g,%.9g,%.9g],\"present\":[",
+                (double)de.fov.angleLeft, (double)de.fov.angleRight, (double)de.fov.angleUp, (double)de.fov.angleDown);
+            for (int i = 0; i < 32; ++i) add("%s%.9g", i ? "," : "", std::isfinite(de.present[i]) ? (double)de.present[i] : 0.0);
+            j += "]";
+            CameraRotationSample rotationCached{}, rotationTarget{};
+            if (CameraHook::GetCameraRotationForPoseFrame(de.cachedPoseFrame, rotationCached)) {
+                j += ",\"cachedCameraRotation\":[";
+                for (int i = 0; i < 9; ++i) add("%s%.9g", i ? "," : "", (double)rotationCached.m[i]);
+                j += "]";
+            }
+            if (CameraHook::GetCameraRotationForPoseFrame(de.targetPoseFrame, rotationTarget)) {
+                j += ",\"targetCameraRotation\":[";
+                for (int i = 0; i < 9; ++i) add("%s%.9g", i ? "," : "", (double)rotationTarget.m[i]);
+                j += "]";
+            }
+            j += "}";
+        }
+        j += "]";
+        native_dlss_stereo_d82::AerDumpXrSetJson(aerDump, std::move(j));
+        native_dlss_stereo_d82::AerDumpXrCommit(aerDump, true, new_frame);
     }
     test_afr_blits_.fetch_add(1, std::memory_order_relaxed);
     if (used_openxr_fov_this_blit) test_fov_blits_.fetch_add(1, std::memory_order_relaxed);
@@ -2518,7 +3028,7 @@ bool XrManager::BlitGameImageToEyes(ID3D12Resource* source, ID3D12Resource* left
             }
         }
         present[15] = mono_depth_weight; // V61.35: presentPad now carries depthPushWeight
-        present[24] = output_gamma_.load(std::memory_order_acquire);
+        present[24] = Kcd2VrGammaWithDecodeR152(output_gamma_.load(std::memory_order_acquire), static_cast<DXGI_FORMAT>(swapchain_format_), srv_format, "mono"); // R152
         present[25] = output_brightness_.load(std::memory_order_acquire);
         present[26] = output_contrast_.load(std::memory_order_acquire);
         { const auto dw=depth_tex_width_.load(std::memory_order_acquire); const auto dh=depth_tex_height_.load(std::memory_order_acquire);
@@ -3109,7 +3619,8 @@ bool XrManager::SubmitBridgeImagesOnRenderThread(ID3D12Resource* left, ID3D12Res
         : DeviceHook::TryGetLatestPresentResourceIdentity(&source, &serial, &present_tick_for_source, &camera_frame_for_source);
     if (got) {
         const bool ok = stereo_mode == 1
-            ? BlitAfrStereoToEyes(source, source_eye, serial, left, right)
+            ? BlitAfrStereoToEyes(source, source_eye, serial, left, right,
+                D3D12_RESOURCE_STATE_PRESENT, camera_frame_for_source)
             : BlitGameImageToEyes(source, left, right);
         // V47.0: correlate EVERY XR copy with the exact KCD2 PRESENT and the
         // camera/XR frame that rendered it. Logging remains throttled, ownership does not.
@@ -3220,6 +3731,13 @@ void XrManager::OnRenderThreadTick(ID3D12CommandQueue* queue)
     std::uint64_t pickup_present_serial = 0;
     bool pickup_paired_r18 = false; // diagnostic source kind; never used by presentation ownership
     std::uint64_t pickup_wait_ms = 0;
+    // R156: ALT EYE caches every submitted game frame in its eye's image here, also
+    // when no XR frame is waiting; the XR blit then composes the newest of both.
+    if (active_vr_bridge_.load(std::memory_order_acquire) && !diagnostic_rendering_.load(std::memory_order_acquire)) {
+        int stereo_mode = -1;
+        { std::lock_guard<std::mutex> lock(render_mutex_); stereo_mode = render_request_presentation59c2_.policy.stereo; }
+        if (stereo_mode == 1) CacheAfrPresentR156();
+    }
     {
         std::unique_lock<std::mutex> lock(render_mutex_);
         if (!render_request_pending_ || render_request_in_progress_)
@@ -3558,6 +4076,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
 {
     diagnostics::xr165::Timer timing165(diagnostics::xr165::Frame);
     PollSessionEventsR105();
+    aer_warp_r154::Tick(); // R154: status line, and frees the warp's GPU memory once it stops running
     if (!session_running_.load(std::memory_order_relaxed)) { input_.InvalidateFrameR105();comfort_envelope51_.Reset();Sleep(8);return false; } // R106: no xrWaitFrame pacing while stopped - don't spin the worker
 
     // V58 live XR-resolution apply. Execute only on the XR worker before

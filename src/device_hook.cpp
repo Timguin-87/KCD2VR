@@ -1044,6 +1044,17 @@ bool DeviceHook::ExecuteCommandListsBypass(
     return true;
 }
 
+void DeviceHook::ResourceBarrierBypass(
+    ID3D12GraphicsCommandList* list, UINT count, const D3D12_RESOURCE_BARRIER* barriers)
+{
+    if (!list || !count || !barriers)
+        return;
+    if (auto original = s_original_resource_barrier)
+        original(list, count, barriers);
+    else
+        list->ResourceBarrier(count, barriers); // detour not installed: nothing to bypass
+}
+
 void DeviceHook::SetInternalVrCommandList(ID3D12GraphicsCommandList* list)
 {
     s_internal_vr_command_list.store(list, std::memory_order_release);
@@ -4521,7 +4532,15 @@ void __stdcall DeviceHook::DetourResourceBarrier(
                 old = s_latest_present_resource;
                 s_latest_present_resource = resource;
                 s_latest_present_command_list = list_this;
-                captured_eye = s_afr_stereo_capture.load(std::memory_order_acquire) ? FrameSync::CurrentEye() : 0;
+                // R149: alternate-eye PRESENT carries the eye of the camera its Normal
+                // pipeline actually rendered (exact publication match or calibrated
+                // render-frame parity). The main thread may already have published
+                // the next eye; CurrentEye() remains only the no-identity fallback.
+                AerRenderIdentity aer_present{};
+                const bool afr_capture = s_afr_stereo_capture.load(std::memory_order_acquire);
+                const bool aer_present_known = afr_capture && FrameSync::LatestAerRenderIdentity(aer_present,40) &&
+                    (aer_present.source==1 || aer_present.source==2);
+                captured_eye = afr_capture ? (aer_present_known ? (aer_present.eye & 1) : FrameSync::CurrentEye()) : 0;
                 s_latest_present_eye = captured_eye;
                 captured_serial = ++s_latest_present_serial;
                 s_latest_present_tick_ms = static_cast<std::uint64_t>(GetTickCount64());
@@ -4536,6 +4555,10 @@ void __stdcall DeviceHook::DetourResourceBarrier(
                     (latest_global_pose - renderer_match_candidate) <= 2ull;
                 const std::uint64_t renderer_owned_pose = renderer_match_fresh ? renderer_match_candidate : 0ull;
                 s_latest_present_camera_frame = renderer_owned_pose ? renderer_owned_pose : latest_global_pose;
+                // The V66.46 matcher ignores the IPD axis, so in AFR it can pick the
+                // same eye two frames apart. The exact AER match names the pose.
+                if (aer_present_known && aer_present.source==1 && aer_present.poseFrame)
+                    s_latest_present_camera_frame = aer_present.poseFrame;
                 if(FrameSync::HeadOwnershipFixEnabled()) {
                     static std::atomic<std::uint64_t> ownership_fix_samples{0};
                     const auto on=ownership_fix_samples.fetch_add(1,std::memory_order_relaxed)+1;

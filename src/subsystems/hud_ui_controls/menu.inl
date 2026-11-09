@@ -229,22 +229,28 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         Text(dc,dense,L"RIGHT CONTROLLER",842,116,196,22,kAccent,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
         // R118: the left column follows the chosen controller layout (STEAMVR / PS VR2: X hold = inventory).
         const bool xInventoryR118=controller_layout_r118::XHoldOpensInventory(s.live_d39.controllerLayoutR118);
-        Text(dc,dense,xInventoryR118?
+        Text(dc,dense,s.quick_access_left_thumbrest_r143?
+            L"LS: move / focus; L3: sprint\nLT: native block\nY / Triangle: horse / dog / info\nX/Square: tap talk / hold inventory\nLeft thumbrest + right stick: D-pad\nRight stick down: VR menu; up: held map\nRight A: wait; right B: pause\nMenu: inventory\nLeft grip: grab / support":
+            xInventoryR118?
             L"LS: move / focus; L3: sprint\nLT: native block\nY / Triangle: horse / dog / info\nX/Square: tap talk, hold inventory\nL modifier + X/Square hold: visor\nTorch: L trigger at L shoulder\nR modifier + Menu: pause\nR modifier + X/Square hold: wait\nR modifier + LS L/R: D-pad\nR modifier + LS down: VR menu\nR modifier + LS up: held map\nLeft grip: grab / support":
             L"LS: move / focus; L3: sprint\nLT: native block\nY / Triangle: horse / dog / info\nX / Square: tap talk, hold torch\nL modifier + X/Square hold: visor\nMenu: inventory\nR modifier + Menu: pause\nR modifier + X/Square hold: wait\nR modifier + LS L/R: D-pad\nR modifier + LS down: VR menu\nR modifier + LS up: held map\nLeft grip: grab / support",620,145,196,162,kText,DT_LEFT|DT_WORDBREAK);
-        Text(dc,dense,L"RS L/R: turn; up: jump; down: crouch\nR3: kick / special\nAttack: swing / thrust; bow RT pull\nA / Cross: use / talk / hold\nB / Circle: contextual Back\nHold B/Circle: recovery Escape\nPages: R modifier + LS L/R\nor flick over the book (PAGES)\nRight grip: free view / grab\nL3+R3 hold 0.6 s / F7: VR menu",842,145,196,162,kText,DT_LEFT|DT_WORDBREAK);
+        Text(dc,dense,s.quick_access_left_thumbrest_r143?
+            L"RS L/R: turn; up: jump; down: crouch\nWith left modifier: RS D-pad / map / VR menu\nR3: kick / special\nAttack: swing / thrust; bow RT pull\nA / Cross: use; modifier + A: Wait\nB / Circle: contextual Back; modifier + B: Pause\nPages: left modifier + RS L/R\nRight grip: free view / grab\nL3+R3 hold 0.6 s / F7: VR menu":
+            L"RS L/R: turn; up: jump; down: crouch\nR3: kick / special\nAttack: swing / thrust; bow RT pull\nA / Cross: use / talk / hold\nB / Circle: contextual Back\nHold B/Circle: recovery Escape\nPages: R modifier + LS L/R\nor flick over the book (PAGES)\nRight grip: free view / grab\nL3+R3 hold 0.6 s / F7: VR menu",842,145,196,162,kText,DT_LEFT|DT_WORDBREAK);
         if(developer_mode::Enabled())Text(dc,dense,L"F2 bugs | F3 combat | F5 interactions | Shift+F7 VRIK | F11 reload",620,312,418,18,kMuted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
         const unsigned modifierHandsR112=s.quick_access_available_hands_r112&3u;
-        const wchar_t* modifierHelpR112=!s.quick_access_face_touch_r112?
-            L"Modifier: left/right thumbrest. Choose FACE TOUCH for controllers without a thumbrest.":
-            modifierHandsR112==3?L"Modifier: touch Y/Triangle (left) or B/Circle (right), without pressing. Clicks keep their normal actions.":
-            modifierHandsR112==1?L"Left Y/Triangle touch ready; right B/Circle touch unavailable. Touch without pressing.":
-            modifierHandsR112==2?L"Right B/Circle touch ready; left Y/Triangle touch unavailable. Touch without pressing.":
-            L"Face touch unavailable. The runtime must expose Y/Triangle and B/Circle touch. Clicks are unchanged.";
+        const wchar_t* modifierHelpR112=s.quick_access_face_touch_r112?
+            (modifierHandsR112==3?L"Modifier: touch Y/Triangle (left) or B/Circle (right), without pressing. Clicks keep their normal actions.":
+             modifierHandsR112==1?L"Left Y/Triangle touch ready; right B/Circle touch unavailable. Touch without pressing.":
+             modifierHandsR112==2?L"Right B/Circle touch ready; left Y/Triangle touch unavailable. Touch without pressing.":
+             L"Face touch unavailable. The runtime must expose Y/Triangle and B/Circle touch. Clicks are unchanged."):
+            s.quick_access_left_thumbrest_r143?
+            L"Modifier: left thumbrest. Right stick = D-pad, map and VR menu; A = Wait, B = Pause.":
+            L"Modifier: right thumbrest + left stick. Choose FACE TOUCH for controllers without a thumbrest.";
         Text(dc,dense,modifierHelpR112,620,335,418,28,kMuted,DT_LEFT|DT_WORDBREAK);
         {wchar_t layoutR118[48]{};std::swprintf(layoutR118,std::size(layoutR118),L"LAYOUT: %ls",controller_layout_r118::Name(s.live_d39.controllerLayoutR118));
          DrawButton(dc,dense,kControllerLayoutR118,layoutR118,s.live_d39.controllerLayoutR118?kAccent:kPanel2);} // R118
-        DrawButton(dc,dense,kQuickAccessTouchR112,s.quick_access_face_touch_r112?L"MODIFIER: FACE TOUCH":L"MODIFIER: THUMBREST",s.quick_access_face_touch_r112?kAccent:kPanel2);
+        DrawButton(dc,dense,kQuickAccessTouchR112,s.quick_access_face_touch_r112?L"MODIFIER: FACE TOUCH":s.quick_access_left_thumbrest_r143?L"MODIFIER: LEFT THUMBREST":L"MODIFIER: RIGHT THUMBREST",(s.quick_access_face_touch_r112||s.quick_access_left_thumbrest_r143)?kAccent:kPanel2);
         DrawButton(dc,dense,kV4CtrlHeadLook,s.native_activity_controls163?L"ACTIVITY GAMEPAD: ON":L"ACTIVITY GAMEPAD: OFF",s.native_activity_controls163?kAccent:kPanel2);
         DrawButton(dc,dense,kV4CtrlSnap,L"SNAP TURN",s.vr_turn_mode==0?kAccent:kPanel2);
         DrawButton(dc,dense,kV4CtrlSmooth,L"SMOOTH TURN",s.vr_turn_mode==1?kAccent:kPanel2);
@@ -264,10 +270,14 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
 
 #elif defined(KCD2VR_MENU_CLICK_VRCONTROLS)
 
-        if(PtIn(kQuickAccessTouchR112,x,y)){s.quick_access_face_touch_r112=!s.quick_access_face_touch_r112;ApplyState(s);save();MarkDirty();return;}
+        if(PtIn(kQuickAccessTouchR112,x,y)){
+            if(s.quick_access_face_touch_r112){s.quick_access_face_touch_r112=false;s.quick_access_left_thumbrest_r143=false;}
+            else if(s.quick_access_left_thumbrest_r143){s.quick_access_left_thumbrest_r143=false;s.quick_access_face_touch_r112=true;}
+            else s.quick_access_left_thumbrest_r143=true;
+            ApplyState(s);save();MarkDirty();return;}
         // R118: OPENXR -> STEAMVR -> PS VR2; the choice applies its modifier preset (PS VR2 = face touch), MODIFIER still toggles after.
         if(PtIn(kControllerLayoutR118,x,y)){(void)live_settings_d39::advance(s,live_settings_d39::Id::ControllerLayoutR118);ApplyState(s);save();
-            char m[96]{};std::snprintf(m,sizeof(m),"R118-CONTROLS layout=%s faceTouch=%d",controller_layout_r118::NameA(s.live_d39.controllerLayoutR118),s.quick_access_face_touch_r112?1:0);diagnostic_trace::Write(m);MarkDirty();return;}
+            char m[128]{};std::snprintf(m,sizeof(m),"R143-CONTROLS layout=%s modifier=%s",controller_layout_r118::NameA(s.live_d39.controllerLayoutR118),s.quick_access_face_touch_r112?"FACE_TOUCH":s.quick_access_left_thumbrest_r143?"LEFT_THUMBREST":"RIGHT_THUMBREST");diagnostic_trace::Write(m);MarkDirty();return;}
         if(PtIn(kV4CtrlHeadLook,x,y)){ s.native_activity_controls163=!s.native_activity_controls163; ApplyState(s); diagnostic_trace::Write(s.native_activity_controls163?"V66.163-CONTROLS activity gamepad ON (session only)":"V66.163-CONTROLS activity gamepad OFF"); MarkDirty(); return; }
         if(PtIn(kV4CtrlSnap,x,y)){ s.vr_turn_mode=0; ApplyState(s); save(); diagnostic_trace::Write("V64.17-CONTROLS turn=SNAP"); return; }
         if(PtIn(kV4CtrlSmooth,x,y)){ s.vr_turn_mode=1; ApplyState(s); save(); diagnostic_trace::Write("V64.17-CONTROLS turn=SMOOTH"); return; }

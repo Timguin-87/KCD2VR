@@ -1067,7 +1067,7 @@ static bool BeginCoherent6689(CoherentTransaction6689& tx,void* pose,void* owner
     bool presenceOwnedH24[2]{};ph::Pose presenceWristH24[2]{};
     ModelWorld6692 handWorldH24{};handPolicyH24::Input identityH24{};
     const auto handNowH24=std::uint64_t(GetTickCount64());
-    const bool presenceBaseH24=g_native_hand_physics_h24.load(std::memory_order_acquire)&&
+    const bool presenceBaseH24=!directHandsR135&&g_native_hand_physics_h24.load(std::memory_order_acquire)&&
         !nativeFingerCapture&&!readingVisual32&&!tx.reloadWorkingHandXR34&&
         ReadModelWorld6692(character,handWorldH24)&&HandPresenceIdentityH24(character,tx.epoch,identityH24);
     for(int side=0;side<2;++side){

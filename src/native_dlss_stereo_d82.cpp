@@ -1,19 +1,32 @@
 #include "native_dlss_stereo_d82.h"
+#include "native_dlss_aer_dump_d82.h"
+#include "aer_warp_r154.h"
 #include "native_stereo_preflight_v6602.h"
 #include "diagnostic_trace.h"
 #include "diagnostics/capture168.h"
+#include "frame_sync.h"
+#include "camera_hook.h"
+#include "build_identity.h"
 #include <DetourModKit/hook.hpp>
 #include <windows.h>
 #include <d3d12.h>
+#include <d3dcompiler.h>
+#include <wrl/client.h>
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cmath>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
 #include <optional>
 #include <iterator>
+#include <string>
+#include <thread>
 #include <utility>
+#include <vector>
 
 namespace kcd2vr::native_dlss_stereo_d82 { namespace {
 DWORD SaveNativeError() noexcept {return GetLastError();}
@@ -68,6 +81,8 @@ void ReportEvaluationInputs(unsigned eye,std::uint64_t epoch,std::uint32_t frame
     int nativeReset,bool effectiveReset) noexcept;
 
 #include "native_dlss_stereo_d82_runtime.inl"
+#include "native_dlss_aer_d82.inl"
+#include "native_dlss_aer_dump_d82.inl"
 
 void ReportEvaluationInputs(unsigned eye,std::uint64_t epoch,std::uint32_t frame,void* parameters,
     int nativeReset,bool effectiveReset) noexcept {
@@ -109,7 +124,10 @@ constexpr Pin kPins[]{
  {"NVSDK_NGX_Parameter_GetI",0x1BE3B80,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}},
  {"NVSDK_NGX_Parameter_SetI",0x1BE3E60,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}},
  {"NVSDK_NGX_Parameter_GetF",0x1BE3B20,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}},
- {"NVSDK_NGX_Parameter_GetD3d12Resource",0x1BE3AC0,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}}
+ {"NVSDK_NGX_Parameter_GetD3d12Resource",0x1BE3AC0,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}},
+ // R149 alternate-eye: scoped MotionVectors substitution and unsigned subrect reads.
+ {"NVSDK_NGX_Parameter_SetD3d12Resource",0x1BE3DB0,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}},
+ {"NVSDK_NGX_Parameter_GetUI",0x1BE3BE0,{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7C,0x24,0x18,0x41}}
 };
 std::array<std::optional<DetourModKit::hook::Hook>,5> g_hooks;
 std::mutex g_install_mutex;
@@ -156,6 +174,8 @@ bool Install() noexcept {
     }
     g_get_i=reinterpret_cast<GetIntFn>(addresses[5]);g_set_i=reinterpret_cast<SetIntFn>(addresses[6]);
     g_get_f=reinterpret_cast<GetFloatFn>(addresses[7]);g_get_resource=reinterpret_cast<GetResourceFn>(addresses[8]);
+    g_set_resource=reinterpret_cast<SetResourceFn>(addresses[9]);g_get_ui=reinterpret_cast<GetUIntFn>(addresses[10]);
+    g_wh_base=reinterpret_cast<std::uintptr_t>(module);
     const bool prepared=Prepare(0,addresses[0],static_cast<CreateFn>(&CreateDetour),g_create) &&
         Prepare(1,addresses[1],static_cast<EvaluateFn>(&EvaluateDetour),g_evaluate) &&
         Prepare(2,addresses[2],static_cast<EvaluateFn>(&EvaluateCDetour),g_evaluate_c) &&
@@ -236,4 +256,75 @@ void LogStatus(const char* reason) noexcept {
     diagnostic_trace::Write(line);
 }
 void Stop() noexcept {SetEnabled(false);}
+
+void SetAlternateEyeMode(bool enabled) noexcept {
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
+    if(g_alternate_eye.exchange(enabled,std::memory_order_acq_rel)!=enabled) {
+        // A new routing owner: no history, receipt or stereo-pair fault survives.
+        g_generation.fetch_add(1,std::memory_order_acq_rel);
+        for(auto& p:g_pairs)Invalidate(p);
+        for(auto& receipt:g_receipts)ClearReceipt(receipt);
+        g_fault.store(Fault::None,std::memory_order_release);
+        char line[160]{};std::snprintf(line,sizeof(line),"R149 AER_DLSS routing=%s motionMode=%d",
+            enabled?"ALTERNATE_EYE_PER_EYE_HISTORY":"OFF",g_aer_motion_mode.load(std::memory_order_acquire));
+        diagnostic_trace::WriteStatus(line);
+    }
+}
+void SetAlternateEyeMotionMode(int mode) noexcept {
+    mode=std::clamp(mode,0,2);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
+    if(g_aer_motion_mode.exchange(mode,std::memory_order_acq_rel)!=mode)
+        for(auto& p:g_pairs)Invalidate(p);
+}
+int AlternateEyeMotionMode() noexcept {return g_aer_motion_mode.load(std::memory_order_acquire);}
+
+bool RequestAerFrameDump(unsigned frames,unsigned delayMs) noexcept {
+    if(!g_alternate_eye.load(std::memory_order_acquire)||!g_enabled.load(std::memory_order_acquire)){
+        diagnostic_trace::WriteStatus("R149 AER_DUMP refused reason=ALTERNATE_EYE_DLSS_NOT_ACTIVE");
+        return false;
+    }
+    return AerDumpRequestInternal(frames,delayMs);
+}
+bool AerFrameDumpBusy() noexcept {return g_dump.phase.load(std::memory_order_acquire)!=kAerDumpIdle;}
+void AerFrameDumpRenderTick(void* directQueue,bool presentSubmitted) noexcept {
+    AerDumpRenderTickInternal(static_cast<ID3D12CommandQueue*>(directQueue),presentSubmitted);
+}
+
+struct AerDumpXrCapture : AerDumpXrCaptureBody {};
+bool AerDumpXrWanted() noexcept {return g_dump.xrWanted.load(std::memory_order_acquire);}
+AerDumpXrCapture* AerDumpXrBegin(ID3D12Device* device) noexcept {
+    if(!device||!AerDumpXrWanted())return nullptr;
+    try{return new AerDumpXrCapture{};}catch(...){return nullptr;}
+}
+bool AerDumpXrCopy(AerDumpXrCapture* capture,ID3D12GraphicsCommandList* list,ID3D12Resource* resource,
+                   D3D12_RESOURCE_STATES state,const char* name) noexcept {
+    if(!capture||!list||!resource)return false;
+    ID3D12Device* raw=nullptr;
+    if(FAILED(list->GetDevice(IID_PPV_ARGS(&raw)))||!raw)return false;
+    Microsoft::WRL::ComPtr<ID3D12Device> device;device.Attach(raw);
+    char stateName[32]{};std::snprintf(stateName,sizeof(stateName),"0x%X",static_cast<unsigned>(state));
+    try{return AerDumpDirect(device.Get(),list,resource,state,name?name:"xr",stateName,capture->record.textures);}
+    catch(...){return false;}
+}
+void AerDumpXrSetJson(AerDumpXrCapture* capture,std::string json) noexcept {
+    if(capture)capture->record.json=std::move(json);
+}
+void AerDumpXrCommit(AerDumpXrCapture* capture,bool executed,bool newFrame) noexcept {
+    if(!capture)return;
+    {
+        std::lock_guard<std::mutex> lock(g_dump.mutex);
+        auto& d=g_dump;
+        if(!executed){
+            // The list may still reference these readbacks; never release them.
+            for(auto& t:capture->record.textures)if(t.readback)d.neverRelease.push_back(t.readback);
+        }else if(d.phase.load()==kAerDumpCapturing&&d.xrWanted.load()){
+            capture->record.kind="xr";capture->record.index=d.xrBlits++;
+            if(newFrame)++d.xrNewFrames;
+            if(capture->record.json.empty())capture->record.json="\"note\":\"no metadata\"";
+            try{d.records.push_back(std::move(capture->record));}catch(...){}
+            if(d.xrNewFrames>=d.framesWanted+1||d.xrBlits>=d.xrMaxBlits)d.xrWanted.store(false,std::memory_order_release);
+        }
+    }
+    delete capture;
+}
 }

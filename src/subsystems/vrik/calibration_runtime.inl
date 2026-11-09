@@ -239,6 +239,7 @@ struct CalibrationReceiptsH46 {
  void flush() const noexcept {for(unsigned i=0;i<count;++i)diagnostic_trace::Write(lines[i]);}
 };
 static void ApplySessionCalibrationH46(const TrackingSnapshot&ts,const QuatT28&head,void* character,std::uint64_t loadH46,const kcd2vr::tracking125::Origin* referenceH46,CalibrationReceiptsH46& receipts) noexcept {
+ const bool directHandsR135=g_direct_controller_hands_r135.load(std::memory_order_acquire);
  const bool sharedH46=referenceH46!=nullptr;
  const auto originH46=sharedH46?VP(referenceH46->position):ts.head;
  const auto heading=sharedH46?referenceH46->yaw:kcd2vr::tracking125::yaw_only(PQ(ts.hq),{0,g_cal_hq_z.load(),0,g_cal_hq_w.load()});
@@ -281,8 +282,9 @@ static void ApplySessionCalibrationH46(const TrackingSnapshot&ts,const QuatT28&h
  // Yaw-only neutral: starting while looking down must not redefine down as neutral.
  g_cal_hq_x=0;g_cal_hq_y=0;g_cal_hq_z=-frame.z;g_cal_hq_w=frame.w;
  {// C43: Henry's head anchor comes from the calibration, not from whatever stance/knockdown pose he is in right now.
+  // R135 direct hands discard that F8 anchor too; only the saved standing-eye height survives.
   const float live43[3]{head.t[0],head.t[1],head.t[2]},cal43[3]{g_cal_anchor_x43.load(),g_cal_anchor_y43.load(),g_cal_anchor_z43.load()};
-  const bool keep43=kcd2vr::calibration_restore43::keepCalibratedAnchor(g_cal_anchor_saved43.load(std::memory_order_acquire),cal43,live43);
+  const bool keep43=!directHandsR135&&kcd2vr::calibration_restore43::keepCalibratedAnchor(g_cal_anchor_saved43.load(std::memory_order_acquire),cal43,live43);
   const float drift43=keep43?kcd2vr::calibration_restore43::anchorDriftM(cal43,live43):0.f;
   if(keep43){g_cal_native_head_x=cal43[0];g_cal_native_head_y=cal43[1];g_cal_native_head_z=cal43[2];}
   else{g_cal_native_head_x=head.t[0];g_cal_native_head_y=head.t[1];g_cal_native_head_z=head.t[2];}
@@ -305,9 +307,10 @@ static void ApplySessionCalibrationH46(const TrackingSnapshot&ts,const QuatT28&h
 }
 static void RestoreSessionCalibration66100(const TrackingSnapshot&ts,const QuatT28&head,void* character=nullptr) noexcept {
  const auto loadH46=kcd2vr::inventory_lifecycle_t8::loadEpisode18.load(std::memory_order_acquire);
- if(character&&(g_cal_character_h46!=character||g_cal_load_h46!=loadH46)&&g_saved_arm_ready66100.load(std::memory_order_acquire))
+ const bool directHandsR135=g_direct_controller_hands_r135.load(std::memory_order_acquire);
+ if(character&&(g_cal_character_h46!=character||g_cal_load_h46!=loadH46)&&(g_saved_arm_ready66100.load(std::memory_order_acquire)||directHandsR135))
      g_cal_reanchor66100.store(true,std::memory_order_release);
- if(!g_cal_reanchor66100.load(std::memory_order_acquire)||!g_saved_arm_ready66100.load(std::memory_order_acquire)||g_arm_capture_active66100.load()||!ts.allowed||!ts.head_valid||!ValidPose6689(head))return;
+ if(!g_cal_reanchor66100.load(std::memory_order_acquire)||(!g_saved_arm_ready66100.load(std::memory_order_acquire)&&!directHandsR135)||g_arm_capture_active66100.load()||!ts.allowed||!ts.head_valid||!ValidPose6689(head))return;
  const auto now=static_cast<std::uint64_t>(GetTickCount64());if(!ts.tick||now<ts.tick||now-ts.tick>100)return;
  const double qnorm=double(ts.hq.x)*ts.hq.x+double(ts.hq.y)*ts.hq.y+double(ts.hq.z)*ts.hq.z+double(ts.hq.w)*ts.hq.w;
  if(!std::isfinite(qnorm)||qnorm<.90||qnorm>1.10)return;

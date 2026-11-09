@@ -2,6 +2,7 @@
 #include "ui_back_hold135r2.h"
 #include "subsystems/throw_drop/hand_claim_t24.h"
 #include "controller_layout_r118.h" // R118: X hold = torch (OPENXR) or inventory (STEAMVR / PS VR2)
+#include "quick_access_r112.h" // R143: selectable modifier side
 #include "subsystems/experimental/free_targeting_plus_r133.h" // R133: the player's own turn input
 #include <windows.h>
 #include <algorithm>
@@ -54,6 +55,9 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
     State p{};
     const auto now=static_cast<std::uint64_t>(GetTickCount64());
     const bool modifier=r.quick_access_touch;
+    const bool leftModifierLayerR143=modifier&&quick_access_r112::LeftThumbrest()&&!c.back_context&&!c.quick_talk_open54;
+    const float modifierStickX=leftModifierLayerR143?r.thumb_x:l.thumb_x;
+    const float modifierStickY=leftModifierLayerR143?r.thumb_y:l.thumb_y;
     const bool rg=r.grip>0.55f;
     const bool ui=c.theater||c.contextual_ui||c.system_menu||c.dialogue_navigation;
     const bool authored=c.semantic_minigame;
@@ -135,15 +139,16 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
         p.a=r.a_down; p.b=context_b; p.x=xUiR118; p.y=l.y_down;
         p.lt=Trigger168(l.trigger); p.rt=Trigger168(r.trigger);
         if(modifier) {
-            if(l.thumb_x<-kDigital)p.dpad_left=true;
-            if(l.thumb_x> kDigital)p.dpad_right=true;
-            if(l.thumb_y> kDigital)p.dpad_up=true;
-            if(l.thumb_y<-kDigital)p.dpad_down=true;
+            if(modifierStickX<-kDigital)p.dpad_left=true;
+            if(modifierStickX> kDigital)p.dpad_right=true;
+            if(modifierStickY> kDigital)p.dpad_up=true;
+            if(modifierStickY<-kDigital)p.dpad_down=true;
         }
         // Quest left Menu is the Xbox View/Back-equivalent while an authored
         // minigame exposes Help.  The keyboard fallback mirrors this with T.
         p.back=l.menu_down;
-        if(modifier&&(p.dpad_left||p.dpad_right||p.dpad_up||p.dpad_down)){p.lx=0;p.ly=0;}
+        if(modifier&&(p.dpad_left||p.dpad_right||p.dpad_up||p.dpad_down)){
+            if(leftModifierLayerR143){p.rx=0;p.ry=0;}else{p.lx=0;p.ly=0;}}
         return p;
     }
 
@@ -155,9 +160,10 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
         p.rx=Axis(r.thumb_x,kTurnDead);p.ry=Axis(r.thumb_y,kTurnDead);
         p.l3=l.thumbstick_down;p.r3=r.thumbstick_down;
         if(modifier) {
-            p.dpad_left=l.thumb_x<-kDigital;p.dpad_right=l.thumb_x>kDigital;
-            p.dpad_up=l.thumb_y>kDigital;p.dpad_down=l.thumb_y<-kDigital;
-            if(p.dpad_left||p.dpad_right||p.dpad_up||p.dpad_down){p.lx=0;p.ly=0;}
+            p.dpad_left=modifierStickX<-kDigital;p.dpad_right=modifierStickX>kDigital;
+            p.dpad_up=modifierStickY>kDigital;p.dpad_down=modifierStickY<-kDigital;
+            if(p.dpad_left||p.dpad_right||p.dpad_up||p.dpad_down){
+                if(leftModifierLayerR143){p.rx=0;p.ry=0;}else{p.lx=0;p.ly=0;}}
         }
         if(c.dialogue_navigation){
             // Dialogue is immersive, but all navigation uses retail XI axes/D-pad.
@@ -188,27 +194,32 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
     // Immersive gameplay. RIGHT thumbrest + left-stick Left/Right is the exact
     // native quick-access D-pad state. Up/Down are intentionally NOT emitted:
     // they remain KCD2VR Map / VR-menu utility directions in gameplay.
-    const bool ql=modifier&&l.thumb_x<-kDigital;
-    const bool qr=modifier&&l.thumb_x> kDigital;
-    const bool qu=modifier&&l.thumb_y> kDigital;
-    const bool qd=modifier&&l.thumb_y<-kDigital;
+    const bool ql=modifier&&modifierStickX<-kDigital;
+    const bool qr=modifier&&modifierStickX> kDigital;
+    const bool qu=modifier&&modifierStickY> kDigital;
+    const bool qd=modifier&&modifierStickY<-kDigital;
     const bool utility=ql||qr||qu||qd;
     p.gameplay_r133=true;
     // R133: FREE PLUS lets the player's own turns through (stick or snap pulse), only the game's turns are held.
     if(r.active&&std::fabs(r.thumb_x)>0.35f)kcd2vr::free_targeting_r133::userTurnMs.store(now,std::memory_order_release);
-    if(!utility){p.lx=Axis(l.thumb_x,kMoveDead);p.ly=Axis(l.thumb_y,kMoveDead);p.l3=l.thumbstick_down;}
+    if(leftModifierLayerR143){
+        // Left thumbrest keeps locomotion on the left stick and moves the
+        // existing utility D-pad layer to the right stick.
+        p.lx=Axis(l.thumb_x,kMoveDead);p.ly=Axis(l.thumb_y,kMoveDead);p.l3=l.thumbstick_down;
+        if(utility){p.rx=0.0f;p.ry=0.0f;p.dpad_left=ql&&!g_talk_weapon_quarantineH4;p.dpad_right=qr&&!g_talk_weapon_quarantineH4;}
+    }else if(!utility){p.lx=Axis(l.thumb_x,kMoveDead);p.ly=Axis(l.thumb_y,kMoveDead);p.l3=l.thumbstick_down;}
     else {p.dpad_left=ql&&!g_talk_weapon_quarantineH4;p.dpad_right=qr&&!g_talk_weapon_quarantineH4;}
 
     // Right Grip owns the existing weapon/free-look/bow precision path.  With
     // no Grip, RS-X turns and RS Up/Down are VR Jump/Crouch semantics.
-    if(!rg||c.grip_weapon_comparison114){
+    if((!rg||c.grip_weapon_comparison114)&&!leftModifierLayerR143){
         p.rx=c.snap_turn_d37?0.0f:Axis(r.thumb_x,kTurnDead);p.ry=0.0f;
         if(!c.back_context&&r.thumb_y> kDigital)p.b=true;      // retail gamepad jump family in current profile
         if(r.thumb_y<-kDigital)p.r3=true;    // retail crouch family
     }
 
     p.lt=Trigger168(l.trigger);p.rt=Trigger168(r.trigger);
-    p.a=r.a_down;p.y=l.y_down;
+    p.a=r.a_down&&!leftModifierLayerR143;p.y=l.y_down;
 
     // X without thumbrest keeps the proven Torch/Visor gamepad family.  The
     // thumbrest+X Wait chord is handled by TouchBindings through KCD2's proven
@@ -254,6 +265,7 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
     // C45: physical B was a second Quick-Speak button (published as the RB shoulder family) - confusing next to
     // X, whose glyph the companion profile now shows. Off by default; INI VrBQuickTalk=1 restores it.
     if(c.back_context)p.b=context_b;
+    else if(leftModifierLayerR143)p.b=false;
     else if(utilityRightT24&&!g_back_hold.Consumed()&&!modifier&&r.b_down&&g_b_quick_talk45.load(std::memory_order_relaxed))p.rb=true;
     return p;
 }

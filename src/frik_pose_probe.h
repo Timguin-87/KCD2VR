@@ -345,8 +345,9 @@ bool RestoreCalibration43(const char* owner) noexcept;
 void SetTrackingOriginProbeH46(kcd2vr::tracking125::OriginReaderH46 probe) noexcept;
 // Menu RESTORE CALIBRATION: the next recenter re-seats with the standing correction even when auto restore is off.
 void ForceCalibrationRestore43() noexcept;
-// Receipt helper: the published VR camera position (mod.cpp passes CameraHook::GetLatestVisualPositionWorld).
+// Camera anchor receipt: the published cyclopean center incl. camera offsets (excludes per-eye IPD).
 void SetViewPositionProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept;
+void SetViewForwardProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept;
 // A stored calibration exists (arm profile from INI or this session's F8) and can be applied without a new T-pose.
 bool CalibrationStored43() noexcept;
 void BeginFingerCapture() noexcept;
@@ -362,6 +363,16 @@ void ResetCalibration() noexcept;
 // wrist targets and zero learned wrist offsets remain authoritative.
 void RequestCalibrationFromRecenter() noexcept;
 bool CalibrationReady() noexcept;
+// R135: use tracked grip poses directly for free hands. F8 remains the legacy mapping.
+void SetDirectControllerHandsR135(bool on) noexcept;
+bool DirectControllerHandsR135() noexcept;
+// R150: hand offsets [side*6+{posX,posY,posZ cm (+-20), pitch,yaw,roll deg (+-180)}], side 0 right, 1 left.
+void SetHandOffsetsR150(const float (&v)[12]) noexcept;
+void HandOffsetsR150(float (&v)[12]) noexcept;
+// R153 HAND ALIGN: start freezes that hand (0 right, 1 left); release then squeeze grip solves its offsets. start=false cancels.
+void RequestHandAlignR153(int side,bool start) noexcept;
+int HandAlignStateR153(int side) noexcept; // 0 idle, 1 frozen (release grip), 2 frozen (squeeze grip to set)
+unsigned HandAlignSerialR153() noexcept;   // increments on every solved alignment
 // Current guided T-pose accumulator; only pose=1 is active. No wrist-offset learning.
 void BeginGuidedCalibrationPose(int pose) noexcept;
 void EndGuidedCalibrationPose(int pose) noexcept;

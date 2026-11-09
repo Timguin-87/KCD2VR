@@ -131,6 +131,7 @@ private:
     bool y_long_sent_=false;
     bool b_prev_down_=false;
     bool b_quick_reply_eligible175_=false;
+    bool modifier_a_prev_r143_=false,modifier_b_prev_r143_=false;
     bool b_context_back_held_=false;
     std::uint64_t b_down_since_=0;
     bool b_long_sent_=false;

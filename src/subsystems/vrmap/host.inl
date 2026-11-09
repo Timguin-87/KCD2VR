@@ -26,7 +26,10 @@
             (native_ui_snapshot.Open(ui_native_state::Loading)?512u:0u)|(native_ui_snapshot.Open(ui_native_state::Progress)?1024u:0u)|
             (ui89_policy.owner!=ui_menu_router::Owner::None?2048u:0u)|(ui89_policy.uncertain!=0?4096u:0u);
         held_map_m1::PublishAllowed(mapRefusalH24==0,GetTickCount64());
-        const bool rawMapChordH24=gpR.quick_access_touch&&gpL.thumb_y>=.62f&&std::fabs(gpL.thumb_x)<=gpL.thumb_y;
+        const bool leftModifierMapH24=kcd2vr::quick_access_r112::LeftThumbrest();
+        const float modifierMapXH24=leftModifierMapH24?gpR.thumb_x:gpL.thumb_x;
+        const float modifierMapYH24=leftModifierMapH24?gpR.thumb_y:gpL.thumb_y;
+        const bool rawMapChordH24=gpR.quick_access_touch&&modifierMapYH24>=.62f&&std::fabs(modifierMapXH24)<=modifierMapYH24;
         static bool rawMapPreviousH24=false;static unsigned rawMapReceiptsH24=0;
         if(rawMapChordH24!=rawMapPreviousH24&&rawMapReceiptsH24<32){++rawMapReceiptsH24;char m[256]{};
             std::snprintf(m,sizeof(m),"H24 MAP_INPUT edge=%s selected=%d requested=%d refusalMask=%u blocksGameplay=%d activeL=%d activeR=%d",

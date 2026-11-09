@@ -198,6 +198,7 @@ void TouchBindings::Reset()
     if(b_x_held_){ KeyUp(config_.horse_dog); b_x_held_=false; }
     menu_prev_=y_prev_=x_prev_=false; x_prev_down_=false; x_down_since_=0; x_long_sent_=false;
     b_prev_down_=false; b_down_since_=0; b_long_sent_=false;b_quick_reply_eligible175_=false;
+    modifier_a_prev_r143_=modifier_b_prev_r143_=false;
     right_grip_prev_down_=false; right_grip_since_=0; right_grip_used_as_modifier_=false;
     torch_chord_prev_=false; vr_menu_chord_prev_=false; vr_menu_chord_since_=0; sticks_menu_chord_prev_r112_=false; sticks_menu_chord_since_r112_=0; map_chord_latched_=false; map_chord_since_=0;
     y_prev_down_=false; y_down_since_=0; y_long_sent_=false;
@@ -218,7 +219,8 @@ void TouchBindings::Reset()
 
 bool TouchBindings::UpdatePauseChord58c2(ControllerState& left,const ControllerState& right,bool allowed)
 {
-    const auto d=pause_chord58c2_.update(enabled_&&left.active&&right.active,allowed,left.menu_down,right.quick_access_touch);
+    const bool oldModifier=right.quick_access_touch&&!quick_access_r112::LeftThumbrest();
+    const auto d=pause_chord58c2_.update(enabled_&&left.active&&right.active,allowed&&oldModifier,left.menu_down,right.quick_access_touch);
     if(d.consume){ConsumeMenuUntilRelease174r2();left.menu_down=false;}
     if(d.fire){KeyTap(config_.pause);debug_trace::Write("R58C2 R_THUMBREST_MENU pause edge native=ESCAPE inventory=CONSUMED");}
     return d.fire;
@@ -226,7 +228,8 @@ bool TouchBindings::UpdatePauseChord58c2(ControllerState& left,const ControllerS
 
 bool TouchBindings::UpdateBackEscapeM1(const ControllerState& right,bool allowed,std::uint64_t input_generation)
 {
-    if(!back_escape_m1_.Update(enabled_&&right.active&&right.b_valid,allowed,right.b_down,GetTickCount64(),input_generation))return false;
+    const bool altModifierButton=quick_access_r112::LeftThumbrest()&&right.quick_access_touch;
+    if(!back_escape_m1_.Update(enabled_&&right.active&&right.b_valid,allowed&&!altModifierButton,right.b_down,GetTickCount64(),input_generation))return false;
     // End only this transport's own held Escape before the explicit down/up
     // pair. Native XI B and physical Grip state remain unchanged.
     if(config_.pause==VK_ESCAPE)SetKeyHeld(config_.pause,false,b_context_back_held_);
@@ -305,10 +308,13 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
     // V66.108: capacitive quick-access layer. Left Grip is now entirely physical.
     // Quest/Touch binds quick_access_touch to /user/hand/right/input/thumbrest/touch.
     // The touch alone does nothing: a deliberate digital left-stick direction activates the chord.
-    const Dir meta_left_dir = StickDir(left.thumb_x,left.thumb_y);
+    const bool leftThumbrestModeR143=quick_access_r112::LeftThumbrest();
+    const float modifierStickX=leftThumbrestModeR143?right.thumb_x:left.thumb_x;
+    const float modifierStickY=leftThumbrestModeR143?right.thumb_y:left.thumb_y;
+    const Dir meta_left_dir = StickDir(modifierStickX,modifierStickY);
     native_map_open_h25::ObserveChord(quick_touch&&meta_left_dir==Dir::Up); // physical chord rearm survives TouchBindings::Reset
-    // V66.109 keeps the successful V66.108 RIGHT thumbrest modifier. Both
-    // physical Grips remain completely free for interaction / support / holsters.
+    // R143 preserves the right-thumbrest/left-stick layer and optionally uses
+    // left-thumbrest/right-stick. Physical Grips remain free.
     const bool quick_chord_active = quick_touch && meta_left_dir!=Dir::None;
     const bool vr_menu_chord = !authored_minigame && quick_touch && meta_left_dir==Dir::Down;
     const bool map_chord = !authored_minigame && !mis_menu_visible && quick_touch && meta_left_dir==Dir::Up && !vr_menu_chord;
@@ -387,7 +393,7 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
         if(lmb_){MouseButton(true,false);lmb_=false;} if(rmb_){MouseButton(false,false);rmb_=false;}
         menu_nav_l_=menu_nav_r_=Dir::None;menu_nav_l_next_repeat_ms_=menu_nav_r_next_repeat_ms_=0;
         turn_fraction_=bow_fraction_y_=0.0f;
-        const Dir md=quick_touch?StickDir(left.thumb_x,left.thumb_y):Dir::None;
+        const Dir md=quick_touch?StickDir(modifierStickX,modifierStickY):Dir::None;
 
         SetManualInteractionHeld114(!native_gamepad_actions_&&right.a_down);
         if(!native_gamepad_actions_) {
@@ -411,7 +417,7 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
                 // Grips stay physical; RS-X is the spare VR page axis and maps
                 // to the retail keyboard read_prev/read_next superactions.
                 if(left.y_down!=minigame_y_held_){minigame_y_held_=left.y_down;if(minigame_y_held_)KeyDown('Q');else KeyUp('Q');}
-                const Dir page=StickDir(right.thumb_x,0.0f);
+                const Dir page=(leftThumbrestModeR143&&quick_touch)?Dir::None:StickDir(right.thumb_x,0.0f);
                 if(page!=minigame_page_prev_){
                     if(page==Dir::Left)KeyTap(VK_LEFT);
                     if(page==Dir::Right)KeyTap(VK_RIGHT);
@@ -593,15 +599,16 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
     // heuristic. The caller publishes the actual VRIK ownership every frame.
     // When VRIK is OFF, Right Grip immediately restores the proven two-axis
     // mouse-look path; when VRIK is active, Grip remains purely physical.
-    const bool directional_mode = attack_direction_mouse_ && right_grip_free_look_enabled_ && right_grip_down;
+    const bool rightStickModifierModeR143=leftThumbrestModeR143&&quick_touch&&!back_context_visible;
+    const bool directional_mode = attack_direction_mouse_ && right_grip_free_look_enabled_ && right_grip_down&&!rightStickModifierModeR143;
     // V64.17 conservative combat-activity gate for the display-mode chord.
     // This is intentionally fail-safe rather than claiming a native KCD2 combat-state hook:
     // attack/block or weapon-direction input blocks LG+R3 for 3 seconds.
     if(right.trigger>0.20f || left.trigger>0.20f || directional_mode) last_combat_input_ms_=now;
     const Dir ld=StickDir(left.thumb_x,left.thumb_y);
-    const Dir rd=StickDir(right.thumb_x,right.thumb_y);
+    const Dir rd=rightStickModifierModeR143?Dir::None:StickDir(right.thumb_x,right.thumb_y);
 
-    if(!modifier && !native_left_stick_) {
+    if((!modifier||leftThumbrestModeR143) && !native_left_stick_) {
         float move_x=left.thumb_x,move_y=left.thumb_y;
         if(hmd_walking_direction_&&hmd_walking_yaw_valid_&&std::isfinite(hmd_walking_yaw_rad_)){
             const float c=std::cos(hmd_walking_yaw_rad_),s=std::sin(hmd_walking_yaw_rad_);
@@ -633,7 +640,7 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
     // V66.108 capacitive utility layer. Left/Right preserve the existing semantic
     // quick-weapon actions. Up/Down stay reserved for Map/VR-menu and are never
     // emitted as gameplay D-pad directions by this keyboard/mouse bridge.
-    const Dir utility_dir = modifier ? ld : Dir::None;
+    const Dir utility_dir = modifier ? (leftThumbrestModeR143?StickDir(right.thumb_x,right.thumb_y):ld) : Dir::None;
     if(utility_dir != quick_dir_prev_) {
         if(utility_dir==Dir::Up) {
             // The actual map action is emitted only by the 0.5 s hold gate above.
@@ -680,7 +687,7 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
         }
     } else {
         bow_fraction_y_=0.0f;
-        const float ax=right.thumb_x;
+        const float ax=rightStickModifierModeR143?0.0f:right.thumb_x;
         // Outer edge: one deliberate horizontal pulse per deflection. KCD2's
         // current mouse bridge remains the fallback until a maintained native
         // XInput/action injector is proven; this is intentionally latched.
@@ -728,7 +735,23 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
     const bool want_rmb=(native_gamepad_actions_ || vrik_input_lab_stage_>=2) ? false : (left.trigger>0.55f);
     if(want_rmb!=rmb_){ rmb_=want_rmb; MouseButton(false,rmb_); }
 
-    SetManualInteractionHeld114(!native_gamepad_actions_&&right.a_down);
+    const bool leftModifierButtonsR143=leftThumbrestModeR143&&quick_touch&&!back_context_visible;
+    const bool modifierWaitEdgeR143=leftModifierButtonsR143&&right.a_down&&!modifier_a_prev_r143_;
+    const bool modifierPauseEdgeR143=leftModifierButtonsR143&&right.b_down&&!modifier_b_prev_r143_;
+    modifier_a_prev_r143_=leftModifierButtonsR143&&right.a_down;
+    modifier_b_prev_r143_=leftModifierButtonsR143&&right.b_down;
+    if(modifierWaitEdgeR143){KeyTap(config_.skip_time);debug_trace::Write("R143-TOUCH left modifier + right A -> native Wait/Skip Time request");}
+    if(modifierPauseEdgeR143){
+        // Match the established right-rest + Menu pause chord: request the
+        // native game pause first, then let the UI observer own its overlay.
+        // Requesting only the local Pause presentation leaves input policy in
+        // a pause state without actually opening the game's menu, suppressing
+        // gameplay VRIK/head-aim until a separate recovery action.
+        KeyTap(config_.pause);
+        ev.toggle_pause_comfort=true;
+        debug_trace::Write("R143-TOUCH left modifier + right B -> native Pause key pulse + overlay request");
+    }
+    SetManualInteractionHeld114(!native_gamepad_actions_&&right.a_down&&!leftModifierButtonsR143);
     if(!native_gamepad_actions_) {
         if(right.a_pressed) debug_trace::Write("V64.83-TOUCH A -> E primary action DOWN; hold-A remains held-E for contextual use/rob/pickpocket");
     }
@@ -736,7 +759,7 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
     // V65.03b VR vertical-stick actions. Normal VR never uses the stick for
     // camera pitch: Up=Jump, Down=Crouch. Holding Right Grip transfers the whole
     // stick to smooth two-axis precision aim, so neither action can fire there.
-    const Dir vertical_action_dir = directional_mode ? Dir::None : rd;
+    const Dir vertical_action_dir = (directional_mode||rightStickModifierModeR143) ? Dir::None : rd;
     if(!native_gamepad_actions_ && vertical_action_dir==Dir::Up && jump_dir_prev_!=Dir::Up) {
         KeyTap(config_.jump);
         debug_trace::Write("V65.03b-TOUCH RS-UP -> SPACE jump");
@@ -785,10 +808,10 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
 
     // B tap remains Quick Speak. The explicit 2s recovery owns that long press;
     // RIGHT thumbrest + Left Menu keeps its independent Pause/Exit shortcut.
-    if(native_gamepad_actions_||back_context_visible)b_quick_reply_eligible175_=false;
+    if(native_gamepad_actions_||back_context_visible||leftModifierButtonsR143)b_quick_reply_eligible175_=false;
     if(right.b_down&&!b_prev_down_){
         b_down_since_=now;b_long_sent_=false;
-        b_quick_reply_eligible175_=!native_gamepad_actions_&&!back_context_visible&&!quick_touch;
+        b_quick_reply_eligible175_=!native_gamepad_actions_&&!back_context_visible&&!quick_touch&&!leftModifierButtonsR143;
     }
     if(!right.b_down&&b_prev_down_){
         // R113 (chatgpt R112): with FACE TOUCH the B touch is the modifier; releasing a plain B click still

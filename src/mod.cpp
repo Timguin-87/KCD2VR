@@ -49,6 +49,7 @@
 #include "stereo_upscaler_d81r2.h"
 #include "native_upscaler_stereo_d82.h"
 #include "native_dlss_stereo_d82.h"
+#include "aer_warp_r154.h"
 #include "diagnostics/presentation_receipt_d86.h"
 #include "upscaler_live_switch_d85.h" // D85 UPSCALERS
 #include "vrik/frik_elbow_lab.h" // live Experiments elbow comparison
@@ -258,6 +259,7 @@
 #include "subsystems/doors/hand_only_h40_service.inl"
 #include <mmsystem.h>
 static bool g_timer_period_1ms_59c7a = false; // R59.16C7A
+static constexpr const char* kHandOffsetKeysR150[6]{"PosX","PosY","PosZ","Pitch","Yaw","Roll"}; // R150 INI key suffixes
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -2063,6 +2065,9 @@ void Mod::FillMenuState(VrMenuState& out) const
 #include "subsystems/dialogues/host.inl" // M2_OWNED_SOURCE slot=9
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     out.calibration_auto_restore43=frik_pose_probe::CalibrationAutoRestore43(); // C43
+    out.direct_controller_hands_r135=frik_pose_probe::DirectControllerHandsR135(); // R135
+    out.aer_warp_mode_r154=aer_warp_r154::Mode(); // R154
+    frik_pose_probe::HandOffsetsR150(out.hand_offset_r150); // R150
     out.smith_auto_hold36=workstation178r20c1::smithAutoHold36.load(std::memory_order_acquire); // C37
     out.smith_anvil_mode_a3=subsystems::smithing::anvil_a2::mode.load(std::memory_order_acquire); // A3
     out.minigame_hands45=minigame_hands45::clampMode(minigame_hands45::mode.load());
@@ -2165,6 +2170,7 @@ void Mod::FillMenuState(VrMenuState& out) const
     out.reading_pages45 = kcd2vr::book_pages45::clampMode(kcd2vr::book_pages45::mode.load(std::memory_order_acquire)); // C45
     out.quick_slots_on_selection_r115 = kcd2vr::ui_hud_r112::quickSlotFade.load(std::memory_order_acquire); // R115
     out.quick_access_face_touch_r112 = kcd2vr::quick_access_r112::FaceTouch();
+    out.quick_access_left_thumbrest_r143 = kcd2vr::quick_access_r112::LeftThumbrest();
     out.quick_access_available_hands_r112 = kcd2vr::quick_access_r112::AvailableHands();
 #define KCD2VR_M2_HOST_SLOT 30 // M2_SOURCE_SELECTOR
 #include "subsystems/gore/host.inl" // M2_OWNED_SOURCE slot=30
@@ -2335,8 +2341,10 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
     if (matrix_running_for_ui_.load(std::memory_order_acquire)) return false;
 
     const int presentation = std::clamp(state.presentation_mode, 0, 3);
-    const int stereo = 0; // legacy AFR experiment remains retired
+    const bool alternate_eye = state.stereo_mode==4;
+    const int stereo = alternate_eye ? 1 : 0;
     const int production_stereo = (state.stereo_mode==3) ? 3 : 0;
+    const int requested_stereo_mode = production_stereo ? 3 : (alternate_eye ? 4 : 0);
     const bool native_production = production_stereo==3; // V66.24 authoritative stage4/XR mode2 owner
     // D82: this atomic is the requested/persisted mode. Accept a supported
     // Stereo request even before vendor twins exist so the existing save worker
@@ -2347,6 +2355,11 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
         void* sr=con?SafeConsoleGetCVar(con,"r_SuperResolution_Mode"):nullptr;
         const int actual=sr?SafeCVarGetInt(sr,-1):-1;
         if(!stereo_upscaler_d81r2::canKeep(3,actual>=0,actual))return false;
+    }
+    if(alternate_eye&&vr_production_stereo_mode_.load(std::memory_order_acquire)!=4){
+        void* con=SafeGetCryConsole();
+        void* sr=con?SafeConsoleGetCVar(con,"r_SuperResolution_Mode"):nullptr;
+        if(!sr||SafeCVarGetInt(sr,-1)!=2)return false; // ALT EYE requires the game's DLSS path
     }
     release_combat_r92::fastBlock.store(state.fast_block_r92);
     const int old_cyclopean = std::clamp(vr_cyclopean_mode_.load(std::memory_order_acquire),0,3);
@@ -2386,7 +2399,7 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
 #define KCD2VR_M2_HOST_SLOT 41 // M2_SOURCE_SELECTOR
 #include "subsystems/hud_ui_controls/host.inl" // M2_OWNED_SOURCE slot=41
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
-    const float ipd_scale = 0.0f; // V61.39: retired AFR/DUAL path cannot be re-armed by stale menu state
+    const float ipd_scale = alternate_eye ? 1.0f : 0.0f;
     const float render_scale = std::clamp(state.render_scale, 0.50f, 2.0f);
     const float engine_clarity = std::clamp(state.engine_clarity, 0.0f, 0.75f);
     const float gamma = std::clamp(state.gamma,0.50f,2.00f);
@@ -2513,7 +2526,7 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     // H26: FOV changes are committed below through the existing native setter.
     vr_stereo_experiment_.store(stereo, std::memory_order_release);
-    vr_production_stereo_mode_.store(production_stereo,std::memory_order_release);
+    vr_production_stereo_mode_.store(requested_stereo_mode,std::memory_order_release);
     vr_cyclopean_mode_.store(cyclopean, std::memory_order_release);
     vr_afr_ipd_scale_.store(ipd_scale, std::memory_order_release);
     const bool old_balanced = enable_vr_balanced_graphics_.exchange(state.balanced_graphics, std::memory_order_acq_rel);
@@ -2583,6 +2596,9 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
 #include "subsystems/dialogues/host.inl" // M2_OWNED_SOURCE slot=72
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     frik_pose_probe::SetCalibrationAutoRestore43(state.calibration_auto_restore43); // C43
+    frik_pose_probe::SetDirectControllerHandsR135(state.direct_controller_hands_r135); // R135
+    aer_warp_r154::SetMode(state.aer_warp_mode_r154); // R154 stale-eye warp tier
+    frik_pose_probe::SetHandOffsetsR150(state.hand_offset_r150); // R150
     workstation178r20c1::setSmithAutoHold36(state.smith_auto_hold36); // C37: a change revokes current smithing holds
     subsystems::smithing::anvil_a2::setMode(state.smith_anvil_mode_a3); // A3
     const int nextMinigame46=minigame_hands45::clampMode(state.minigame_hands45);
@@ -2622,7 +2638,8 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
     g_comfort_vignette51.store(std::clamp(state.comfort_vignette51,0,3),std::memory_order_release);
     if(xr_manager_)xr_manager_->SetComfortVignette(g_comfort_vignette51.load(std::memory_order_acquire));
     kcd2vr::book_pages45::mode.store(kcd2vr::book_pages45::clampMode(state.reading_pages45),std::memory_order_release); // C45
-    kcd2vr::quick_access_r112::SetFaceTouch(state.quick_access_face_touch_r112);
+    kcd2vr::quick_access_r112::SetMode(state.quick_access_left_thumbrest_r143? kcd2vr::quick_access_r112::LeftThumbrestMode:
+        state.quick_access_face_touch_r112? kcd2vr::quick_access_r112::FaceTouchMode:kcd2vr::quick_access_r112::RightThumbrest);
     kcd2vr::ui_hud_r112::quickSlotFade.store(state.quick_slots_on_selection_r115,std::memory_order_release); // R115 (saved as VrHudQuickSlotFadeR112)
     if(g_ragdoll_push33.exchange(std::clamp(state.ragdoll_push,1,3))!=std::clamp(state.ragdoll_push,1,3)&&g_ragdoll_rung19c4r4.load()==2) // C33: live strength change
         combat_diag_probe::SetContactImpulse596(g_physical_held_f9_t4.load()==3&&g_ragdoll59.On()&&!g_legacy_phys_suspended_t4.load()&&g_contact_impulse596.load(),g_contact_impulse_scale596.load()*RagdollPushScale33(),RagdollPushCap33(),4.f);
@@ -2795,6 +2812,17 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
     CameraHook::SetRotationOrder(rotation_order);
     CameraHook::SetCameraCalibrationOffset(camera_side, camera_back, camera_height);
     CameraHook::SetAfrIpd(0.064f, ipd_scale);
+    if(!alternate_eye)FrameSync::SetAlternateEyeUpscalerScope(false);
+    {
+        void* con=SafeGetCryConsole();
+        void* sr=con?SafeConsoleGetCVar(con,"r_SuperResolution_Mode"):nullptr;
+        const int actual=sr?SafeCVarGetInt(sr,-1):-1;
+        native_upscaler_stereo_d82::SetMode(native_production||alternate_eye,actual,alternate_eye);
+    }
+    if(xr_manager_){
+        xr_manager_->SetAlternateEyeWarpEnabled(alternate_eye);
+        xr_manager_->SetStereoExperiment(stereo,ipd_scale);
+    }
 #define KCD2VR_M2_HOST_SLOT 89 // M2_SOURCE_SELECTOR
 #include "subsystems/hud_ui_controls/host.inl" // M2_OWNED_SOURCE slot=89
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
@@ -2835,6 +2863,7 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
         if (g_v610_manual_dual_active) { RestoreV54StereoCVars(g_v610_manual_stereo_original); g_v610_manual_dual_active=false; }
         FrameSync::SetNativeStereoReentryMode(0, 0.064f);
         DeviceHook::SetAfrStereoCapture(true);
+        FrameSync::SetAlternateEyeUpscalerScope(true);
         FrameSync::SetStereoMode(1);
     } else if (stereo == 2) {
         DeviceHook::SetAfrStereoCapture(false);
@@ -3038,8 +3067,12 @@ bool Mod::SaveMenuSettings() const
     ok = wb("VrGestureTalk", g_gesture_talk59c5.load(std::memory_order_acquire)) && ok; // R59.16C5: menu-owned
     ok = wb("VrSmoothMovement", g_smooth_move51.load(std::memory_order_acquire)) && ok;
     ok = wb("VrHmdWalkingDirectionR134", g_hmd_walking_direction134.load(std::memory_order_acquire)) && ok;
+    ok = wb("VrHandsDirectTrackingR135", frik_pose_probe::DirectControllerHandsR135()) && ok;
+    {float ho[12]{};frik_pose_probe::HandOffsetsR150(ho); // R150 HAND OFFSETS
+     for(int i=0;i<12;++i){char key[48]{};std::snprintf(key,sizeof(key),"VrHandOffsetR150_%c_%s",i<6?'R':'L',kHandOffsetKeysR150[i%6]);ok=wf(key,ho[i])&&ok;}}
     ok = wb("VrNativeCrouchR93", frik_pose_probe::NativeCrouchR93()) && ok;
     ok = wi("VrBodyHeightModeR98", frik_pose_probe::BodyHeightModeR98()) && ok; // R98: 0 HMD, 1 NATIVE, 2 HMD + NATIVE (ride/crouch)
+    ok = wi("VrAerWarpModeR154", aer_warp_r154::Mode()) && ok; // R154: 0 rotation, 1 6DoF, 2 motion vectors
     ok = wb("VrHmdBodyHeight", frik_pose_probe::HmdBodyHeight54()) && ok; // old bool, kept for older builds
     ok = wb("VrChestDagger", frik_pose_probe::ChestDagger54()) && ok;
 
@@ -3055,6 +3088,7 @@ bool Mod::SaveMenuSettings() const
     ok = wi("VrComfortVignette", g_comfort_vignette51.load(std::memory_order_acquire)) && ok;
     ok = wi("VrReadingPages", kcd2vr::book_pages45::clampMode(kcd2vr::book_pages45::mode.load())) && ok; // C45: 0 modifier+flick, 1 modifier only, 2 native (C42 stick + grips)
     ok = wb("VrQuickAccessFaceTouchR112", kcd2vr::quick_access_r112::FaceTouch()) && ok; // R113
+    ok = wb("VrQuickAccessLeftThumbrestR143", kcd2vr::quick_access_r112::LeftThumbrest()) && ok; // R143
     ok = wb("VrAlchemyHands",activity_input163::trackedHands59c7f[0].load()) && ok;
     ok = wb("VrSmithingHands",activity_input163::trackedHands59c7f[1].load()) && ok;
     ok = wb("VrSharpeningHands",activity_input163::trackedHands59c7f[3].load()) && ok;
@@ -3272,6 +3306,9 @@ void Mod::OnRenderTick(ID3D12CommandQueue* queue)
     // producing the user's "monitor view flashing behind the XR menu" symptom.
     if (mod.vr_menu_ && mod.mirror_mis_menu_to_desktop_.load(std::memory_order_acquire))
         mod.vr_menu_->OnDesktopOverlayTick(queue);
+    // R149: a finished alternate-eye frame dump is fenced on this DIRECT queue
+    // and handed to its writer thread. One atomic load when no dump is pending.
+    native_dlss_stereo_d82::AerFrameDumpRenderTick(queue, DeviceHook::CurrentExecuteSubmittedPresent());
 }
 
 bool Mod::LoadConfig()
@@ -3370,8 +3407,8 @@ bool Mod::LoadConfig()
     settings.bind("VrSourceHeight", vr_source_height_, kcd2vr::view_defaults_b2::Get("VrSourceHeight", 1800));
     settings.bind("EnableVrBalancedGraphics", enable_vr_balanced_graphics_, kcd2vr::view_defaults_b2::Get("EnableVrBalancedGraphics", true));
     settings.bind("VrEngineClarity", vr_engine_clarity_, kcd2vr::view_defaults_b2::Get("VrEngineClarity", 0.18f));
-    settings.bind("VrGamma", vr_gamma_, kcd2vr::view_defaults_b2::Get("VrGamma", 0.85f));
-    settings.bind("VrBrightness", vr_brightness_, kcd2vr::view_defaults_b2::Get("VrBrightness", -0.06f));
+    settings.bind("VrGamma", vr_gamma_, kcd2vr::view_defaults_b2::Get("VrGamma", 1.0f));
+    settings.bind("VrBrightness", vr_brightness_, kcd2vr::view_defaults_b2::Get("VrBrightness", 0.0f));
     settings.bind("VrContrast", vr_contrast_, kcd2vr::view_defaults_b2::Get("VrContrast", 1.0f));
 #define KCD2VR_M2_HOST_SLOT 132 // M2_SOURCE_SELECTOR
 #include "subsystems/dialogues/host.inl" // M2_OWNED_SOURCE slot=132
@@ -3702,8 +3739,8 @@ bool Mod::LoadConfig()
     vr_source_height_.store(std::clamp(ReadIniIntExplicit(explicit_ini, "Settings", "VrSourceHeight", kcd2vr::view_defaults_b2::Get("VrSourceHeight", 1800)), 640, 4096), std::memory_order_relaxed);
     enable_vr_balanced_graphics_.store(ReadIniBoolExplicit(explicit_ini, "Settings", "EnableVrBalancedGraphics", kcd2vr::view_defaults_b2::Get("EnableVrBalancedGraphics", true)), std::memory_order_relaxed);
     vr_engine_clarity_.store(ReadIniFloatExplicit(explicit_ini, "Settings", "VrEngineClarity", kcd2vr::view_defaults_b2::Get("VrEngineClarity", 0.18f)), std::memory_order_relaxed);
-    vr_gamma_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrGamma",kcd2vr::view_defaults_b2::Get("VrGamma", 0.85f)),0.50f,2.00f),std::memory_order_relaxed);
-    vr_brightness_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrBrightness",kcd2vr::view_defaults_b2::Get("VrBrightness", -0.06f)),-0.50f,0.50f),std::memory_order_relaxed);
+    vr_gamma_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrGamma",kcd2vr::view_defaults_b2::Get("VrGamma", 1.0f)),0.50f,2.00f),std::memory_order_relaxed);
+    vr_brightness_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrBrightness",kcd2vr::view_defaults_b2::Get("VrBrightness", 0.0f)),-0.50f,0.50f),std::memory_order_relaxed);
     vr_contrast_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrContrast",kcd2vr::view_defaults_b2::Get("VrContrast", 1.0f)),0.50f,2.00f),std::memory_order_relaxed);
 #define KCD2VR_M2_HOST_SLOT 170 // M2_SOURCE_SELECTOR
 #include "subsystems/dialogues/host.inl" // M2_OWNED_SOURCE slot=170
@@ -3739,6 +3776,10 @@ bool Mod::LoadConfig()
     g_roomscale_dodge58.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrRoomscaleDodge",true));
     g_smooth_move51.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrSmoothMovement",false));
     g_hmd_walking_direction134.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHmdWalkingDirectionR134",true));
+    frik_pose_probe::SetDirectControllerHandsR135(ReadIniBoolExplicit(explicit_ini,"Settings","VrHandsDirectTrackingR135",false)); // R135
+    {float ho[12]{}; // R150 HAND OFFSETS (clamped by the setter)
+     for(int i=0;i<12;++i){char key[48]{};std::snprintf(key,sizeof(key),"VrHandOffsetR150_%c_%s",i<6?'R':'L',kHandOffsetKeysR150[i%6]);ho[i]=ReadIniFloatExplicit(explicit_ini,"Settings",key,0.f);}
+     frik_pose_probe::SetHandOffsetsR150(ho);}
     subsystems::alchemy::reach_craft1::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCraftProximityTrialH41",false));
     frik_pose_probe::SetChestPitchShareCB(ReadIniFloatExplicit(explicit_ini,"Settings","VrChestPitchShareH41Trial",0.f));
     frik_pose_probe::SetArcherStanceCB(ReadIniBoolExplicit(explicit_ini,"Settings","VrArcherStanceH41Trial",false));
@@ -3784,7 +3825,10 @@ bool Mod::LoadConfig()
         ReadIniBoolExplicit(explicit_ini,"Settings","VrGestureTalk",true))); // R124: pointing ON by default (Miki's INI); a saved OFF is kept; X stays
     frik_pose_probe::SetFistKickEnabledH35(ReadIniBoolExplicit(explicit_ini,"Settings","VrKickFistLane",false)); // CB1: unarmed R3 kick through the fist lane (1 = on)
     kcd2vr::book_pages45::mode.store(kcd2vr::book_pages45::clampMode(ReadIniIntExplicit(explicit_ini,"Settings","VrReadingPages",0))); // C45
-    kcd2vr::quick_access_r112::SetFaceTouch(ReadIniBoolExplicit(explicit_ini,"Settings","VrQuickAccessFaceTouchR112",false)); // R113: VR CONFIG > CONTROLS
+    kcd2vr::quick_access_r112::SetMode(ReadIniBoolExplicit(explicit_ini,"Settings","VrQuickAccessLeftThumbrestR143",false)?
+        kcd2vr::quick_access_r112::LeftThumbrestMode:
+        ReadIniBoolExplicit(explicit_ini,"Settings","VrQuickAccessFaceTouchR112",false)?
+            kcd2vr::quick_access_r112::FaceTouchMode:kcd2vr::quick_access_r112::RightThumbrest); // R143 modifier choice, old face-touch key retained
     diagnostic_trace::Write(g_gesture_talk59c5.load()?
         "KCD2VR BUILD GESTURE_CAPABILITY talkSetting=ON route=CONTEXTUAL_NATIVE acceptedAction=UNPROVEN combatTaunt=NOT_EQUIVALENT":
         "KCD2VR BUILD GESTURE_CAPABILITY talkSetting=OFF reason=SAVED_SETTING combatTaunt=NOT_EQUIVALENT");
@@ -4172,7 +4216,8 @@ bool Mod::LoadConfig()
     {   // R118: the chosen controller layout always goes to KCD2VR.log (one line per config load, not F2-gated).
         namespace cl=kcd2vr::controller_layout_r118;char m[200]{};
         std::snprintf(m,sizeof(m),"R118 CONTROLLER_LAYOUT layout=%s xHold=%s leftMenu=INVENTORY modifier=%s (VrControllerLayoutR118, VR CONFIG > CONTROLS)",
-            cl::NameA(cl::Get()),cl::XHoldOpensInventory(cl::Get())?"INVENTORY":"TORCH",kcd2vr::quick_access_r112::FaceTouch()?"FACE_TOUCH":"THUMBREST");
+            cl::NameA(cl::Get()),cl::XHoldOpensInventory(cl::Get())?"INVENTORY":"TORCH",
+            kcd2vr::quick_access_r112::FaceTouch()?"FACE_TOUCH":kcd2vr::quick_access_r112::LeftThumbrest()?"LEFT_THUMBREST":"RIGHT_THUMBREST");
         diagnostic_trace::WriteStatus(m);
     }
     if(ReadIniIntExplicit(explicit_ini,"Settings","VrArrowHoldNativeTurnD56Adopted",0)<1){
@@ -4359,10 +4404,30 @@ bool Mod::LoadConfig()
     vr_left_offset_y_.store(ReadIniFloatExplicit(explicit_ini, "Settings", "VrLeftOffsetY", kcd2vr::view_defaults_b2::Get("VrLeftOffsetY", 0.0f)), std::memory_order_relaxed);
     vr_right_offset_x_.store(ReadIniFloatExplicit(explicit_ini, "Settings", "VrRightOffsetX", kcd2vr::view_defaults_b2::Get("VrRightOffsetX", 0.0f)), std::memory_order_relaxed);
     vr_right_offset_y_.store(ReadIniFloatExplicit(explicit_ini, "Settings", "VrRightOffsetY", kcd2vr::view_defaults_b2::Get("VrRightOffsetY", 0.0f)), std::memory_order_relaxed);
-    vr_stereo_experiment_.store(0, std::memory_order_relaxed); // V61.39: stale AFR/DUAL INI values ignored
+    // V142 reserves persisted value 4 for the user-facing DLSS alternate-eye
+    // mode. Older experimental 1/2 values remain disabled on startup.
+    {
+        // R150: DetourModKit's bind() above only stores the default (3) until a
+        // later reload, so the saved view mode never survived a restart and every
+        // launch came up in Stereo. Read the saved value explicitly, like the
+        // neighbouring keys; the early DLL-main capture already used this value.
+        int requested=ReadIniIntExplicit(explicit_ini,"Settings","VrStereoExperiment",
+            kcd2vr::view_defaults_b2::Get("VrStereoExperiment",3));
+        if(requested!=3&&requested!=4)requested=0;
+        vr_production_stereo_mode_.store(requested,std::memory_order_relaxed);
+        const bool alternate=requested==4;
+        vr_stereo_experiment_.store(alternate?1:0,std::memory_order_relaxed);
+        vr_afr_ipd_scale_.store(alternate?1.0f:0.0f,std::memory_order_relaxed);
+        // R149: alternate-eye DLSS motion. 1 = same-eye camera reprojection
+        // (default), 0 = reset history every eye frame, 2 = raw cross-eye vectors.
+        native_dlss_stereo_d82::SetAlternateEyeMotionMode(
+            std::clamp(ReadIniIntExplicit(explicit_ini,"Settings","VrAerDlssMotionR149",1),0,2));
+        // R154: stale-eye warp tier (0 rotation, 1 + 6DoF, 2 + motion vectors) and its debug tint.
+        aer_warp_r154::SetMode(std::clamp(ReadIniIntExplicit(explicit_ini,"Settings","VrAerWarpModeR154",2),0,2));
+        aer_warp_r154::SetDebugTint(ReadIniBoolExplicit(explicit_ini,"Settings","VrAerWarpDebugR154",false));
+    }
     { const int saved=ReadIniIntExplicit(explicit_ini, "Settings", "VrCleanPresentationMode", kcd2vr::view_defaults_b2::Get("VrCleanPresentationMode", 0)); vr_cyclopean_mode_.store(saved==1?1:0, std::memory_order_relaxed); }
     vr_rotation_order_.store(0, std::memory_order_relaxed); // V61.20 D*B diagnostic retired
-    vr_afr_ipd_scale_.store(0.0f, std::memory_order_relaxed); // V61.39: retired
     vr_swap_eyes_.store(ReadIniBoolExplicit(explicit_ini, "Settings", "VrSwapEyes", false), std::memory_order_relaxed);
     enable_legacy_probes_.store(developer_mode::Enabled()&&ReadIniBoolExplicit(explicit_ini, "Settings", "EnableLegacyStereoProbes", false), std::memory_order_relaxed);
     enable_native_eye_write_.store(ReadIniBoolExplicit(explicit_ini, "Settings", "EnableNativeEyeWrite", false), std::memory_order_relaxed);
@@ -4442,7 +4507,9 @@ void Mod::Run()
     core::default_ini_r118::lastResult=startup_s15::EnsureDefaultIniR118();
     if(!startup_s15::ApplyPendingBeforeConfig())debug_trace::Write("H21 STARTUP_SETUP pending=NOT_APPLIED reason=VALIDATION_OR_FILE_ACCESS currentSettings=PRESERVED");
     if (!LoadConfig()){(void)subsystems::StopCatalog();return;}
-    native_upscaler_stereo_d82::InstallEarly(enabled_.load(std::memory_order_acquire)&&vr_production_stereo_mode_.load(std::memory_order_acquire)==3);
+    bool startupAlternateEyeR142=enabled_.load(std::memory_order_acquire)&&vr_production_stereo_mode_.load(std::memory_order_acquire)==4;
+    const bool startupNativeStereoR142=enabled_.load(std::memory_order_acquire)&&vr_production_stereo_mode_.load(std::memory_order_acquire)==3;
+    native_upscaler_stereo_d82::InstallEarly(startupNativeStereoR142||startupAlternateEyeR142,startupAlternateEyeR142);
     native_upscaler_stereo_d82::SetTechnologyReader(+[]() noexcept {
         void* value=nativeUpscalerCvarD82.load(std::memory_order_acquire);
         return value?SafeCVarGetInt(value,-1):-1;
@@ -4605,7 +4672,11 @@ void Mod::Run()
     if (!FrameSync::Install()) {
         debug_trace::Write("V45-PIPELINE install FAILED; forcing mono bridge for safety");
         vr_stereo_experiment_.store(0, std::memory_order_relaxed);
+        startupAlternateEyeR142=false;
+        vr_production_stereo_mode_.store(0,std::memory_order_release);
+        native_upscaler_stereo_d82::SetMode(false,-1,false);
     }
+    FrameSync::SetAlternateEyeUpscalerScope(startupAlternateEyeR142);
     FrameSync::SetStereoMode(vr_stereo_experiment_.load(std::memory_order_relaxed));
 
     // V65.04a: old recursive-view F8 archaeology is retired; normal play and new F8 never install that broad observer.
@@ -4632,8 +4703,8 @@ void Mod::Run()
     xr_manager_->SetCorrectedViewVerticalFov(startup_corrected_view_fov);
     const float startup_uv = startup_view.uv_binocular;
 
-    vr_stereo_experiment_.store(0, std::memory_order_relaxed);
-    vr_afr_ipd_scale_.store(0.0f, std::memory_order_relaxed);
+    vr_stereo_experiment_.store(startupAlternateEyeR142?1:0, std::memory_order_relaxed);
+    vr_afr_ipd_scale_.store(startupAlternateEyeR142?1.0f:0.0f, std::memory_order_relaxed);
     vr_presentation_mode_.store(startup_present, std::memory_order_relaxed);
     vr_zoom_.store(startup_saved_zoom, std::memory_order_relaxed);
     vr_source_vertical_fov_deg_.store(startup_saved_source_fov, std::memory_order_relaxed);
@@ -4641,7 +4712,8 @@ void Mod::Run()
     xr_manager_->SetPresentationSettings(
         vr_render_scale_.load(std::memory_order_relaxed), startup_present, startup_framing,
         0.0f,0.0f,0.0f,0.0f,startup_compositor_source_fov);
-    xr_manager_->SetStereoExperiment(0, 0.0f);
+    xr_manager_->SetAlternateEyeWarpEnabled(startupAlternateEyeR142);
+    xr_manager_->SetStereoExperiment(startupAlternateEyeR142?1:0,startupAlternateEyeR142?1.0f:0.0f);
     xr_manager_->SetAngularCorrectMono(startup_view.angular_correct);
     xr_manager_->SetPoseHonestyOverride(startup_view.pose_honesty);
     xr_manager_->SetMonoFovAsymmetryScale(startup_view.fov_asymmetry);
@@ -4660,9 +4732,9 @@ void Mod::Run()
     xr_manager_->SetStereoStabilityExperiment(false); // F2 rung0 starts from exact V66.26 presentation behavior
     (void)native_stereo_outer_lab::SetV6627RightPreparationExperiment(false);
     DeviceHook::SetV6627PerformanceQuiet(kV6634ProductionPerfQuiet);
-    DeviceHook::SetAfrStereoCapture(false);
-    FrameSync::SetStereoMode(0);
-    CameraHook::SetAfrIpd(0.064f, 0.0f);
+    DeviceHook::SetAfrStereoCapture(startupAlternateEyeR142);
+    FrameSync::SetStereoMode(startupAlternateEyeR142?1:0);
+    CameraHook::SetAfrIpd(0.064f, startupAlternateEyeR142?1.0f:0.0f);
     CameraHook::SetRotationFilterMode(5); // V65.03b F2-OFF: exact V65.02b trusted fixed-8ms head baseline
     CameraHook::SetRotationOrder(vr_rotation_order_.load(std::memory_order_relaxed));
     // V61.30 baseline: DOF-focus pseudo is no longer a startup mode. It is a
@@ -4889,7 +4961,8 @@ void Mod::Run()
             if(self) self->vrik_recalibrate_requested_.store(true,std::memory_order_release);
         };
         frik_pose_probe::SetTrackingOriginProbeH46(&CameraHook::ReadTrackingOrigin125);
-        frik_pose_probe::SetViewPositionProbe43(&CameraHook::GetLatestVisualPositionWorld); // C43 receipt: view vs Henry's head at owner exits
+        frik_pose_probe::SetViewPositionProbe43(&CameraHook::GetLatestVisualCenterPositionWorld); // R142 hands use center camera incl offsets, excluding stereo IPD
+        frik_pose_probe::SetViewForwardProbe43(&CameraHook::GetLatestVisualForwardWorld);
         menu_callbacks.request_vrik_restore = [](void* ctx) { // C43 RESTORE CALIBRATION
             auto* self=static_cast<Mod*>(ctx);
             if(self) self->vrik_restore_requested_.store(true,std::memory_order_release);
@@ -6347,7 +6420,8 @@ void Mod::Run()
             nativeUpscalerCvarD82.store(sr,std::memory_order_release);
             const int sr_mode=SafeCVarGetInt(sr,-1), aa_mode=SafeCVarGetInt(aa,-1);
             if(sr_mode<0||aa_mode<0) return false;
-            native_upscaler_stereo_d82::SetMode(vr_production_stereo_mode_.load(std::memory_order_acquire)==3,sr_mode);
+            const int requestedMode=vr_production_stereo_mode_.load(std::memory_order_acquire);
+            native_upscaler_stereo_d82::SetMode(requestedMode==3||requestedMode==4,sr_mode,requestedMode==4);
             native_upscaler_stereo_d82::LogStatus(why);
             char m[320]{}; std::snprintf(m,sizeof(m),
                 "V66.85-AA reason=%s superResolution=%d antialiasingMode=%d writes=NONE history=%s",
@@ -6356,6 +6430,11 @@ void Mod::Run()
         };
 
         auto start_guided_vrik_calibration=[&]() noexcept {
+            if(frik_pose_probe::DirectControllerHandsR135()){
+                frik_pose_probe::ForceCalibrationRestore43();CameraHook::RequestRecenter();
+                diagnostic_trace::Write("R135 HEIGHT_REFERENCE_RECALIBRATE recenter=1 standingEyeHeight=REAPPLIED F8_TPOSE=NOT_USED");
+                return;
+            }
             if(!ensure_vrik_lab()){ MessageBeep(MB_ICONASTERISK); return; }
             (void)frik_pose_probe::ApplyUserMode175(kcd2vr::user175::Mode::Off);
             frik_pose_probe::BeginArmLengthCalibration();
@@ -6390,6 +6469,15 @@ void Mod::Run()
             diagnostic_trace::Write("V66.68-VRIK MENU -> NATIVE TOUCH / F10 rung0");
         } else if(requestedF10>0){
             if(requestedF10==5)(void)apply_user_mode175(kcd2vr::user175::Mode::Hands);
+            else if(frik_pose_probe::DirectControllerHandsR135()&&ensure_vrik_lab()){
+                // R135 needs no F8 arm pose. The next native head snapshot reanchors
+                // the coordinate basis; saved standing-eye height still sets head height.
+                const bool active=apply_user_mode175(kcd2vr::user175::Mode::Calibrated);
+                if(active)CameraHook::RequestRecenter();
+                diagnostic_trace::Write(active?
+                    "R135 DIRECT_HANDS MENU_VRIK_ON F8_TPOSE=NOT_REQUIRED sessionBasis=REANCHORED standingEyeHeight=RETAINED":
+                    "R135 DIRECT_HANDS MENU_VRIK_ON modeApply=FAILED");
+            }
             else if(!kcd2vr::calibration_restore43::needTpose(frik_pose_probe::CalibrationStored43())&&ensure_vrik_lab()){
                 // C43 (Miki: "I don't need to recalibrate every time - it loads the calibration from the .ini"): the stored
                 // F8 profile is applied as is; the session base is re-seated under the headset (same recenter as after F8).
@@ -6401,7 +6489,10 @@ void Mod::Run()
             else start_guided_vrik_calibration(); // explicit menu VRIK selection; F10 hotkey remains separate
         }
         if(vrik_restore_requested_.exchange(false,std::memory_order_acq_rel)){ // C43 menu RESTORE CALIBRATION
-            if(frik_pose_probe::CalibrationStored43()){frik_pose_probe::ForceCalibrationRestore43();CameraHook::RequestRecenter();(void)frik_pose_probe::RestoreCalibration43("MENU_RESTORE");
+            if(frik_pose_probe::DirectControllerHandsR135()){
+                frik_pose_probe::ForceCalibrationRestore43();CameraHook::RequestRecenter();
+                diagnostic_trace::Write("R135 HEIGHT_REFERENCE_RESTORE recenter=1 standingEyeHeight=APPLIED F8_ARM_PROFILE=IGNORED");MessageBeep(MB_OK);
+            }else if(frik_pose_probe::CalibrationStored43()){frik_pose_probe::ForceCalibrationRestore43();CameraHook::RequestRecenter();(void)frik_pose_probe::RestoreCalibration43("MENU_RESTORE");
                 diagnostic_trace::Write("C43 CALIBRATION MENU_RESTORE recenter=1 verticalReference=STANDING_EYE headAnchor=CALIBRATED");MessageBeep(MB_OK);}
             else {diagnostic_trace::Write("C43 CALIBRATION MENU_RESTORE storedCalibration=NONE (do a T-pose once)");MessageBeep(MB_ICONASTERISK);}
         }
@@ -6414,7 +6505,7 @@ void Mod::Run()
           // the next load. with VrStartAtHenryEyesR111 the load also recenters once, so the view starts at Henry's eyes.
           namespace sr=kcd2vr::start_r111;
           const auto loadR111=kcd2vr::observed_load_recovery_r96::observe();
-          const bool calibratedR111=frik_pose_probe::CalibrationStored43();
+          const bool calibratedR111=frik_pose_probe::CalibrationStored43()||frik_pose_probe::DirectControllerHandsR135();
           const bool vrikOnR111=vrik_probe_installed&&frik_pose_probe::CombatCensusMode()>=2;
           // R112: the automatic recenter takes the headset as Henry's eyes only while it is steady where the player put
           // his runtime center (OpenXR LOCAL origin = the Oculus/SteamVR recenter). R111 took it wherever it was 1.5 s
@@ -6584,7 +6675,14 @@ void Mod::Run()
             KCD2VR_DIAG_LOG(Bug,warning,"H21 F11 rung {} (1 RELOAD DIAGNOSTICS; 2 RELOAD TESTS: crossbow/rifle staged native request + existing bow experiment; 0 native; saved bow policy preserved)",frik_pose_probe::ReloadMode47C2());
             LabLadderCue(frik_pose_probe::ReloadMode47C2());
         }
-        if(developerMode&&!matrix_active && f12_down && !f12_down_prev){
+        const bool ctrl_f12_r149=(GetAsyncKeyState(VK_CONTROL)&0x8000)!=0;
+        if(!matrix_active && f12_down && !f12_down_prev && ctrl_f12_r149){
+            // R149: Ctrl+F12 captures the next 4 alternate-eye DLSS frames plus their
+            // XR composition into KCD2VR_AER_DUMP beside the mod DLL (any build mode).
+            const bool armed=native_dlss_stereo_d82::RequestAerFrameDump(4,0);
+            MessageBeep(armed?MB_OK:MB_ICONHAND);
+        }
+        if(developerMode&&!matrix_active && f12_down && !f12_down_prev && !ctrl_f12_r149){
             if(GetAsyncKeyState(VK_SHIFT)&0x8000){
                 if(vr_menu_)vr_menu_->ToggleDeepSeekLabH29();
             }else{
@@ -7068,12 +7166,14 @@ void Mod::Run()
         // proven deltas. Do NOT capture/restore/write cloud temporal/stereo/fog CVars.
         // KCD2 owns those states. Stereo only owns per-eye history/backing modules,
         // the pair-epoch TAA history selector, VR2 shadow cascades, and stage4 L/R.
-        const bool v6668_stereo_requested=vr_production_stereo_mode_.load(std::memory_order_acquire)==3;
+        const int v6668_requested_mode=vr_production_stereo_mode_.load(std::memory_order_acquire);
+        const bool v6668_stereo_requested=v6668_requested_mode==3;
+        const bool v6668_alternate_eye=v6668_requested_mode==4;
         if(!v6668_mode_policy_initialized || v6668_stereo_requested!=v6618_auto_stereo_enabled){
             v6668_mode_policy_initialized=true;
             v6618_auto_stereo_enabled=v6668_stereo_requested;
-            native_upscaler_stereo_d82::SetMode(v6668_stereo_requested,
-                SafeCVarGetInt(nativeUpscalerCvarD82.load(std::memory_order_acquire),-1));
+            native_upscaler_stereo_d82::SetMode(v6668_stereo_requested||v6668_alternate_eye,
+                SafeCVarGetInt(nativeUpscalerCvarD82.load(std::memory_order_acquire),-1),v6668_alternate_eye);
             native_taa_pair_epoch_v6661::SetEnabled(v6668_stereo_requested);
             native_cloud_right_v6641::SetRightCloudsEnabled(v6668_stereo_requested);
             native_svo_right_v6654::SetEnabled(v6668_stereo_requested);
@@ -7090,7 +7190,7 @@ void Mod::Run()
                     native_stereo_outer_lab::SetBridgeStage(0,current_runtime_ipd());
                 }
                 stereo_design_capture::SetOutputCensus(false);
-                if(xr_manager_){ xr_manager_->SetTheaterDrain(false); xr_manager_->SetStereoExperiment(0,0.0f); }
+                if(xr_manager_){ xr_manager_->SetTheaterDrain(false); xr_manager_->SetAlternateEyeWarpEnabled(v6668_alternate_eye); xr_manager_->SetStereoExperiment(v6668_alternate_eye?1:0,v6668_alternate_eye?1.0f:0.0f); }
                 f9_postfx_step=0; v6619_xr_stereo_applied=0;
                 v6619_theater_capture_paused=false; v6619_waiting_fresh_pair=false;
                 diagnostic_trace::Write("V66.68-MODE MONO: native single-view + retail/per-pass TAA history + original GSM; stereo per-eye histories OFF; cloud/fog CVars UNTOUCHED");
@@ -8099,6 +8199,13 @@ void Mod::Run()
         if(xr_head_valid){g_gesture_frame59c5.hands[0]=xr_manager_->RightController();g_gesture_frame59c5.hands[1]=xr_manager_->LeftController();}
         g_stallCp178r30[2]=std::uint64_t(GetTickCount64()); // R30 checkpoint: XR frame done
         const bool mis_menu_after_frame = vr_menu_ && vr_menu_->IsVisible();
+        { // R153 HAND ALIGN: redraw the menu on every align state change; save once offsets were solved.
+            static unsigned lastAlignKeyR153=0,lastAlignSerialR153=frik_pose_probe::HandAlignSerialR153();
+            const unsigned serial=frik_pose_probe::HandAlignSerialR153();
+            const unsigned key=(serial<<4)|(unsigned(frik_pose_probe::HandAlignStateR153(0))<<2)|unsigned(frik_pose_probe::HandAlignStateR153(1));
+            if(key!=lastAlignKeyR153){lastAlignKeyR153=key;if(vr_menu_)vr_menu_->RequestRedraw();}
+            if(serial!=lastAlignSerialR153){lastAlignSerialR153=serial;RequestMenuSave(true);}
+        }
         auto ui88_left=xr_manager_->LeftController();const auto& ui88_right=xr_manager_->RightController();
         const bool pauseChord58c2=touch_bindings_.UpdatePauseChord58c2(ui88_left,ui88_right,!mis_menu_after_frame);
         const bool pauseConsumed58c2=xr_manager_->LeftController().menu_down&&!ui88_left.menu_down;
@@ -8442,6 +8549,11 @@ void Mod::Run()
             // as a fabricated scripted scene.
             const bool vrik_gameplay_allowed=!safe_ui_fit && !vrik_menu_busy && !matrix_active &&
                 !dialogue_active && !activity163.nativeControls && !cutscene_flat_ui && !gs.scripted;
+            // R151: the KCD2VR menu used to freeze the VRIK hands. While only our menu blocks gameplay, keep the
+            // body/hands following the controllers as pose-only (same visual path as dialogue: no attacks, grabs or
+            // haptics), so HAND OFFSETS changes are visible live.
+            const bool vrMenuPoseR151=mis_menu_after_frame && !ui89_policy.BlocksWorldInteraction() && !safe_ui_fit &&
+                !matrix_active && !dialogue_active && !activity163.nativeControls && !cutscene_flat_ui && !gs.scripted;
             // V66.178R9: in dialogue the VRIK body/hands keep following the headset (pose only; no
             // physical handling, attacks, fists, hand-use or haptics). The native idle body clipped the view.
             // V66.178R13: F5 rung 2 keeps the VRIK upper body/arms at alchemy/smithing workstations (native fingers/tools).
@@ -8454,7 +8566,7 @@ void Mod::Run()
                 !safe_ui_fit&&!matrix_active&&!mis_menu_after_frame&&!dialogue_active&&!cutscene_flat_ui&&
                 !ui89_policy.BlocksWorldInteraction()&&visual_selection59c7f::Selected(
                     frik_pose_probe::CalibrationReady(),frik_pose_probe::CombatCensusMode(),frik_pose_probe::FinalSkinTestMode());
-            frik_pose_probe::SetDialogueBody178r9(dialogueBody47c1||workstationBody178r13||heldPropBody43);
+            frik_pose_probe::SetDialogueBody178r9(dialogueBody47c1||workstationBody178r13||heldPropBody43||vrMenuPoseR151);
             frik_pose_probe::PublishDialogueHandPresenceH24(dialogueState59c10r2,dialogueBody47c1);
             CameraHook::SetDialogueEmbodiment59c10r2(dialogueBody47c1,GetTickCount64());
             npc_lookat_hmd::PublishDialogueOwner63(dialogueState59c10r2,dialogueBody47c1);
@@ -9114,7 +9226,11 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
                 .snap_turn_d37=vr_turn_mode_.load(std::memory_order_relaxed)==0
             };
             auto padLeft5916c3=routeL,padRight5916c3=routeR;
-            if(held_map_m1::Selected()&&held_map_m1::Allowed(GetTickCount64())&&!activity163.nativeControls&&routeR.quick_access_touch&&routeL.thumb_y>.55f&&std::fabs(routeL.thumb_x)<routeL.thumb_y){padLeft5916c3.thumb_y=0;padLeft5916c3.thumb_x=0;}
+            const bool leftModifierR143=kcd2vr::quick_access_r112::LeftThumbrest();
+            const float modifierX5916c3=leftModifierR143?routeR.thumb_x:routeL.thumb_x;
+            const float modifierY5916c3=leftModifierR143?routeR.thumb_y:routeL.thumb_y;
+            if(held_map_m1::Selected()&&held_map_m1::Allowed(GetTickCount64())&&!activity163.nativeControls&&routeR.quick_access_touch&&modifierY5916c3>.55f&&std::fabs(modifierX5916c3)<modifierY5916c3){
+                if(leftModifierR143){padRight5916c3.thumb_y=0;padRight5916c3.thumb_x=0;}else{padLeft5916c3.thumb_y=0;padLeft5916c3.thumb_x=0;}}
             if(padCtx.semantic_minigame&&!padCtx.vr_menu&&!padCtx.theater&&!padCtx.system_menu&&!padCtx.dialogue_navigation){
                 const auto gripNow=std::uint64_t(GetTickCount64());
                 if(workstationC1.ownsGrip(1,gripNow))padLeft5916c3.grip=0;
@@ -9147,7 +9263,8 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
             else attack_xi178r8::ownedMask.store(0,std::memory_order_release);
             // F5 shares the existing native Use superaction. Never emit E while
             // XI owns the input family; preserve a user-held A on release.
-            const bool handUseXi59c10=touch_bindings_.PhysicalInteractionGamepad59c10(GetTickCount64(),handUseAllowed59c10&&
+            const bool modifierWaitInputR143=kcd2vr::quick_access_r112::LeftThumbrest()&&routeR.quick_access_touch&&routeR.a_down;
+            const bool handUseXi59c10=touch_bindings_.PhysicalInteractionGamepad59c10(GetTickCount64(),handUseAllowed59c10&&!modifierWaitInputR143&&
                 !padCtx.vr_menu&&!padCtx.theater&&!padCtx.system_menu&&!padCtx.dialogue_navigation&&!padCtx.semantic_minigame&&!padCtx.quick_talk_open54);
             pad.a=pad.a||handUseXi59c10;
             { // C46R1: current native book + one stamped, stable reading frame.
@@ -9218,8 +9335,9 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
                     !padCtx.dialogue_navigation&&!ui88_input_result.blocks_gameplay&&!ui89_policy.MenuAdapter()&&
                     w.ready.load(std::memory_order_acquire)&&!w.transitionDepth175.load(std::memory_order_acquire)&&
                     c.lifetime==w.lifetime175.load(std::memory_order_acquire)&&oneCraft67&&routeL.active;
-                c.moveXD53=routeR.quick_access_touch?0.f:routeL.thumb_x;
-                c.moveYD53=routeR.quick_access_touch?0.f:routeL.thumb_y;
+                const bool moveModifierR143=routeR.quick_access_touch&&!kcd2vr::quick_access_r112::LeftThumbrest();
+                c.moveXD53=moveModifierR143?0.f:routeL.thumb_x;
+                c.moveYD53=moveModifierR143?0.f:routeL.thumb_y;
                 c.alchemyTracked=activity_input163::trackedHands59c7f[0].load();
                 c.smithTracked=activity_input163::trackedHands59c7f[1].load();
                 c.smithGestures=workstation178r20c1::smithAutoHold36.load();

@@ -187,7 +187,12 @@ public:
     void SetActiveVrBridge(bool enabled) { active_vr_bridge_.store(enabled, std::memory_order_release); }
     // V65.93 F5 bridge modes (rungs 2-5): 17=A->L/B->R, 18=swapped,
     // 19=A->both, 20=B->both. Rung 1 is read-only; all mappings fail closed until the post-submit pair is ready.
-    void SetStereoExperiment(int mode, float ipd_scale) { stereo_experiment_.store(mode, std::memory_order_release); afr_ipd_scale_.store(ipd_scale, std::memory_order_release); }
+    void SetStereoExperiment(int mode, float ipd_scale) {
+        const int old=stereo_experiment_.exchange(mode,std::memory_order_acq_rel);
+        afr_ipd_scale_.store(ipd_scale,std::memory_order_release);
+        if(old!=mode)stereo_experiment_generation_.fetch_add(1,std::memory_order_acq_rel);
+    }
+    void SetAlternateEyeWarpEnabled(bool enabled) noexcept { alternate_eye_warp_enabled_.store(enabled,std::memory_order_release); }
     int StereoExperimentR89() const noexcept { return stereo_experiment_.load(std::memory_order_acquire); } // R89 dice
     // V65.89: gate capture of the final COUNT2 PRESENT raster used by the resurrected
     // V65.76-79 packed-eye presentation path. Disabling capture freezes the last
@@ -501,6 +506,8 @@ private:
     std::atomic<float> eye_offset_x_[2] = {0.0f, 0.0f};
     std::atomic<float> eye_offset_y_[2] = {0.0f, 0.0f};
     std::atomic<int> stereo_experiment_{1}; // 0=mono,1=AFR,2=certified pair,3=COUNT2 raw candidate regions,4=COUNT2 per-eye live-source projective intrinsics,5=V65.85 candidate browser,11=V65.88 A/B pair,12=V65.89 packed COUNT2 Present,13..16=V65.90 deterministic first-F9 Present-ghost reproduction/controls
+    std::atomic<std::uint64_t> stereo_experiment_generation_{1};
+    std::atomic<bool> alternate_eye_warp_enabled_{false};
     std::atomic<int> v6585_candidate_index_{-1};
     std::atomic<float> afr_ipd_scale_{1.0f};
     // V65.89 packed COUNT2 final-raster snapshot. Owned by the render-thread bridge.
@@ -563,8 +570,21 @@ private:
     bool flat_ui_anchor_valid_ = false;
     ID3D12Resource* afr_cache_[2] = { nullptr, nullptr };
     bool afr_cache_valid_[2] = { false, false };
+    std::uint64_t afr_cache_camera_frame_[2] = { 0, 0 };
     D3D12_RESOURCE_DESC afr_cache_desc_{};
+    std::uint64_t afr_cache_mode_generation_ = 0;
     std::uint64_t afr_last_present_serial_ = 0;
+    std::uint64_t afr_cache_serial_[2] = { 0, 0 }; // R156: game PRESENT serial held by each eye's cache
+    // R154 AER performance receipt (render thread only, BlitAfrStereoToEyes).
+    struct AerPerfR154 {
+        std::uint64_t blits = 0, newFrames = 0, nonblocking = 0, blocking = 0, warped = 0, rotation = 0, lastLog = 0;
+        double cpuMs = 0.0, maxCpuMs = 0.0, waitMs = 0.0;
+        const char* lastFallback = "";
+        // R156: frames cached at their own submission, and how many game frames the
+        // stale eye's image trails the live eye's at each XR blit (1 = ideal).
+        std::uint64_t cachedAtSubmit = 0, ageSamples = 0, ageSum = 0, ageMax = 0, ageOver2 = 0;
+    } aer_perf_r154_{};
+    bool aer_timestamp_frequency_set_r154_ = false;
     // V66.22 production native-stereo presentation cache. Unlike the historical
     // AFR cache, both eyes are refreshed atomically from one certified same-frame
     // pair before either is exposed to XR. Once refreshed, this pair remains stable
@@ -683,8 +703,10 @@ private:
         std::uint64_t pair_serial, std::uint64_t pair_camera_frame, bool refresh_pair,
         ID3D12Resource* left, ID3D12Resource* right, bool* safe_to_drop = nullptr,
         native_upscaler_stereo_d82::PairOwner pair_owner = {});
-    bool BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std::uint64_t serial, ID3D12Resource* left, ID3D12Resource* right, D3D12_RESOURCE_STATES source_state = D3D12_RESOURCE_STATE_PRESENT);
+    bool BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std::uint64_t serial, ID3D12Resource* left, ID3D12Resource* right, D3D12_RESOURCE_STATES source_state = D3D12_RESOURCE_STATE_PRESENT, std::uint64_t render_frame_index = 0);
     void DestroyAfrCaches();
+    void ResetAfrCachesOnGenerationR156();
+    void CacheAfrPresentR156(); // render-thread callback: cache the PRESENT this batch submitted
     bool SubmitDiagnosticImagesOnRenderThread(ID3D12Resource* left, ID3D12Resource* right);
     bool SubmitBridgeImagesOnRenderThread(ID3D12Resource* left, ID3D12Resource* right);
     bool QueueRenderThreadDiagnosticWork(ID3D12Resource* left, ID3D12Resource* right, ID3D12Resource* ui_image,

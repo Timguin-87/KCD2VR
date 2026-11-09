@@ -68,12 +68,24 @@ public:
     static float GetCameraBackOffsetMeters();
     static float GetCameraHeightOffsetMeters();
     static float GetAfrEyeOffsetMeters();
+    // R150: eye whose AFR IPD offset was actually written into the last camera
+    // posed on THIS thread (fresh pose, or the reused culling pose), -1 if none.
+    // The culling pose is posed before the publish detour runs, so the AFR eye
+    // selected at publish time is not necessarily the eye of the rendered camera.
+    static int LastAppliedAfrEye() noexcept;
+    static void ClearAppliedAfrEye() noexcept;
+    // R154: signed world offset along camera right written with that eye (0 if none).
+    static float LastAppliedAfrEyeOffsetWorld() noexcept;
+    // GetAfrEyeOffsetMeters() that also records the eye for LastAppliedAfrEye().
+    static float GetAfrEyeOffsetMetersApplied() noexcept;
     // V46.9 timing audit: last tick when the frustum hook consumed an XR pose.
     static std::uint64_t LastPoseApplyTickMs();
     static std::uint64_t LastPoseFrameIndex();
     static std::uint64_t CurrentPoseFrameIndex();
     // V61.7 read-only culling timing probe: latest orientation actually handed to UpdateFrustumPlanes.
     static bool GetLatestFrustumRotationSample(CameraRotationSample& out);
+    // Exact final camera basis recorded with a rendered XR pose frame.
+    static bool GetCameraRotationForPoseFrame(std::uint64_t pose_frame,CameraRotationSample& out);
     // V64.38: exact world-forward direction of the final published OpenXR-composed camera.
     // Used by interaction alignment so gameplay queries can follow the headset without
     // making native camera timing part of the rendered view. Fails closed when stale.
@@ -85,11 +97,15 @@ public:
     // the same matrix translation rendered by PublishViewCamera, not a native
     // Henry head-bone approximation.
     static bool GetLatestVisualPositionWorld(float& x, float& y, float& z, std::uint64_t max_age_ms = 100);
+    // R142 direct hands use the placed cyclopean camera center: it includes
+    // calibration offsets and roomscale, while excluding per-eye IPD.
+    static bool GetLatestVisualCenterPositionWorld(float& x,float& y,float& z,std::uint64_t max_age_ms=100);
     // Read-only completed center-head ray for station labels, copied together
     // with its tracking/camera provenance. Never a native action selector.
     static bool GetLatestVisualRayD75(visual_ray_d75::Sample& out,std::uint64_t max_age_ms = 80);
     static void PublishVisualForwardFromCameraMatrix(const void* camera_matrix);
     static void PublishVisualPositionFromCameraMatrix(const void* camera_matrix);
+    static void PublishVisualCenterPositionWorld(const float* xyz) noexcept;
     // V61.44 FRAME NEXUS: if the exact gameplay CView was just posed for the
     // culling frustum, reuse that exact full Matrix34 at PublishViewCamera. This
     // guarantees culling and rendered pixels use one immutable pose snapshot even
@@ -218,6 +234,11 @@ private:
     static std::atomic<float> s_visual_position_z;
     static std::atomic<std::uint64_t> s_visual_position_tick_ms;
     static std::atomic<bool> s_visual_position_valid;
+    static std::atomic<float> s_visual_center_x;
+    static std::atomic<float> s_visual_center_y;
+    static std::atomic<float> s_visual_center_z;
+    static std::atomic<std::uint64_t> s_visual_center_tick_ms;
+    static std::atomic<bool> s_visual_center_valid;
 };
 
 } // namespace kcd2vr

@@ -1,11 +1,12 @@
         // Resolve every existing wrist owner once, after native fixture position
         // guidance and before contact/arm admission. DesiredHand6689 reads only
         // the calibrated hand basis and tracking frame, never mutable arm FK.
-        Q4 handDesired=(tx.physicalActive&&tx.physicalOutput.owned[side])?QP(((tx.physicalOutput.displayLatched[side]||tx.physicalOutput.displayRejoinR13[side])?tx.physicalOutput.displayHands[side]:tx.physicalOutput.hands[side]).q):DesiredHand6689(s,side,frame,visQH50[side]);
+        const Q4 wristFrame52=directHandsR135?directHandFrameR142:frame;
+        Q4 handDesired=(tx.physicalActive&&tx.physicalOutput.owned[side])?QP(((tx.physicalOutput.displayLatched[side]||tx.physicalOutput.displayRejoinR13[side])?tx.physicalOutput.displayHands[side]:tx.physicalOutput.hands[side]).q):DesiredHand6689(s,side,wristFrame52,visQH50[side]);
         handDesired=QP(kcd2vr::physics::hand_presence_h24::wristRotation(presenceOwnedH24[side],{presenceWristH24[side].q,presenceWristH24[side].p},PQ(handDesired)));
         if(propHeld5916c1[side])handDesired=QP(propWrist5916c1[side].q);
         if(doorPose66[side])handDesired=QP(doorWrist66[side].rotation);
-        if(stagedHandoverD47[side]>.001f){const auto q=pc::slerp(PQ(handDesired),PQ(QFromQuatT(s.original[h])),stagedHandoverD47[side]);if(q)handDesired=QP(*q);}
+        if(!directHandsR135&&stagedHandoverD47[side]>.001f){const auto q=pc::slerp(PQ(handDesired),PQ(QFromQuatT(s.original[h])),stagedHandoverD47[side]);if(q)handDesired=QP(*q);}
         // Smithing's exact current tool/socket owns its dedicated collision
         // setting independently of the free-hand F10/performance switches.
         // Position, rotation, tool placement and staged history now agree on

@@ -1,5 +1,15 @@
 // 0 uncalibrated, 1 one hook thread is publishing baseline, 2 ready.
 std::atomic<int> g_cal_state{0};
+// R135: direct controller mapping bypasses the F8 arm/palm calibration. The
+// session reanchor still provides the coordinate basis and standing-eye height.
+std::atomic<bool> g_direct_controller_hands_r135{false};
+// R150 HAND OFFSETS: per side (0 right, 1 left) X/Y/Z cm then pitch/yaw/roll deg, controller grip space.
+std::atomic<float> g_hand_offset_r150[12]{};
+// R153 HAND ALIGN: menu request (1 start, 2 cancel) -> pose thread. state 0 idle, 1 frozen/wait grip release,
+// 2 frozen/wait grip squeeze. Frozen pose = offset hand pose in XR tracking space (pose thread only).
+std::atomic<int> g_hand_align_req_r153[2]{},g_hand_align_state_r153[2]{};
+std::atomic<unsigned> g_hand_align_serial_r153{0};
+float g_hand_align_frozen_r153[2][7]{};
 std::atomic<float> g_cal_rel_x{0},g_cal_rel_y{0},g_cal_rel_z{0};
 std::atomic<float> g_cal_head_x{0},g_cal_head_y{0},g_cal_head_z{0};
 std::atomic<float> g_cal_lrel_x{0},g_cal_lrel_y{0},g_cal_lrel_z{0};

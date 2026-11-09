@@ -98,7 +98,9 @@ static int ProductionMode(const fs::path& ini){
  // Missing/invalid values use the same production-stereo default as the mod.
  wchar_t text[32]{};GetPrivateProfileStringW(L"Settings",L"VrStereoExperiment",L"3",text,32,ini.c_str());
  wchar_t* end=nullptr;const auto value=std::wcstol(text,&end,10);while(end&&iswspace(*end))++end;
- return end!=text&&end&&!*end&&value==0?0:3;
+ if(end==text||!end||*end)return 3;
+ if(value==0)return 0;
+ return value==4?4:3;
 }
 static bool ReadSource(const State& s,std::vector<std::string>& lines){
  lines.clear();if(s.root.empty())return false;
@@ -176,6 +178,7 @@ static bool CommitIni(State& s,bool apply,const wchar_t* serial=nullptr,bool pen
   // An INI from before R118 has no key = layout 0, so Keep on an old INI never resets a saved FACE TOUCH choice.
   const int previous=int(GetPrivateProfileIntW(L"Settings",L"VrControllerLayoutR118",0,tmp.c_str()));
   if(previous!=layout)ok=WritePrivateProfileStringW(L"Settings",L"VrQuickAccessFaceTouchR112",controller_layout_r118::FaceTouchFor(layout)?L"true":L"false",tmp.c_str())&&ok;
+  if(previous!=layout)ok=WritePrivateProfileStringW(L"Settings",L"VrQuickAccessLeftThumbrestR143",L"false",tmp.c_str())&&ok;
   ok=WritePrivateProfileStringW(L"Settings",L"VrControllerLayoutR118",std::to_wstring(layout).c_str(),tmp.c_str())&&ok;
  }
  // A later Keep settings supersedes an earlier pending graphics selection.

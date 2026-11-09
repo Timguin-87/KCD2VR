@@ -11,6 +11,77 @@ The INI is saved on exit. Its values describe that saved state, not a timeline
 of earlier attempts. Use timestamped runtime readbacks to establish which
 options were active during a particular action.
 
+## View and rendering
+
+**Home > Alternate Eye (DLSS)** is a third view-mode toggle alongside Mono and
+Stereo. It renders one camera eye each game frame and retains the previous
+image for the other eye. It requires the game's DLSS upscaler. If DLSS's paired
+contexts were not captured at startup, the Graphics page asks for a restart so
+the game can recreate them.
+
+Each eye has its own DLSS history, fed only by that eye's live frames, and DLSS
+only ever evaluates live frames. The game's motion vectors map a frame to the
+immediately previous frame, which belongs to the opposite eye. R149 rebuilds
+them per pixel for the same eye's previous live frame (N to N-2) from the depth
+buffer and the exact CRenderView camera banks. They are never composed through
+the other eye's image, which used to make areas hidden from the other eye
+shimmer. The eye of each live frame comes from the camera actually being
+rendered, not from the main thread's newer publication counter. A built-in check
+compares the game's own vectors with the camera model every frame. It selects
+the depth convention and falls back to a per-frame DLSS reset while the model
+does not hold. `VrAerDlssMotionR149` (INI only): 1 same-eye reprojection
+(default), 0 reset every eye frame, 2 raw game vectors (diagnostic).
+
+**Stale-eye warp (R154).** The eye that was not rendered this frame shows its
+own last post-DLSS image, carried to the camera the live frame would have
+rendered for it. **Home > WARP** (shown next to ALT EYE) cycles the tier, each
+containing the one before it:
+
+- **WARP ROT**: HMD and game camera rotation only (the R144 warp).
+- **WARP 6DOF**: also the camera's translation (head lean, walking, riding, the
+  eye separation itself), reprojected through that eye's own depth from its
+  last live frame. Exact for the static world.
+- **WARP MV** (default): also every moving surface (NPCs, animals, your own
+  body, hands and weapon) moved by the motion the game measured for it. The
+  live eye's motion vectors point at the previous render, which is the stale
+  eye's image, so they say where each surface went since. Surfaces the live eye
+  cannot see keep their own motion from the frame before.
+
+Pixels nothing lands on (areas revealed behind a moving or nearer object) take
+the background beside them at its rotation + 6DoF warp; wider gaps fall back to
+a backward 6DoF warp, then rotation alone. The image is resampled once. Missing
+inputs (first frames, a camera cut, menus, flat UI) fall back to WARP ROT for
+that frame. Saved as `VrAerWarpModeR154` (0 rotation, 1 6DoF, 2 motion
+vectors). `VrAerWarpDebugR154=true` (INI only) tints the stale eye by tier:
+blue own motion, green measured motion, cyan crack fill, yellow background
+fill, orange backward 6DoF, magenta rotation only. `KCD2VR.log` gets an
+`R154 AER_WARP` line every 30 s (tier shares, fallbacks, GPU time) and an
+`R154 AER_PERF` line (live eye frames per second, XR blits per second, CPU time
+of the blit). The warp's GPU memory (about 180 MB at a 1536 render) is freed a
+few seconds after ALT EYE stops.
+
+**Alternate-eye frame dump.** Press **Ctrl+F12**, or use **Home > DUMP** next to
+the mode button (capture starts 3 s later so the menu can be closed). The mod
+captures the next 4 live eye frames, two per eye. For each frame it stores the
+DLSS colour, depth and game motion vectors, the vectors DLSS received, and the
+DLSS output. It also records both camera banks, the retained same-eye camera,
+identities, jitter and parameters, plus the XR composition of those frames: the
+cached post-DLSS image and both submitted eye images with their warp constants.
+Files go to `KCD2VR_AER_DUMP\<date_time>\` beside the mod DLL (about 1 GB,
+uncompressed DDS + `dump.json`). Expect a short stutter while capturing. A beep
+confirms the finished write; `KCD2VR.log` names the folder. Analyse with
+`python tools\analyze_aer_dump_r149.py <folder>`.
+
+In direct controller-hand mode, controller movement is anchored from the
+camera's published position, including the camera height, side and back offsets.
+The anatomical palm-to-wrist correction remains applied to the hand pose.
+
+**VR CONFIG > CONTROLS > Modifier** cycles between right thumbrest (the existing
+layout), left thumbrest, and face touch. Left thumbrest moves the D-pad, Map and
+VR menu chord to the right stick; holding it with right A requests Wait and with
+right B opens Pause. The setting is saved as `VrQuickAccessLeftThumbrestR143`;
+the older `VrQuickAccessFaceTouchR112` key still selects face touch.
+
 ## Hands and weapons
 
 The accepted publication timing is part of ordinary VRIK and does not require
@@ -193,6 +264,30 @@ turn your head toward a direction and push forward to walk that way. The VR
 CONFIG > CONTROLS button cycles between `WALK: HMD` and `WALK: STICK`; the INI
 key is `VrHmdWalkingDirectionR134`. Menus, dialogue navigation, authored
 minigames and roomscale follow/dodge input keep their own directions.
+
+## Hand tracking
+
+Home > VRIK includes **HANDS 1:1 ON / HANDS LEGACY**. The default LEGACY mode
+keeps the existing F8-calibrated hand mapping. 1:1 mode maps each free hand's
+palm to the tracked controller at 1:1 translation, while retaining Henry's
+skeleton-based hand orientation and palm-to-wrist correction. It skips hand
+smoothing, free-hand collision corrections, and presentation lead. Saved
+standing-eye height is used to place Henry's head from headset height; the
+session headset orientation supplies the tracking-to-game coordinate frame.
+The direct mode runs without the F8 arm T-pose. Its Home height reset reuses the
+saved standing-eye reference and recenters the headset. Native item and activity
+owners still control their hand while those interactions are active. The saved
+INI key is `VrHandsDirectTrackingR135`.
+
+### Hand offsets
+
+Home > **HAND OFFSETS** moves and rotates each rendered hand relative to its
+controller, in the controller's own frame (X right, Y up, Z forward). Each hand
+has three position sliders (-20 to +20 cm, 0.5 cm steps) and three rotation
+sliders (pitch, yaw, roll, -180 to +180 degrees). **RESET RIGHT** / **RESET
+LEFT** zero one hand. The offsets apply in both the 1:1 and the legacy hand
+modes. INI keys are `VrHandOffsetR150_<R|L>_<PosX|PosY|PosZ|Pitch|Yaw|Roll>`,
+all defaulting to 0.
 
 ## Room movement and dodge
 

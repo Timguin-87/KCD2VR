@@ -1011,6 +1011,7 @@ static std::atomic<bool> g_cal_auto_restore43{true},g_cal_anchor_saved43{false},
 static std::atomic<float> g_cal_anchor_x43{0},g_cal_anchor_y43{0},g_cal_anchor_z43{0};
 static std::atomic<std::uint64_t> g_cal_restore_count43{0},g_cal_drift_count43{0};
 static std::atomic<bool(*)(float&,float&,float&,std::uint64_t)> g_view_position_probe43{nullptr}; // mod.cpp: CameraHook::GetLatestVisualPositionWorld (receipt only)
+static std::atomic<bool(*)(float&,float&,float&,std::uint64_t)> g_view_forward_probe43{nullptr};
 static PerfCounter101R2 g_perf101R2[18]; // frame totals plus capture-only native substage attribution (R6: +rhythm, +native action prepare/release/cancel)
 static std::atomic<std::uint64_t> g_perf_stall_log178r6{0};
 struct PerfScope101R2 {

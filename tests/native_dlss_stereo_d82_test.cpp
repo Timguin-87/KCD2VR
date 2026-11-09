@@ -39,6 +39,14 @@ void ReportPairCreated(const void*,const void*) noexcept {}
 void ReportPairEvaluated(std::uint64_t,std::uint32_t,const void*,const void*,std::uint64_t) noexcept {}
 void ReportEvaluationInputs(unsigned,std::uint64_t,std::uint32_t,void*,int,bool) noexcept {}
 #include "native_dlss_stereo_d82_runtime.inl"
+// R149: the alternate-eye path (camera banks, GPU reprojection) is production
+// only. The fixture proves the AFR branch is taken before any stereo-pair rule
+// and that it keeps the game's own evaluation instead of latching a fault.
+unsigned alternateEyeCalls=0;
+Result EvaluateAlternateEye(EvaluateFn fn,void* command,const void* handle,Pair* p,void* parameters,
+    void* callback,const native_stereo_preflight::UpscalerView* view) {
+    ++alternateEyeCalls;(void)p;(void)view;return fn(command,handle,parameters,callback);
+}
 } // namespace
 // Extracted byte-for-byte from the production .cpp by the runner. No duplicate
 // implementation of readiness, mode transitions, or pair acceptance lives here.
@@ -105,6 +113,7 @@ std::uint32_t FakeGetResource(void* ptr,const char* key,void** out) {
 void Reset() {
     g_pairs={};for(auto& r:g_receipts)ClearReceipt(r);g_receipt_next=0;g_receipt_serial=0;g_next_identity=0;
     g_stats={};g_fault=Fault::None;g_enabled=false;g_installed=true;g_live_pairs=0;g_generation=1;g_native_depth=0;
+    g_alternate_eye=false;alternateEyeCalls=0;
     g_create=&FakeCreate;g_evaluate=&FakeEvaluate;g_evaluate_c=&FakeEvaluateC;g_release=&FakeRelease;g_shutdown=&FakeShutdown;
     g_get_i=&FakeGetI;g_set_i=&FakeSetI;g_get_f=&FakeGetF;g_get_resource=&FakeGetResource;
     evaluations.clear();releases.clear();creationParameters.clear();creationCommands.clear();creates=0;
@@ -223,5 +232,19 @@ int main() {
     Reset();SetEnabled(true);p={};New(p,1,reinterpret_cast<void*>(0x9000));New(p,1,reinterpret_cast<void*>(0x9002));CHECK(GetStatus().livePairs==2);
     CHECK(ShutdownDetour(reinterpret_cast<void*>(0x9000))==kSuccess);CHECK(GetStatus().livePairs==1);CHECK(ShutdownDetour(nullptr)==kSuccess);CHECK(GetStatus().livePairs==0);
     Reset();SetEnabled(true);p={};for(int i=0;i<9;++i)New(p);CHECK(creates==17);CHECK(GetStatus().livePairs==8);CHECK(GetStatus().fault==Fault::Capacity);
+    // R149 alternate-eye: every scoped AFR frame, including ones the stereo-pair
+    // rules would refuse (RIGHT without LEFT, unqualified eye, missing twin),
+    // takes the AFR path, keeps the game's evaluation and never latches a fault.
+    Reset();SetEnabled(true);p={};h=New(p);g_alternate_eye=true;
+    View(1,10);CHECK(Eval(h,p)==kSuccess);View(0,11);CHECK(Eval(h,p,true)==kSuccess);
+    View(1,11);scope::testValid=false;CHECK(Eval(h,p)==kSuccess);
+    CHECK(alternateEyeCalls==3&&evaluations.size()==3&&!Faulted()&&GetStatus().pairs==0);
+    CHECK(evaluations[0].api==0&&evaluations[1].api==1);
+    // R150: an AFR evaluation without a render identity is still owned by the
+    // AFR path (counted pass-through), never the silent shared-history route.
+    scope::testScoped=false;CHECK(Eval(h,p)==kSuccess);CHECK(alternateEyeCalls==4&&GetStatus().unscoped==0);
+    g_alternate_eye=false;CHECK(Eval(h,p)==kSuccess);CHECK(alternateEyeCalls==4&&GetStatus().unscoped==1);
+    Reset();SetEnabled(true);p={};failTwin=true;h=New(p);g_alternate_eye=true;View(0,20);
+    CHECK(Eval(h,p)==kSuccess);CHECK(alternateEyeCalls==1&&GetStatus().fault==Fault::TwinCreate);
     std::printf("DLSS production routing checks=%d failures=%d\n",checks,failures);return failures?1:0;
 }

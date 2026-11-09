@@ -121,7 +121,7 @@
         }
         const V3 change=Sub(VP(tx.frame51.anchor),headAnchor123);
         headAnchor123=VP(tx.frame51.anchor);headTarget=Add(headTarget,change);
-        for(int side=0;side<2;++side){requestedGoals[side]=Add(requestedGoals[side],change);requestedGoalsRawH50[side]=Add(requestedGoalsRawH50[side],change);goals[side]=Add(goals[side],change);}
+        if(!directHandsR135)for(int side=0;side<2;++side){requestedGoals[side]=Add(requestedGoals[side],change);requestedGoalsRawH50[side]=Add(requestedGoalsRawH50[side],change);goals[side]=Add(goals[side],change);}
         tx.frame51.root=PV(frameWorld51.t);tx.frame51.rotation=PQ(frameWorld51.q);
     }
     // Mounted upper-body goals must never commit on an unjoined standing/native

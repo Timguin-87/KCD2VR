@@ -27,12 +27,17 @@ def main():
     worker = function(source['src/dllmain.cpp'], 'static DWORD WINAPI ModThreadMain(')
     dllmain = function(source['src/dllmain.cpp'], 'BOOL APIENTRY DllMain(')
     check('Worker logging precedes early capture, plugins and companion startup',
-          worker.index('unified_log_d81::Initialize()') < worker.index('InstallEarly(wanted)') < worker.index('LoadAsiPlugins()') < worker.index('companion_loader59c4::Install()'), 'src/dllmain.cpp')
+          worker.index('unified_log_d81::Initialize()') < worker.index('InstallEarly(wanted,alternate)') < worker.index('LoadAsiPlugins()') < worker.index('companion_loader59c4::Install()'), 'src/dllmain.cpp')
     check('DllMain creates the worker and does not install vendor hooks', 'CreateThread(nullptr, 0, ModThreadMain' in dllmain and 'InstallEarly' not in dllmain, 'src/dllmain.cpp')
-    check('Early capture honors persisted Enabled and production mode', 'ReadBool(ini,L"Enabled",true)&&kcd2vr::startup_s15::ProductionMode(ini)==3' in worker, 'src/dllmain.cpp')
+    # R149: production mode 4 (DLSS alternate-eye) also captures the paired DLSS creation.
+    check('Early capture honors persisted Enabled and production mode',
+          'const int mode=kcd2vr::startup_s15::ProductionMode(ini);' in worker and 'const bool alternate=mode==4;' in worker and
+          'ReadBool(ini,L"Enabled",true)&&(mode==3||alternate)' in worker, 'src/dllmain.cpp')
     apply = function(source['src/mod.cpp'], 'bool Mod::ApplyMenuState(')
     check('Menu saves requested mode without directly starting stage4',
-          'const int stereo = 0;' in apply and 'vr_production_stereo_mode_.store(production_stereo' in apply and 'StartStereoDesign(' not in apply and 'SetStereoExperiment(2' not in apply, 'src/mod.cpp')
+          # R149: only alternate-eye (mode 4) starts AFR (stereo 1) directly; native stage4 is never started here.
+          'const int stereo = alternate_eye ? 1 : 0;' in apply and 'const bool alternate_eye = state.stereo_mode==4;' in apply and
+          'vr_production_stereo_mode_.store(requested_stereo_mode' in apply and 'StartStereoDesign(' not in apply and 'SetStereoExperiment(2' not in apply, 'src/mod.cpp')
     check('Existing settings writer persists the requested mode for next-launch capture',
           'ok = wi("VrStereoExperiment", vr_production_stereo_mode_.load(std::memory_order_acquire)) && ok;' in source['src/mod.cpp'], 'src/mod.cpp')
     modrun = function(source['src/mod.cpp'], 'void Mod::Run(')
@@ -64,7 +69,8 @@ def main():
     aggregate = source['src/native_upscaler_stereo_d82.cpp']
     for name in ['InstallEarly', 'SetMode']:
         body = function(aggregate, 'void '+name+'(')
-        check(name+' enables both providers independently of selected technology', 'native_dlss_stereo_d82::SetEnabled(wanted);' in body and 'native_fsr_stereo_d82::SetEnabled(wanted);' in body, 'src/native_upscaler_stereo_d82.cpp')
+        # R149: alternate-eye is DLSS-only; FSR/XeSS twins stay off in that mode.
+        check(name+' enables both providers independently of selected technology', 'native_dlss_stereo_d82::SetEnabled(wanted);' in body and 'native_fsr_stereo_d82::SetEnabled(wanted&&!alternate);' in body and 'native_dlss_stereo_d82::SetAlternateEyeMode(alternate);' in body, 'src/native_upscaler_stereo_d82.cpp')
     pair = function(aggregate, 'bool PairReady(')
     check('Provider pins technology to the epoch before considering Native passthrough', 'const int tech=ActualTechnology();' in pair and 'pairEpoch!=bound||tech!=epochTechnology.load(std::memory_order_acquire)' in pair and pair.index('tech!=epochTechnology.load') < pair.index('if(tech==0)return true;'), 'src/native_upscaler_stereo_d82.cpp')
     begin = function(aggregate, 'void BeginEpoch(')

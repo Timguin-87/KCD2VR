@@ -15,7 +15,7 @@ namespace kcd2vr::graphics_owner31 {
 struct UpscalerSelectionR27 {int tech=0,quality=1,preset=0;};
 inline bool upscalerSettingsR27(UpscalerSelectionR27 s,std::vector<std::pair<std::string,int>>& out) {
     out.clear();
-    if((s.tech!=0&&s.tech!=1&&s.tech!=2&&s.tech!=4)||s.preset<0||s.preset>6)return false;
+    if((s.tech!=0&&s.tech!=1&&s.tech!=2&&s.tech!=4)||s.preset<0||s.preset>13||(s.preset>=7&&s.preset<=9))return false; // R151: NGX J..M = 10..13
     if(s.tech==2){if(s.quality<0||s.quality>5)return false;
         out.emplace_back("r_SuperResolution_NVIDIA_DLSS_QualityMode",s.quality);
         out.emplace_back("r_SuperResolution_NVIDIA_DLSS_Preset",s.preset);

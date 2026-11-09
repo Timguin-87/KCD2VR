@@ -47,6 +47,7 @@ kcd2vr_module(base
  src/native_stereo_outer_lab.cpp
  src/native_stereo_preflight_v6602.cpp
  src/native_dlss_stereo_d82.cpp
+ src/aer_warp_r154.cpp
  src/native_fsr_stereo_d82.cpp
  src/native_upscaler_stereo_d82.cpp
  src/native_xess_stereo_d85.cpp

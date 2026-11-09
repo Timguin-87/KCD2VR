@@ -2,7 +2,7 @@
     // evidence. Only the skinning pose below may use future display data.
     // Gameplay packets, native contacts and every temporal semantic history
     // retain the baseline result. OFF does no reads, copies, rays or extra FK.
-    if(kcd2vr::hand_present_d61::Enabled()&&!kcd2vr::claude_motion_d69::ExtraActive()){
+    if(!directHandsR135&&kcd2vr::hand_present_d61::Enabled()&&!kcd2vr::claude_motion_d69::ExtraActive()){
         namespace hd=kcd2vr::hand_present_d62;
         namespace hp=kcd2vr::hand_present_d61;
         const auto displayNowD62=std::uint64_t(GetTickCount64());

@@ -150,8 +150,8 @@ private:
     // compatibility knobs are forced by this profile.
     std::atomic<bool> enable_vr_balanced_graphics_{true};
     std::atomic<float> vr_engine_clarity_{0.18f};
-    std::atomic<float> vr_gamma_{0.85f};
-    std::atomic<float> vr_brightness_{-0.06f};
+    std::atomic<float> vr_gamma_{1.0f};
+    std::atomic<float> vr_brightness_{0.0f};
     std::atomic<float> vr_contrast_{1.0f};
 #define KCD2VR_M2_HOST_SLOT 230 // M2_SOURCE_SELECTOR
 #include "subsystems/hud_ui_controls/host.inl" // M2_OWNED_SOURCE slot=230
@@ -227,7 +227,7 @@ private:
     std::atomic<float> vr_right_offset_y_{0.0f};
     std::atomic<int> vr_stereo_experiment_{0}; // 0=mono, 1=AFR, 2=sync-sequential scaffold, 3=native scaffold
     std::atomic<bool> native_stereo_running_r89_{false}; // R89 dice: stage4 producer live (Run's f9_postfx_step==4); menu edits read it
-    std::atomic<int> vr_production_stereo_mode_{3}; // V65.14: 0=off, 3=production OpenXR-IPD dual-camera Stereo button; independent of F8 lab
+    std::atomic<int> vr_production_stereo_mode_{3}; // 0=mono, 3=native dual-camera Stereo, 4=DLSS alternate-eye
     std::atomic<int> vr_cyclopean_mode_{0}; // clean modes: 0=mono, 1=projective FOV REMAP, 3=depth pseudo
     std::atomic<float> vr_depth_stereo_strength_{0.30f}; // V64.28 slider 0..1 maps near asymmetry 0.70 -> 0.55; far stays 1.00
     std::atomic<int> vr_rotation_order_{0}; // V61.13 recenter frame test: 0=B*D, 1=D*B

@@ -14,7 +14,7 @@ inline constexpr Value Values[]={
  {"VrAutoCenterXTrim",0},
  {"VrAutoCenterYTrim",0.08},
  {"VrAutoFovTrimDegrees",0},
- {"VrBrightness",-0.01},
+ {"VrBrightness",0},
  {"VrCameraBackOffsetMeters",0},
  {"VrCameraHeightOffsetMeters",0.035},
  {"VrCleanPresentationMode",0},
@@ -34,7 +34,7 @@ inline constexpr Value Values[]={
  {"VrFpsCap",90},
  {"VrFpsCapEnabled",0},
  {"VrGameFov",95},
- {"VrGamma",0.65},
+ {"VrGamma",1}, // R157: neutral; the R152 colour-space decode replaces the old 0.65
  {"VrHorizontalFov",95},
  {"VrImmersiveFov",0},
  {"VrLeftOffsetX",0},
