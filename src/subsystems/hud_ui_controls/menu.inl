@@ -6,6 +6,25 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         DrawButton(dc,font_small_,kIxGestures,s.gesture_talk?L"[X] INDEX-FINGER POINTING QUICK TALK":L"[ ] INDEX-FINGER POINTING QUICK TALK",s.gesture_talk?kAccent:kPanel2);
 #elif defined(KCD2VR_MENU_DRAW_VRHUD)
 
+        if(!developer_mode::Enabled()){ // R160 UI: one simple, readable page (developer mode keeps the pages below)
+        pageTitle(L"VR HUD",L"Icon size, HUD mode and what the HUD shows"); vrNav();
+        HFONT bigR160=font_normal_?font_normal_:font_small_;
+        std::swprintf(v,128,L"%.0f%%",double(kcd2vr::ui_hud_r160::ClampUnified(s.vr_ui_unified_scale_r160)*100.f));
+        DrawSlider(dc,bigR160,kSimpleIconR160,L"Icon size (whole HUD)",(kcd2vr::ui_hud_r160::ClampUnified(s.vr_ui_unified_scale_r160)-.50f)/1.00f,v);
+        {const float craftR160=prompt_policy_d80::minigameScale.load(std::memory_order_acquire); // VrMinigamePromptScale (R145)
+         std::swprintf(v,128,L"%.0f%%",double(craftR160*100.f));DrawSlider(dc,bigR160,kSimpleCraftR160,L"Crafting / minigame icon size",(craftR160-.25f)/.75f,v);}
+        Text(dc,bigR160,L"HUD mode",620,207,418,20,kAccent,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
+        {const int modeR160=HudModeR160(s);
+         DrawButton(dc,font_small_,kModeImmersiveR160,modeR160==0?L"[X] IMMERSIVE":L"IMMERSIVE",modeR160==0?kAccent:kPanel2);
+         DrawButton(dc,font_small_,kModeMinimalR160,modeR160==1?L"[X] MINIMAL IMMERSIVE":L"MINIMAL IMMERSIVE",modeR160==1?kAccent:kPanel2);
+         DrawButton(dc,font_small_,kModeNormalR160,modeR160==2?L"[X] NORMAL":L"NORMAL",modeR160==2?kAccent:kPanel2);}
+        for(int i=0;i<kSimpleTicksR160;++i){bool inverted=false;const wchar_t* label=L"";const bool* field=SimpleTickFieldR160(s,i,inverted,label);
+            if(!field)continue;const bool on=inverted?!*field:*field;wchar_t tick[48]{};std::swprintf(tick,48,L"%ls %ls",on?L"[X]":L"[ ]",label);
+            DrawButton(dc,bigR160,SimpleTickR160(i),tick,on?kAccent:kPanel2);}
+        // same value and log scale as INTERACTION / PROMPTS: 0.75..10 m, slider end = INF (VrHudInfinityR125)
+        if(s.live_d39.hudInfinityR125)std::swprintf(v,128,L"INF");else std::swprintf(v,128,s.hud_distance_r110<2.0f?L"%.2f m":L"%.1f m",double(s.hud_distance_r110));
+        DrawSlider(dc,bigR160,kSimpleHudDistR160,L"HUD distance (size stays)",s.live_d39.hudInfinityR125?1.0f:std::log(std::clamp(s.hud_distance_r110,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127)/kcd2vr::ui_surface_geometry::kHudConvergenceMinR127)/std::log(kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127/kcd2vr::ui_surface_geometry::kHudConvergenceMinR127)*0.90f,v);
+        } else {
         const bool correctedUi=false;
         pageTitle(L"VR CONFIG",L"Manual HUD placement and visibility"); vrNav();
         HFONT denseFont=font_tiny_?font_tiny_:font_small_;
@@ -68,9 +87,23 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
         DrawCheck(dc,denseFont,kHudQuickSlotsR115,s.quick_slots_on_selection_r115,L"Weapon / potion slots only while selecting (3 s)"); // R115
         DrawCheck(dc,denseFont,kHudBlockMsgR124,s.show_block_indicator_h24,L"BLOCK message"); // R124 (R141: half row)
         DrawCheck(dc,denseFont,kHudTutorialsR141,!s.live_d39.hideTutorialsR141,L"Tutorial messages"); // R141: ticked = shown (VrHideTutorialsR141=false)
+        } // R160 UI: developer mode page
 
 #elif defined(KCD2VR_MENU_CLICK_VRHUD)
 
+        if(!developer_mode::Enabled()){ // R160 UI simple page: every control saves at once (sliders on release)
+            if(begin_drag(kSimpleIconR160,DragControl::UnifiedScaleR160))return;
+            if(begin_drag(kSimpleCraftR160,DragControl::CraftUiSizeR145))return;
+            if(begin_drag(kSimpleHudDistR160,DragControl::HudDistanceR110))return;
+            const UiRect modesR160[3]{kModeImmersiveR160,kModeMinimalR160,kModeNormalR160};
+            for(int m=0;m<3;++m)if(PtIn(modesR160[m],x,y)){SetHudModeR160(s,m);ApplyState(s);save();MarkDirty();return;}
+            for(int i=0;i<kSimpleTicksR160;++i){if(!PtIn(SimpleTickR160(i),x,y))continue;
+                bool inverted=false;const wchar_t* label=L"";bool* field=SimpleTickFieldR160(s,i,inverted,label);if(!field)return;
+                *field=!*field;ApplyState(s); // never refused: ON = the feature runs
+                if((i==2||i==4||i==7)&&callbacks_.apply_hud_visibility)callbacks_.apply_hud_visibility(callbacks_.context,s.hud_crosshair_visible,s.hud_lower_icons_visible,s.hud_compass_visible);
+                save();MarkDirty();return;}
+            return;
+        }
         if(PtIn(kV4UiAuto,x,y)){s.auto_correct_hud=!s.auto_correct_hud;ApplyState(s);save();MarkDirty();return;}
         // Session opt-in; native mode ignores palm gates.
         if(PtIn(kContextualHud162r1,x,y)){s.contextual_hud=!s.contextual_hud;ApplyState(s);save();MarkDirty();return;}
@@ -93,11 +126,11 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
             if(begin_drag(kAutoLower49,DragControl::UiBottomBoundary))return;
 
             if(PtIn(kV4UiReset,x,y)){
-                s.auto_hud_icon_scale=1.75f;s.vr_ui_compactness=1.00f;
-                s.vr_ui_safe_width=1.00f;
-                s.vr_ui_top_boundary=1.10f;
-                s.vr_ui_bottom_boundary=1.80f;
-                s.vr_ui_safe_height=1.01f; // C57 RESET = Miki default
+                s.auto_hud_icon_scale=1.67f;s.vr_ui_compactness=1.00f; // R160 UI: RESET = the new shipped defaults (his 8 Nov INI)
+                s.vr_ui_safe_width=0.60f;
+                s.vr_ui_top_boundary=1.29f;
+                s.vr_ui_bottom_boundary=2.08f;
+                s.vr_ui_safe_height=0.92f; // C57 RESET = Miki default (R160 values)
                 s.vr_ui_center_offset_x=0.0f;
                 s.vr_ui_center_offset_y=0.0f;
                 ApplyState(s);
@@ -196,14 +229,19 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
             std::swprintf(v,128,L"%.0f%%",double(craftR145*100.0f)); DrawSlider(dc,dense,kCraftUiSizeR145,L"Crafting UI size (alchemy / smithing prompts + icons)",(craftR145-0.25f)/0.75f,v);}
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"%+.0f px",double(s.vr_ui_hints_y)); DrawSlider(dc,dense,kUiPromptHintY,L"Interaction vertical",(s.vr_ui_hints_y+300.0f)/600.0f,v);}
         std::swprintf(v,128,L"%.2fx",double(s.passive_full_frame_scale)); DrawSlider(dc,dense,kCinematicSizeR107,L"Cutscene / dialogue / loading size",(s.passive_full_frame_scale-1.0f)/1.0f,v); // R107
-        Text(dc,dense,L"CONTROL / TUTORIAL PROMPTS  (TutorialMessage / tl.tutorial)",620,318,418,22,kAccent,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+        Text(dc,dense,L"CONTROL / TUTORIAL PROMPTS  (TutorialMessage / tl.tutorial)",620,314,418,16,kAccent,DT_CENTER|DT_VCENTER|DT_SINGLELINE); // R160 UI: 318..340 -> 314..330, the two half-row labels start at 332
         std::swprintf(v,128,L"%.0f%%",double(s.vr_ui_control_prompt_scale*100.0f)); DrawSlider(dc,dense,kUiControlPromptScale,L"Control prompt size",(s.vr_ui_control_prompt_scale-0.30f)/1.20f,v);
+        std::swprintf(v,128,L"%+.0f px",double(kcd2vr::ui_hud_r160::ClampTutorialY(s.vr_ui_tutorial_y_r160))); DrawSlider(dc,dense,kTutorialYR160,L"Tutorial position (+ = down)",(kcd2vr::ui_hud_r160::ClampTutorialY(s.vr_ui_tutorial_y_r160)+540.0f)/1080.0f,v); // R160 UI dev: VrUiTutorialYR160
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"X %+.0f px",double(s.vr_ui_control_prompt_x)); DrawSlider(dc,dense,kUiControlPromptX,L"Control prompt horizontal",(s.vr_ui_control_prompt_x+350.0f)/700.0f,v);}
         if(!(s.auto_correct_hud||s.hud_corrected_active)){std::swprintf(v,128,L"Y %+.0f px",double(s.vr_ui_control_prompt_y)); DrawSlider(dc,dense,kUiControlPromptY,L"Control prompt vertical",(s.vr_ui_control_prompt_y+300.0f)/600.0f,v);}
+        else{ // R160: dialogue (DialogLeft/DialogRight) size + vertical, in the slots the corrected HUD leaves free. 100% / +0 px = the old placement
+            std::swprintf(v,128,L"%.0f%%",double(kcd2vr::ui_native_canvas::DialogueFactorR160(s.vr_ui_dialogue_scale)*100.0f)); DrawSlider(dc,dense,kDlgSizeR160,L"Dialogue text size",(s.vr_ui_dialogue_scale-0.30f)/1.20f,v);
+            std::swprintf(v,128,L"%+.0f px",double(kcd2vr::ui_native_canvas::DialogueOffsetR160(s.vr_ui_dialogue_y))); DrawSlider(dc,dense,kDlgYR160,L"Dialogue vertical position (+ = down)",(s.vr_ui_dialogue_y-kcd2vr::ui_native_canvas::kDialogueYMinR160)/(kcd2vr::ui_native_canvas::kDialogueYMaxR160-kcd2vr::ui_native_canvas::kDialogueYMinR160),v);}
         // R125: slider end = INF (VrHudInfinityR125): one HUD copy per eye, zero disparity, never double
         if(s.live_d39.hudInfinityR125)std::swprintf(v,128,L"INF");else std::swprintf(v,128,s.hud_distance_r110<2.0f?L"%.2f m":L"%.1f m",double(s.hud_distance_r110));
         DrawSlider(dc,dense,kHudDistanceR110,L"HUD convergence (where the eyes meet, size stays)",s.live_d39.hudInfinityR125?1.0f:std::log(std::clamp(s.hud_distance_r110,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127)/kcd2vr::ui_surface_geometry::kHudConvergenceMinR127)/std::log(kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127/kcd2vr::ui_surface_geometry::kHudConvergenceMinR127)*0.90f,v); // R110 + R125 + R127 log scale
         std::swprintf(v,128,L"%.0f%%",double(s.pause_overlay_size*100.0f)); DrawSlider(dc,dense,kPauseOverlay124,L"Pause / death overlay size",(s.pause_overlay_size-.45f)/.70f,v);
+        std::swprintf(v,128,L"%.0f%%",double(kcd2vr::ui_hud_r160::ClampUnified(s.vr_ui_unified_scale_r160)*100.0f)); DrawSlider(dc,dense,kUnifiedDevR160,L"Icon size (whole HUD)",(kcd2vr::ui_hud_r160::ClampUnified(s.vr_ui_unified_scale_r160)-.50f)/1.00f,v); // R160 UI: same value as the simple page
         DrawButton(dc,dense,kUiPanelBack,L"CORE UI",RGB(176,148,98)); DrawButton(dc,dense,kUiPanelApply,L"APPLY + SAVE",kAccent);
 
 
@@ -211,14 +249,19 @@ if(PtIn(kIxGestures,x,y)){ s.gesture_talk=!s.gesture_talk; done(s.gesture_talk?"
 
         if(begin_drag(kUiPromptHintScale,DragControl::UiHintsScale)) return;
         if((s.auto_correct_hud||s.hud_corrected_active)&&begin_drag(kCraftUiSizeR145,DragControl::CraftUiSizeR145)) return; // R145, same slot as the hidden inset row
-        if(begin_drag(kUiPromptHintInset,DragControl::UiHintsInset)) return;
-        if(begin_drag(kUiPromptHintY,DragControl::UiHintsY)) return;
+        const bool legacyRowsR160=!(s.auto_correct_hud||s.hud_corrected_active); // R160: hidden rows are not clickable any more (they sit under other rows)
+        if(!legacyRowsR160&&begin_drag(kDlgSizeR160,DragControl::UiDialogueScale)) return; // R160
+        if(!legacyRowsR160&&begin_drag(kDlgYR160,DragControl::UiDialogueY)) return; // R160
+        if(legacyRowsR160&&begin_drag(kUiPromptHintInset,DragControl::UiHintsInset)) return;
+        if(legacyRowsR160&&begin_drag(kUiPromptHintY,DragControl::UiHintsY)) return;
         if(begin_drag(kCinematicSizeR107,DragControl::PassiveFullFrameScale)) return; // R107
         if(begin_drag(kHudDistanceR110,DragControl::HudDistanceR110)) return; // R110
         if(begin_drag(kUiControlPromptScale,DragControl::UiControlPromptScale)) return;
         if(begin_drag(kPauseOverlay124,DragControl::PauseOverlaySize)) return;
-        if(begin_drag(kUiControlPromptX,DragControl::UiControlPromptX)) return;
-        if(begin_drag(kUiControlPromptY,DragControl::UiControlPromptY)) return;
+        if(begin_drag(kTutorialYR160,DragControl::TutorialYR160)) return; // R160 UI dev
+        if(begin_drag(kUnifiedDevR160,DragControl::UnifiedScaleR160)) return; // R160 UI
+        if(legacyRowsR160&&begin_drag(kUiControlPromptX,DragControl::UiControlPromptX)) return;
+        if(legacyRowsR160&&begin_drag(kUiControlPromptY,DragControl::UiControlPromptY)) return;
         if(PtIn(kUiPanelBack,x,y)){ GoToPage(MenuPage::VrHud,-1); return; }
         if(PtIn(kUiPanelApply,x,y)){
             ApplyState(s);

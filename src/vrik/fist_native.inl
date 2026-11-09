@@ -150,6 +150,9 @@ static void __fastcall CombatInputDetour101Body(void* input,const std::uint64_t*
     ReadScope101R2 pages;
     char name[96]{};bool suppress=false;
     if(FistExactInput101(input,player,manager)&&CombatActionName101(action,name,sizeof(name))){
+        // R155: the game dispatched a hold-to-look action (any input) = its action map is enabled = the prompt is offered.
+        // lb_prompt_x_r153 holds the next X press through even when the hint rows do not list the prompt. tick only.
+        if(kcd2vr::lb_prompt_x_r153::Matches(name))kcd2vr::lb_prompt_x_r153::holdMapSeenMs.store(now,std::memory_order_release);
         const auto group=FistActionGroup101(name);group178r13=group;
         const bool gestureF4=F4GestureInputOwned176()&&g_gameplay_allowed.load();
         if(group==4&&!gestureF4){

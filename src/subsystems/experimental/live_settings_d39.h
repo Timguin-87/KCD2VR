@@ -47,7 +47,7 @@ struct Settings {
     bool knifeRightHipD66=false;
     bool eyeSrgbR114=true; // R114: VrEyeSrgbR114, eye swapchain prefers sRGB (VDXR colours like SteamVR); next game start
     bool knifeChestZoneR109=false; // R109: VrKnifeChestZoneR109, the empty left hand also draws a knife at the chest pouch (where the dagger shows)
-    bool vrikOnStartR111=true,startHenryEyesR111=true; // R111: VrVrikOnStartR111 (calibrated = VRIK at start/load), VrStartAtHenryEyesR111 (recenter = Henry's eyes)
+    bool vrikOnStartR111=true,startHenryEyesR111=true; // R111: VrVrikOnStartR111 (VRIK at start/load, R149: also without a saved T-pose), VrStartAtHenryEyesR111 (recenter = Henry's eyes, R148: + start facing)
     int controllerLayoutR118=0; // R118: VrControllerLayoutR118, 0 OPENXR / 1 STEAMVR / 2 PS VR2 (X hold = inventory on 1/2)
     bool quickSlotFadeR112=true; // R112: VrHudQuickSlotFadeR112, quick weapon/potion selectors fade 3 s after the last change
     bool alchemyViewSelectR116=true; // R116: VrAlchemyViewSelectR116, alchemy selection = what the headset looks at / the hand reaches
@@ -73,16 +73,19 @@ struct Settings {
     bool eyeRayR121=true; // R121: VrInteractionEyeRayR121, the look/selection ray starts at the eye you see from
     bool meleeGripR123=true; // R123: VrMeleeAuthoredGripR123, sword/axe/mace held at the weapon's own hand socket (no learned clip pose)
     bool hudInfinityR125=false; // R125: VrHudInfinityR125, HUD at optical infinity (one quad per eye, zero disparity)
-    bool combatCrossR125=false; // R125: VrCombatCrossR125, false = combat direction cross art hidden, lock/perfect-block/master-strike icons stay
+    bool combatCrossR125=true; // R160 UI: default true = his INI (was false). R125: VrCombatCrossR125, false = combat direction cross art hidden, lock/perfect-block/master-strike icons stay
     bool hideTutorialsR141=false; // R141: VrHideTutorialsR141, true = tutorial popups off (the game's wh_ui_TutorialsEnabled held 0)
-    bool minimalHudR141=false; // R141: VrMinimalHudR141, only prompts, dialogue/subtitles and the palm compass/health; the rest stays hidden
+    bool minimalHudR141=false; // R141: VrMinimalHudR141, only prompts, dialogue/subtitles, quest text (R153) and the palm compass/health; the rest stays hidden
     bool propImpactSoundR124=true; // R124: VrPropImpactSoundR124, our loose props play the game's put-down sound when they hit something
     bool sceneryPropSwapR100=true; // R100: VrSceneryPropSwapR100, level-brush props become loose copies on Grip
     bool propFirmHoldR116=true; // R116: VrPropFirmHoldR116, held small props follow the hand every frame (no weight/drag budget)
+    bool sceneryBigPropsR158=false; // R158: VrSceneryBigPropsR158, scenery props up to 1 m across (false = 65 cm, R89/R100)
     bool cinematicBarsR107=true; // R107: VrCinematicBarsR107, cutscene/dialogue screen shows only the 16:9 band
     bool lockpickOpaqueR141=true; // R141: VrLockpickOpaqueR141, lockpicking overlay shown solid in the headset (HUD layer alpha pass, only while the lock is open)
     bool eyeHoldR141=true; // R141: VrEyeHoldR141, a frame without a new eye image re-shows the last one (not black)
-    bool rideFollowXR147=true; // R147: VrRideFollowXR147, on the horse a short X tap (PS VR2 Square) takes the follow prompt (LB)
+    bool rideFollowXR147=true; // R147: VrRideFollowXR147, a short X tap (PS VR2 Square) takes the follow prompt (LB); R155: on foot too
+    int tutorialNativeHitsR159=0; // R162: default 0 OFF (GAME TIMING gave 0 chained follow-ups in VR, REVIEW162_tut). 1 NATIVE HITS (old R159), 2 GAME TIMING. R159: VrTutorialNativeHitsR159, practice / quest weapon in hand (tutorial fight) = no mod direct hit, native route only
+    bool trainingVanillaNpcR163=true; // R163: VrTrainingVanillaNpcR163, practice / quest weapon in hand (training fight) = no mod write to any NPC (AI, animation, action timing, global NPC cvars)
     bool impaleFullDepthR128=true; // R128: VrImpaleFullDepthR128, killing-stab hang goes in to the guard (plate on the zone = shallow) + own blade passes the hung corpse
     bool impaleFastDeathR106=true; // R106: VrImpaleFastDeathR106, the impaled man's death clip plays 3x until the ragdoll pin
     bool npcLifeD73=true;
@@ -112,7 +115,7 @@ enum class Id:unsigned {
     PickupReachD40,PropRightD40,PropLeftD40,CombatNoStepD40,CombatNoTurnD40,CombatTurnStatusD40,
     ClinchModeD40,ClinchDistanceD40,NpcTouchD40,LivingTouchD40,LivingImpactD40,CorpseDragD40,ClinchStatusD40,
     NpcContactReactionD41,NpcStaminaReactionD41,FinisherCandidateD41,FreeTargetingD42,ArrowHoldD48,ElbowSolverD48,FistStrokeD49,NativePairedBackupD51,NpcGazeD52,PickupCameraBridgeD55,AlchemyToolContactD55,
-    PetGestureD59,WashGestureD59,AlchemyTransferD59,TimingLocationD64,MapSizeD64,MapSupportD64,TwoHandBiasD65,TwoHandPrimaryBiasD65,BowAimD65,CrossbowReloadD65,AlchemySpeedD65,PickupClockD65,CrankTravelD66,KnifeRightHipD66,GripAnchorD67,ArcCoverageD67,SupportReleaseD67,ContactFairnessD67,ElbowContinuityD67,MotionTrialD67,ElbowOutwardD67,ElbowBackD67,SmithRecoveryD67,SmithSemiD67,HandLeadD69,HandLeadMsD69,WeaponSameFrameD69,RigidGripD69,ElbowHysteresisD69,StabFixD77,UnarmedFixD77,MasterstrikeFixD77,FinisherUpperPlayerD83,FinisherUpperNpcD83,BladeZoneD84,UpCutLowD84,StabStartD84,HudWalkoffD70,LeanHeightD70,DodgeWindowD70,ContactContinuityD71,ItemHandoverD71,InstantActivitiesD72,InstantInteractionsD72,InstantCraftingD72,InstantReloadsD72,InstantCombatD72,MapNativePaperM43,NpcLifeD73,NativeRoomscaleD76,NpcListeningD76,RidingVrikD76,DiceHandsD85,StaticGrabR89,CrossbowHandOnlyR90,CorpseSqueezeSearchR90,TwoHandWeightR90,WeaponKickR96,SceneryPropSwapR100,ImpaleFastDeathR106,CinematicBarsR107,EyeSrgbR114,KnifeChestZoneR109,HeavyCrossbowHandPullR111,VrikOnStartR111,StartHenryEyesR111,QuickSlotFadeR112,AlchemyViewSelectR116,PropFirmHoldR116,SwingWhooshR116,MediumCrossbowHandPullR117,ControllerLayoutR118,QuickAccessFaceTouchR118,ShieldBlockBoxR120,HideBackWeaponsR121,HideAtStationsR121,EyeRayR121,MeleeGripR123,PropImpactSoundR124,HudInfinityR125,CombatCrossR125,ImpaleFullDepthR128,MinimalHudR141,HideTutorialsR141,LockpickOpaqueR141,EyeHoldR141,RideFollowXR147
+    PetGestureD59,WashGestureD59,AlchemyTransferD59,TimingLocationD64,MapSizeD64,MapSupportD64,TwoHandBiasD65,TwoHandPrimaryBiasD65,BowAimD65,CrossbowReloadD65,AlchemySpeedD65,PickupClockD65,CrankTravelD66,KnifeRightHipD66,GripAnchorD67,ArcCoverageD67,SupportReleaseD67,ContactFairnessD67,ElbowContinuityD67,MotionTrialD67,ElbowOutwardD67,ElbowBackD67,SmithRecoveryD67,SmithSemiD67,HandLeadD69,HandLeadMsD69,WeaponSameFrameD69,RigidGripD69,ElbowHysteresisD69,StabFixD77,UnarmedFixD77,MasterstrikeFixD77,FinisherUpperPlayerD83,FinisherUpperNpcD83,BladeZoneD84,UpCutLowD84,StabStartD84,HudWalkoffD70,LeanHeightD70,DodgeWindowD70,ContactContinuityD71,ItemHandoverD71,InstantActivitiesD72,InstantInteractionsD72,InstantCraftingD72,InstantReloadsD72,InstantCombatD72,MapNativePaperM43,NpcLifeD73,NativeRoomscaleD76,NpcListeningD76,RidingVrikD76,DiceHandsD85,StaticGrabR89,CrossbowHandOnlyR90,CorpseSqueezeSearchR90,TwoHandWeightR90,WeaponKickR96,SceneryPropSwapR100,ImpaleFastDeathR106,CinematicBarsR107,EyeSrgbR114,KnifeChestZoneR109,HeavyCrossbowHandPullR111,VrikOnStartR111,StartHenryEyesR111,QuickSlotFadeR112,AlchemyViewSelectR116,PropFirmHoldR116,SwingWhooshR116,MediumCrossbowHandPullR117,ControllerLayoutR118,QuickAccessFaceTouchR118,ShieldBlockBoxR120,HideBackWeaponsR121,HideAtStationsR121,EyeRayR121,MeleeGripR123,PropImpactSoundR124,HudInfinityR125,CombatCrossR125,ImpaleFullDepthR128,MinimalHudR141,HideTutorialsR141,LockpickOpaqueR141,EyeHoldR141,RideFollowXR147,SceneryBigPropsR158,TutorialNativeHitsR159,TrainingVanillaNpcR163
 };
 struct Row {Id id;const wchar_t* title;const wchar_t* detail;bool session=false,readOnly=false;};
 inline constexpr std::array<std::array<Row,8>,12> kRows{{
@@ -221,7 +224,7 @@ inline constexpr std::array<Row,8> kMotionTrialsD69{{
     {Id::RigidGripD69,L"Rigid primary grip trial",L"Trial: fixed melee grip with tip weight and resistance."},
     {Id::ElbowHysteresisD69,L"Elbow pole hysteresis trial",L"Keep elbow bend direction stable across small moves."},
     {Id::HudWalkoffD70,L"HUD event-only updates",L"Update HUD on changes instead of unchanged work."},
-    {Id::LeanHeightD70,L"Forward lean height",L"Lower your head this much to lean without walking."},
+    {Id::TimingLocationD64,L"F2 comparison boundary",L"Only the F2 timing comparison uses this location."}, // R163: moved here from VRIK page 2 row 4; replaces the REPEATED Forward lean height row (it stays on BODY page 2 row 2)
     {Id::DodgeWindowD70,L"Global native dodge window",L"Native dodge window for ALL actors; zero is default."}
 }};
 inline constexpr std::array<Row,8> kCombatTrialsD70{{
@@ -238,8 +241,8 @@ inline constexpr std::array<Row,8> kHandTrialsD71{{
     {Id::ContactContinuityD71,L"Contact stability trial",L"Keep contact surfaces stable; no added hand filter."},
     {Id::ItemHandoverD71,L"First object placement trial",L"Use the current grip for first supported attachment."},
     {Id::HandSmoothing,L"Extra hand filtering",L"Legacy low-pass filter; separate from fresh-pose timing."},
-    {Id::TimingLocationD64,L"F2 comparison boundary",L"Only the F2 timing comparison uses this location."},
-    {Id::SceneryPropSwapR100,L"Loose scenery props (swap)",L"Grip a table mug/plate/candle that is level mesh: it becomes a loose prop you carry."}, // R100
+    {Id::TrainingVanillaNpcR163,L"Training fights: vanilla NPCs",L"Wooden / quest sword in hand: no mod feature touches any NPC (AI, animations, timing, look). Your own VR stays."}, // R163: next to the R159 row; its old row "F2 comparison boundary" moved to VRIK MOTION page 2 (replaces the REPEATED Forward lean height row, still on BODY page 2)
+    {Id::TutorialNativeHitsR159,L"Tutorials (training fights)",L"Wooden / quest sword in hand: GAME TIMING = the game's own attack speed, so the partner can block; NATIVE HITS = no mod direct hit."}, // R159: replaces the REPEATED Loose scenery props row (it stays on OBJECTS page 3)
     {Id::ImpaleFastDeathR106,L"Impale: fast death",L"Killing stab: his death animation runs 3x so the ragdoll (and the hang on your blade) comes at once."}, // R106
     {Id::WeaponKickR96,L"Weapon kicks vs enemies",L"R3 with a sword/axe/mace/polearm in a fight kicks. OFF: old heavy R3 press (often a stab)."}, // R96
     {Id::CorpseSqueezeSearchR90,L"Corpse search",L"Always: catches fast grabs. On squeeze: no idle FPS cost, a fast grab can miss."} // R90
@@ -285,18 +288,31 @@ inline constexpr std::array<Row,8> kGearTrialsR118{{
 inline constexpr std::array<Row,8> kGearTrialsR125{{
     {Id::HudInfinityR125,L"HUD at infinity (flat, never double)",L"Each eye gets its own HUD copy: no depth, eyes stay parallel. OFF: one HUD at the VR HUD distance."}, // R125
     {Id::CombatCrossR125,L"Combat direction cross",L"OFF: the big direction arms are hidden, only lock / perfect block / master strike icons show."}, // R125
-    {Id::ImpaleFullDepthR128,L"Impale: blade goes in fully",L"Killing stab: he slides onto the blade up to the guard. Plate armour there: stays shallow. OFF: old shallow point."}, // R128
+    {Id::ImpaleFullDepthR128,L"Impale: blade goes in fully",L"Killing stab: pinned only where your blade touches him, then he slides on up to the guard. Plate: shallow. OFF: old."}, // R128, R153
     {Id::LockpickOpaqueR141,L"Lockpicking lock: solid",L"While picking a lock its rings show as solid as on the monitor. OFF: old see-through look. Other HUD never changes."}, // R141
     {Id::EyeHoldR141,L"No black frames: hold last picture",L"When the game stalls or a DLSS/FSR pair is missing, the last picture stays (max 2 s) instead of a black frame. OFF: black (old)."}, // R141
-    {Id::MinimalHudR141,L"Minimal HUD",L"Only prompts, dialogue, subtitles + compass/health on the palm. Status icons, popups, cursor stay hidden."}, // R141 row 6
+    {Id::MinimalHudR141,L"Minimal HUD",L"Only prompts, dialogue, subtitles, quest text + palm compass/health. Status icons, popups, cursor hidden."}, // R141 row 6, R153 quest text kept
     {Id::HideTutorialsR141,L"Tutorial messages",L"HIDDEN: no tutorial popups (the game's own Tutorials option, held while you play). Also hidden by Minimal HUD."}, // R141 row 7
-    {Id::RideFollowXR147,L"Riding: X tap = Follow",L"On the horse a short X tap (PS VR2: Square) follows the NPC when the game shows Follow (LB). OFF: X tap = talk."} // R147 row 8
+    {Id::RideFollowXR147,L"X tap = Follow",L"A short X tap (PS VR2: Square) follows the NPC when the game shows Follow (LB), on foot and on the horse (R155). OFF: X tap = talk."} // R147 row 8
 }};
-inline constexpr unsigned kMotionPage2D69=static_cast<unsigned>(Group::Count),kCombatPage2D70=kMotionPage2D69+1,kHandsPage2D71=kCombatPage2D70+1,kObjectsPage2D72=kHandsPage2D71+1,kBodyPage2D76=kObjectsPage2D72+1,kGearPage2R118=kBodyPage2D76+1,kGearPage3R125=kGearPage2R118+1;
+// R158: OBJECTS page 3 = everything about props held in the hand on one page (Miki: the size option "in 'items'").
+// row 1 is the new size switch; rows 2-8 are the SAME switches as on their own pages (same Id = same setting).
+// R159: row 3 (Loose scenery props) is now its only row - its VRIK page 2 slot holds "Tutorials: native hits only".
+inline constexpr std::array<Row,8> kObjectsTrialsR158{{
+    {Id::SceneryBigPropsR158,L"Scenery props: size",L"SMALL: mugs, plates, candles (up to 65 cm). UP TO 1 M: also stools, baskets, small crates (carried like a light box)."}, // R158
+    {Id::StaticGrabR89,L"Small props in the hand",L"Touch a mug/plate/candle, close Grip: carry, place, throw."}, // same as OBJECTS page 2
+    {Id::SceneryPropSwapR100,L"Loose scenery props (swap)",L"Grip a table mug/plate/candle that is level mesh: it becomes a loose prop you carry."}, // R159: its only row now (VRIK page 2 row 5 = Tutorials: native hits only)
+    {Id::PropFirmHoldR116,L"Held small props: firm grip",L"Mug/plate/jug stays locked in the hand, no weight or drag. OFF: old heavy servo."}, // same as BODY page 2
+    {Id::PropImpactSoundR124,L"Prop impact sounds",L"A mug/plate/jug you drop, throw or knock makes the game's clay/wood/metal sound when it lands. OFF: silent."}, // same as GEAR page 2
+    {Id::InstantInteractionsD72,L"INSTANT interactions",L"Physical pickup and release for supported objects."}, // same as OBJECTS page 2
+    {Id::PickupReachD40,L"Item pickup reach",L"Direct pickup: 20 cm; assisted pickup: 25 cm."}, // same as OBJECTS page 1
+    {Id::GripStowTrial,L"Held-object stow button",L"While holding a prop, press this button to stow it."} // same as OBJECTS page 1
+}};
+inline constexpr unsigned kMotionPage2D69=static_cast<unsigned>(Group::Count),kCombatPage2D70=kMotionPage2D69+1,kHandsPage2D71=kCombatPage2D70+1,kObjectsPage2D72=kHandsPage2D71+1,kBodyPage2D76=kObjectsPage2D72+1,kGearPage2R118=kBodyPage2D76+1,kGearPage3R125=kGearPage2R118+1,kObjectsPage3R158=kGearPage3R125+1;
 inline constexpr Rect kMotionPrevD69{694,88,782,112},kMotionNextD69{946,88,1038,112};
-constexpr Group group(unsigned n) noexcept {return n==kGearPage3R125||n==kGearPage2R118?Group::Gear:n==kBodyPage2D76?Group::Body:n==kObjectsPage2D72?Group::Objects:n==kHandsPage2D71?Group::Hands:n==kCombatPage2D70?Group::Combat:n==kMotionPage2D69?Group::MotionD67:n<static_cast<unsigned>(Group::Count)?Group(n):Group::Body;}
+constexpr Group group(unsigned n) noexcept {return n==kObjectsPage3R158?Group::Objects:n==kGearPage3R125||n==kGearPage2R118?Group::Gear:n==kBodyPage2D76?Group::Body:n==kObjectsPage2D72?Group::Objects:n==kHandsPage2D71?Group::Hands:n==kCombatPage2D70?Group::Combat:n==kMotionPage2D69?Group::MotionD67:n<static_cast<unsigned>(Group::Count)?Group(n):Group::Body;}
 constexpr bool motionPage2D69(unsigned n) noexcept {return n==kMotionPage2D69;}
-constexpr const std::array<Row,8>& rows(unsigned n) noexcept {return n==kGearPage3R125?kGearTrialsR125:n==kGearPage2R118?kGearTrialsR118:n==kBodyPage2D76?kBodyTrialsD76:n==kObjectsPage2D72?kInstantActivitiesD72:n==kHandsPage2D71?kHandTrialsD71:n==kCombatPage2D70?kCombatTrialsD70:motionPage2D69(n)?kMotionTrialsD69:kRows[unsigned(group(n))];}
+constexpr const std::array<Row,8>& rows(unsigned n) noexcept {return n==kObjectsPage3R158?kObjectsTrialsR158:n==kGearPage3R125?kGearTrialsR125:n==kGearPage2R118?kGearTrialsR118:n==kBodyPage2D76?kBodyTrialsD76:n==kObjectsPage2D72?kInstantActivitiesD72:n==kHandsPage2D71?kHandTrialsD71:n==kCombatPage2D70?kCombatTrialsD70:motionPage2D69(n)?kMotionTrialsD69:kRows[unsigned(group(n))];}
 inline constexpr const wchar_t* kTabsText[]{L"BODY",L"VRIK",L"ALCHEMY",L"SMITH",L"GEAR",L"VIEW",L"OBJECTS",L"NPCS",L"COMBAT",L"REPAIRS",L"VRIK+",L"CRAFT+"};
 constexpr bool layoutValid() noexcept {
     for(unsigned i=0;i<kTabs.size();++i){
@@ -399,11 +415,13 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::CameraHold:d.cameraHoldMs=int(next(float(d.cameraHoldMs),std::array<float,7>{0,100,250,500,1000,1500,5000}));break;
     case Id::BowArmAim:d.bowArmAim=!d.bowArmAim;break;
     case Id::ArrowHoldD48:d.arrowNativeTurnD48=!d.arrowNativeTurnD48;break;
-    // R90: one slot, three choices: D86 DEFAULT -> R89 HAND-GUIDED -> FRIK TRIAL -> D86 DEFAULT ...
+    // R90: one slot, four choices: D86 DEFAULT -> R89 HAND-GUIDED -> FRIK TRIAL -> ELBOW REACH PREFERENCE -> D86 DEFAULT ...
+    // R154: same order as the arm solver (pose_arm_solver.inl: R89 > reach preference > FRIK > default), so an INI with
+    // VrFrikElbows=true AND VrElbowPreferenceD67=true (menu never writes that) shows and leaves the one that really runs.
     case Id::ElbowSolverD48:
         if(d.elbowSolverR89){d.elbowSolverR89=false;d.frikElbowsD48=true;d.elbowPreferenceR92=false;}
+        else if(d.elbowPreferenceR92){d.elbowPreferenceR92=false;d.frikElbowsD48=false;}
         else if(d.frikElbowsD48){d.frikElbowsD48=false;d.elbowPreferenceR92=true;}
-        else if(d.elbowPreferenceR92)d.elbowPreferenceR92=false;
         else d.elbowSolverR89=true;break;
     case Id::TimingLocationD64:d.timingLocationD64=1-d.timingLocationD64;break;
     case Id::MapSizeD64:d.mapSizeD64=d.mapSizeD64>=1.49f?.40f:d.mapSizeD64+.05f;break;
@@ -421,6 +439,7 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::RidingVrikD76:d.ridingVrikD76=!d.ridingVrikD76;break;
     case Id::DiceHandsD85:d.diceHandsD85=!d.diceHandsD85;break; // D85 dice
     case Id::StaticGrabR89:d.staticGrabR89=!d.staticGrabR89;break; // R90 (R89 pickup)
+    case Id::SceneryBigPropsR158:d.sceneryBigPropsR158=!d.sceneryBigPropsR158;break; // R158: never refused
     case Id::CrossbowHandOnlyR90:d.crossbowHandOnlyR90=!d.crossbowHandOnlyR90;break; // R96: never refused
     case Id::CorpseSqueezeSearchR90:d.corpseSqueezeSearchR90=!d.corpseSqueezeSearchR90;break; // R90
     case Id::TwoHandWeightR90:d.twoHandWeightR90=!d.twoHandWeightR90;break; // R90
@@ -458,6 +477,8 @@ template<class S> bool advance(S& s,Id id) noexcept {
     case Id::LockpickOpaqueR141:d.lockpickOpaqueR141=!d.lockpickOpaqueR141;break; // R141: never refused
     case Id::EyeHoldR141:d.eyeHoldR141=!d.eyeHoldR141;break; // R141: never refused, live (next XR frame)
     case Id::RideFollowXR147:d.rideFollowXR147=!d.rideFollowXR147;break; // R147: never refused, live (next X press)
+    case Id::TrainingVanillaNpcR163:d.trainingVanillaNpcR163=!d.trainingVanillaNpcR163;break; // R163: never refused, live (next control tick)
+    case Id::TutorialNativeHitsR159:d.tutorialNativeHitsR159=(std::clamp(d.tutorialNativeHitsR159,0,2)+1)%3;break; // R161: cycles OFF / NATIVE HITS / GAME TIMING, never refused, live (next swing)
     case Id::SwingWhooshR116:d.swingWhooshR116=!d.swingWhooshR116;break; // R116: never refused
     case Id::NpcLifeD73:d.npcLifeD73=!d.npcLifeD73;break;
     case Id::NpcGazeD52:d.npcGazeHmdD52=!d.npcGazeHmdD52;break;
@@ -597,6 +618,7 @@ template<class S> void label(const S& s,const Row& row,wchar_t* out,std::size_t 
     case Id::RidingVrikD76:value=on(d.ridingVrikD76);break;
     case Id::DiceHandsD85:value=d.diceHandsD85?dice_hands_d85::statusText(d.diceHandsStatusD85):L"OFF (gamepad)";break; // D85 dice
     case Id::StaticGrabR89:value=on(d.staticGrabR89);break; // R90 (R89 pickup)
+    case Id::SceneryBigPropsR158:value=d.sceneryBigPropsR158?L"UP TO 1 M":L"SMALL";break; // R158
     case Id::CrossbowHandOnlyR90:value=d.crossbowHandOnlyR90?L"HAND ONLY":L"NATIVE-DRIVEN (XR34)";break; // R96
     case Id::CorpseSqueezeSearchR90:value=d.corpseSqueezeSearchR90?L"ONLY ON SQUEEZE (R89)":L"ALWAYS (R2 BUDGETED)";break; // R90
     case Id::TwoHandWeightR90:value=d.twoHandWeightR90?L"ON (weight slider)":L"OFF (R2 heft)";break; // R90
@@ -629,11 +651,13 @@ template<class S> void label(const S& s,const Row& row,wchar_t* out,std::size_t 
     case Id::HideTutorialsR141:value=d.hideTutorialsR141?L"HIDDEN":(d.minimalHudR141?L"SHOWN (Minimal HUD hides them)":L"SHOWN");break; // R141
     case Id::LockpickOpaqueR141:value=d.lockpickOpaqueR141?L"ON (solid)":L"OFF (see-through)";break; // R141
     case Id::EyeHoldR141:value=d.eyeHoldR141?L"ON (hold, no black)":L"OFF (black frame)";break; // R141
-    case Id::RideFollowXR147:value=d.rideFollowXR147?L"ON (X tap on horse = LB)":L"OFF (X tap = talk)";break; // R147
+    case Id::RideFollowXR147:value=d.rideFollowXR147?L"ON (X tap = LB when Follow is shown)":L"OFF (X tap = talk)";break; // R147, R155 on foot too
+    case Id::TrainingVanillaNpcR163:value=d.trainingVanillaNpcR163?L"ON (NPCs vanilla in training fights)":L"OFF (all NPC features run)";break; // R163
+    case Id::TutorialNativeHitsR159:value=d.tutorialNativeHitsR159==1?L"NATIVE HITS (no mod direct hit)":d.tutorialNativeHitsR159==2?L"GAME TIMING (game's own attack speed)":L"OFF";break; // R161
     case Id::SwingWhooshR116:value=on(d.swingWhooshR116);break; // R116
     case Id::NpcLifeD73:value=on(d.npcLifeD73);break;
     case Id::NpcGazeD52:value=!d.npcGazeHmdD52?L"NATIVE":!d.npcGazeReadyD52?L"FOLLOW HMD / UNAVAILABLE":d.npcGazeSceneD52?L"FOLLOW HMD / ADMITTED":L"FOLLOW HMD / WAITING";break;
-    case Id::ElbowSolverD48:value=d.elbowSolverR89?L"HAND-GUIDED":d.frikElbowsD48?L"FRIK TRIAL":d.elbowPreferenceR92?L"ELBOW REACH PREFERENCE":L"DEFAULT";break;
+    case Id::ElbowSolverD48:value=d.elbowSolverR89?L"HAND-GUIDED":d.elbowPreferenceR92?L"ELBOW REACH PREFERENCE":d.frikElbowsD48?L"FRIK TRIAL":L"DEFAULT";break; // R154: solver order
     case Id::HideBow:value=d.hideBackWeaponsR121?L"HIDDEN (GEAR 2: BACK WEAPONS ON)":s.exp_hide_stowed_bow==2?L"ALWAYS HIDDEN":s.exp_hide_stowed_bow==1?L"HIDE LOOKING UP":L"NATIVE";break; // R121: back rule wins
     case Id::F9:value=s.physical_f9_rung61==3?L"TRACKED WEAPON + LAB":s.physical_f9_rung61==2?L"PHYSICAL WEAPON":s.physical_f9_rung61==1?L"OBSERVE":L"OFF";break;
     case Id::PropWake:value=on(d.labPropWake);break;
@@ -669,6 +693,8 @@ template<class S,class Apply,class Save> Click dispatch(unsigned& selected,int x
         const bool body=group(selected)==Group::Body,combat=group(selected)==Group::Combat,hands=group(selected)==Group::Hands,objects=group(selected)==Group::Objects,gear=group(selected)==Group::Gear;
         if(gear&&selected==kGearPage3R125&&inside(kMotionPrevD69,x,y)){selected=kGearPage2R118;return Click::Changed;} // R125: GEAR 3 < 2 < 1
         if(gear&&(selected==kGearPage2R118||selected==kGearPage3R125)&&inside(kMotionNextD69,x,y)){selected=kGearPage3R125;return Click::Changed;} // R125: GEAR 2 > 3
+        if(objects&&selected==kObjectsPage3R158&&inside(kMotionPrevD69,x,y)){selected=kObjectsPage2D72;return Click::Changed;} // R158: OBJECTS 3 < 2 < 1
+        if(objects&&(selected==kObjectsPage2D72||selected==kObjectsPage3R158)&&inside(kMotionNextD69,x,y)){selected=kObjectsPage3R158;return Click::Changed;} // R158: OBJECTS 2 > 3
         if(inside(kMotionPrevD69,x,y)){selected=unsigned(gear?Group::Gear:body?Group::Body:objects?Group::Objects:hands?Group::Hands:combat?Group::Combat:Group::MotionD67);return Click::Changed;}
         if(inside(kMotionNextD69,x,y)){selected=gear?kGearPage2R118:body?kBodyPage2D76:objects?kObjectsPage2D72:hands?kHandsPage2D71:combat?kCombatPage2D70:kMotionPage2D69;return Click::Changed;}
     }

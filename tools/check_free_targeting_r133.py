@@ -59,6 +59,15 @@ def main():
     ck("free_targeting_r133::rootYawTick.store" in tc, "root yaw published with the tracked camera base")
     pm = text("src/subsystems/hud_ui_controls/runtime/native_vr_pad_premap.cpp")
     ck("free_targeting_r133::userTurnMs.store" in pm, "player's own turn input published")
+    # R153: own stick turn in a locked fight (modes 1/2), mode 0 untouched
+    ck("in.turnOnly=modeR153==r133::Free;in.ownTurn=r133::ownsTurn(nowR133);in.userYaw=r133::takeYaw();" in ch and
+       "const bool plusR133=modeR153==r133::FreePlus||modeR153==r133::Free;" in ch, "R153: camera hold runs in modes 1/2 and takes the own turn")
+    ck("r::ownsStickTurn(kcd2vr::free_targeting_d42::mode(),true," in mod and "r::addYaw(r::stickYaw(pad.rx,dtTurnR153));" in mod and
+       mod.index("r::addYaw(r::stickYaw(pad.rx") < mod.index("ApplyRoomscalePad58(pad,padCtx"), "R153: pad turns the view itself and withholds rx before the pad is published")
+    ck("kcd2vr::free_targeting_d42::mode()!=r::Native&& // R153" in mod, "R153: walking stick turn + bleed also in mode 1")
+    tb = text("src/subsystems/hud_ui_controls/runtime/touch_bindings.cpp")
+    ck("if(kcd2vr::free_targeting_r133::ownsTurn(now)){" in tb and "addYaw(kcd2vr::free_targeting_r133::snapYaw(ax))" in tb and
+       "MouseMoveRelative(pulse,0);" in tb, "R153: snap turn in a locked fight turns the view, else the old mouse pulse")
 
     cxx = os.environ.get("CXX", "g++")
     exe = a.out / "ft133"

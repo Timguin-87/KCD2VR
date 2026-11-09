@@ -239,10 +239,43 @@
 // src/mod.cpp: npc_block_lease
 // M2_SLOT_BEGIN 5008
 static std::atomic<int> g_npc_block39{0};
+// R153 (npc_force_block153.h): NPC defence by skill. C40 kept wh_cs_ForceBlock untouched because the cvar is global;
+// the 8 Nov run then had no NPC defence at all (Miki: "like butter"). Now: only in F4 combat against Henry's exact
+// reciprocal opponent, one roll per Henry swing (25..75 % by the opponent's skill with BY SKILL ON; VrDirectNpcBlock
+// 1 = 65 %, 2 = always, 3 = always perfect). Won roll = cvar leased for that swing, lost roll / anything else = the
+// original value written back. No latch: every control tick decides again, a failed write is retried next tick.
 struct NpcBlock39 {
-    void Service(bool direct,int mode,std::uint64_t,RagdollConsole59&) noexcept {
-        static int last=-1;const int state=direct?mode:0;if(state==last)return;last=state;
-        if(state>0)diagnostic_trace::Write("C40 NPC_FORCE_BLOCK unavailable=GLOBAL_CVAR_AFFECTS_OTHER_FIGHTS requested=1 writes=NONE nativeDecision=UNCHANGED");
+    kcd2vr::npc_force_block153::Machine machine{};bool owned=false,toldPractice=false;int original=0,written=0;std::uint32_t seed=0;
+    static void* Cvar() noexcept {return SafeConsoleGetCVar(SafeGetCryConsole(),"wh_cs_ForceBlock");}
+    void Service(bool combat,int mode,std::uint64_t now,RagdollConsole59&) noexcept {
+        namespace fb=kcd2vr::npc_force_block153;
+        if(!seed)seed=std::uint32_t(now|1u);
+        const auto published=fb::publishedMs.load(std::memory_order_acquire);
+        const bool fresh=published&&now>=published&&now-published<=fb::kFreshMs;
+        // R156: a practice / quest alias weapon in Henry's hand (prologue sparring) = no roll at all, native value kept.
+        // One log line per edge (not per tick); the gate itself is decided again every tick, so no latch.
+        const bool practice=fb::practiceWeapon.load(std::memory_order_relaxed);
+        if(combat&&fresh&&practice!=toldPractice){toldPractice=practice;
+            if(practice)diagnostic_trace::Write("R156 NPC defence roll skipped: practice / quest weapon in Henry's hand (sparring partner is not forced to block)");}
+        const int rollsBefore=machine.rolls;
+        // R163: also off while "Training fights: vanilla NPCs" holds (training_vanilla_r163.h; same practice weapon, one more owner)
+        const int want=machine.step(combat&&fresh&&!practice&&!kcd2vr::training_vanilla_r163::holdNow(),mode,npc_defense::bySkill.load(std::memory_order_acquire),fb::opponent.load(std::memory_order_relaxed),
+            fb::reciprocal.load(std::memory_order_relaxed),fb::skill.load(std::memory_order_relaxed),fb::henryPhase.load(std::memory_order_relaxed),fb::nextRoll(seed));
+        if(machine.rolls!=rollsBefore){char m[220]{};std::snprintf(m,sizeof(m),"R153 NPC_DEFENCE_ROLL skill=%d chance=%.2f won=%d forceBlock=%d mode=%d bySkill=%d rolls=%d wins=%d",
+            fb::skill.load(std::memory_order_relaxed),double(fb::chance(mode,npc_defense::bySkill.load(),fb::skill.load(std::memory_order_relaxed))),want>0?1:0,want,mode,
+            npc_defense::bySkill.load()?1:0,machine.rolls,machine.won);diagnostic_trace::Write(m);}
+        if(want>0){void* v=Cvar();
+            if(!v){static bool told=false;if(!told){told=true;diagnostic_trace::WriteStatus("R153 NPC defence roll: wh_cs_ForceBlock not found, native NPC defence kept");}return;}
+            if(!owned){original=SafeCVarGetInt(v,0);owned=true;written=original;}
+            if(written!=want&&CheatCVarSetInt143(v,want)&&SafeCVarGetInt(v,-1)==want)written=want;
+            return;}
+        Restore();
+    }
+    void Restore() noexcept {
+        if(!owned)return;
+        void* v=Cvar();
+        if(!v)return; // console gone: keep owing it, retried next tick
+        if(written==original||(CheatCVarSetInt143(v,original)&&SafeCVarGetInt(v,original+1)==original)){owned=false;written=0;}
     }
 };
 static NpcBlock39 g_npc_block_state39;

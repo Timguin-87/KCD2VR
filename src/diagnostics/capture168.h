@@ -8,8 +8,10 @@
 #include <chrono>
 #include <cstdlib>
 namespace kcd2vr::diagnostics::capture168 {
-enum class Domain : unsigned { Combat, Interaction, Hud, Reload, Hands, Vrik, HandReference, Bug, Physics };
-inline constexpr unsigned DomainCount=9;
+enum class Domain : unsigned { Combat, Interaction, Hud, Reload, Hands, Vrik, HandReference, Bug, Physics, Quest };
+inline constexpr unsigned DomainCount=10;
+// R158: Quest = the Shift+F5 quest progression recorder (quest_diag_r158.h). appended, the older ids are unchanged.
+// it is NOT part of any(): its rows are written only through WriteFor(Quest), the other producers stay quiet.
 inline constexpr std::uint64_t Duration=180000;
 // D84: independent F9 physics recorder; existing domain IDs remain stable.
 // D48: legacy reader domains are aliases of the requested
@@ -87,7 +89,7 @@ struct Gate {
     }
     unsigned poll(std::uint64_t now) noexcept {
         unsigned ended=0;
-        for(auto d:{Domain::Bug,Domain::Combat,Domain::Interaction,Domain::Vrik,Domain::Reload,Domain::Physics}){
+        for(auto d:{Domain::Bug,Domain::Combat,Domain::Interaction,Domain::Vrik,Domain::Reload,Domain::Physics,Domain::Quest}){
             const auto i=unsigned(d);auto u=until[i].load(std::memory_order_acquire);
             if(u&&(now>=u||u-now>Duration)&&until[i].compare_exchange_strong(u,0)){
                 const auto bits=members(d);mask.fetch_and(~bits,std::memory_order_release);
@@ -102,7 +104,7 @@ struct Gate {
     }
 };
 inline Gate gate;
-inline const char* name(Domain d) noexcept {return d==Domain::Physics?"PHYSICS":d==Domain::Bug?"BUG":d==Domain::HandReference?"HAND_REFERENCE":d==Domain::Vrik?"VRIK":d==Domain::Hands?"HANDS":d==Domain::Combat?"COMBAT":d==Domain::Interaction?"INTERACTION":d==Domain::Reload?"RELOAD":"HUD";}
+inline const char* name(Domain d) noexcept {return d==Domain::Quest?"QUEST":d==Domain::Physics?"PHYSICS":d==Domain::Bug?"BUG":d==Domain::HandReference?"HAND_REFERENCE":d==Domain::Vrik?"VRIK":d==Domain::Hands?"HANDS":d==Domain::Combat?"COMBAT":d==Domain::Interaction?"INTERACTION":d==Domain::Reload?"RELOAD":"HUD";}
 inline bool active(Domain d,std::uint64_t now) noexcept {return gate.active(d,now);}
 inline bool any(std::uint64_t now) noexcept {return gate.any(now);}
 inline bool handCapture(std::uint64_t now) noexcept {return active(Domain::Vrik,now)||active(Domain::Combat,now)||active(Domain::Interaction,now);}
@@ -163,6 +165,7 @@ inline int receiptDomain(const char* s) noexcept {
         if(contains(s,"domain=BUG")||contains(s,"domain=HUD"))return int(Domain::Bug);
         if(contains(s,"domain=COMBAT"))return int(Domain::Combat);
         if(contains(s,"domain=PHYSICS"))return int(Domain::Physics);
+        if(contains(s,"domain=QUEST"))return int(Domain::Quest); // R158 Shift+F5 begin/end/expired
         if(contains(s,"domain=INTERACTION")||contains(s,"domain=HANDS"))return int(Domain::Interaction);
         if(contains(s,"domain=VRIK")||contains(s,"domain=HAND_REFERENCE"))return int(Domain::Vrik);
         if(contains(s,"domain=RELOAD"))return int(Domain::Reload);

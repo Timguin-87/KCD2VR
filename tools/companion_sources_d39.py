@@ -9,6 +9,7 @@ SOURCE_PAIRS = {
     'companion/source/Scripts/Startup/zzkcd2vr_life_d73.lua': 'Scripts/Startup/zzkcd2vr_life_d73.lua',
     'companion/source/Scripts/Startup/zzkcd2vr_alchemy_sound_d80.lua': 'Scripts/Startup/zzkcd2vr_alchemy_sound_d80.lua',
     'companion/source/Scripts/Startup/zzkcd2vr_swing_whoosh_r116.lua': 'Scripts/Startup/zzkcd2vr_swing_whoosh_r116.lua', # R116 swing whoosh
+    'companion/source/Scripts/Startup/zzkcd2vr_quest_diag_r158.lua': 'Scripts/Startup/zzkcd2vr_quest_diag_r158.lua', # R158 Shift+F5 quest recorder (read-only)
     'companion/source/AI/npc/basic/switch/switch.xml': 'AI/npc/basic/switch/switch.xml',
     'companion/source/AI/npc/basic/switch/kcd2vrlifelookd73.xml': 'AI/npc/basic/switch/kcd2vrlifelookd73.xml',
 
@@ -73,6 +74,7 @@ ALLOWED_ADDITIONS = frozenset({
     'Scripts/Startup/zzkcd2vr_life_d73.lua',
     'Scripts/Startup/zzkcd2vr_alchemy_sound_d80.lua',
     'Scripts/Startup/zzkcd2vr_swing_whoosh_r116.lua',
+    'Scripts/Startup/zzkcd2vr_quest_diag_r158.lua',
     'AI/npc/basic/switch/switch.xml',
     'AI/npc/basic/switch/kcd2vrlifelookd73.xml',
 

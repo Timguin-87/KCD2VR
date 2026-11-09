@@ -1,10 +1,12 @@
     // V66.178R35: the live attack action route first.
     bool syncDirect59c10r9=false; // R59.16C10R9: set only by the SYNCHRONIZED branches below
     const bool syncAged59c12=g_sync59c10r9.load(std::memory_order_acquire)&&p.tick&&now>=p.tick&&now-p.tick>=g_sync_grace_ms59c10r9.load(std::memory_order_relaxed);
-    const bool syncOverdue59c10r9=syncAged59c12&&p.release51.serial;
+    // R159 (directOkR159, tutorial_native_r159.h): in a tutorial every direct branch below is off - the overdue routes, the VR
+    // intent direct hit and the retired direct fallback; the contact waits for the live strike window like VrSyncOverdueDirect=0.
+    const bool syncOverdue59c10r9=syncAged59c12&&p.release51.serial&&directOkR159;
     // R59.16C10R12: the overdue direct route no longer needs an admitted native release - a withheld stroke, an older action still
     // alive or a non-ordinary native phase all left the contact waiting until it expired (11 CONTACT_EXPIRED in the 19:43 log).
-    const bool syncOverdueAny59c12=syncAged59c12&&g_sync_overdue_any59c12.load(std::memory_order_relaxed);
+    const bool syncOverdueAny59c12=syncAged59c12&&g_sync_overdue_any59c12.load(std::memory_order_relaxed)&&directOkR159;
     const char* syncReason59c12="STRIKE_WINDOW_NOT_OPEN";
     if(g_live178r35.load(std::memory_order_relaxed)&&!vrDirect596){
         // Accept only the verified unpatched entry or this owner's compared
@@ -24,7 +26,7 @@
         // R59.16C10R17: if the contact catch-up has opened the strike window (phase 8, receiver armed) the hit goes through the LIVE
         // chain below (native block/parry/clash, combo flag; our strike power leased onto +0x1E0). Still in phase 4: wait up to
         // VrIntentLiveMs for the catch-up, then the direct hit (R16). VrIntentLiveRoute off = R16 (direct at once).
-        if(g_intent59c16.load(std::memory_order_acquire)&&g_sync59c10r9.load(std::memory_order_acquire)&&p.lease47c2.serial&&
+        if(directOkR159&&g_intent59c16.load(std::memory_order_acquire)&&g_sync59c10r9.load(std::memory_order_acquire)&&p.lease47c2.serial&&
            action&&(!p.action||p.action==action)&&frik_pose_probe::GeometryAdmittedRelease51(p.release51,action)){
             const int phase17=I(hs,kActionPhaseProp39);const void* a220=Rd<const void*>(henryActor,0x220,nullptr);const int f220=a220?int(Rd<std::uint8_t>(a220,0x28,0xFF)):-1;
             const bool live17=g_intent_live59c17.load(std::memory_order_relaxed)&&phase17==g_strike_phase178r39.load(std::memory_order_relaxed)&&f220==0;
@@ -53,7 +55,7 @@
             // Do not carry its old contact into another attack using this receiver.
             if(phase!=4&&phase!=8){
                 if(syncOverdueAny59c12){syncDirect59c10r9=true;syncReason59c12="NONORDINARY_NATIVE_PHASE";goto sync_direct59c10r9;} // R59.16C10R12
-                if(g_sync59c10r9.load(std::memory_order_acquire)&&g_sync_overdue_any59c12.load(std::memory_order_relaxed)){pendingLease.wait(p);return;} // not yet overdue: wait for the grace
+                if(directOkR159&&g_sync59c10r9.load(std::memory_order_acquire)&&g_sync_overdue_any59c12.load(std::memory_order_relaxed)){pendingLease.wait(p);return;} // not yet overdue: wait for the grace (R159: never in a tutorial)
                 ++g_stats[5];
                 if(Allow(4,6))diagnostic_trace::Write("V66.178R47C2 GEOM_SKIP reason=STRIKE_ENDED_OR_NONORDINARY");
                 return;
@@ -126,17 +128,22 @@
         if(!action&&verified==1&&!g_live_fault178r35.load(std::memory_order_relaxed)&&(p.release51.serial||g_sync_overdue_any59c12.load(std::memory_order_relaxed))){
             // R59.16C10R17 (review): in F4 press 1 the strike receiver (the live action) exists only from phase 8 on; before it, an
             // admitted release waits VrIntentLiveWaitMs (not the 70 ms SYNC grace) for the catch-up to open the strike window.
-            if(g_intent59c16.load(std::memory_order_acquire)&&g_intent_live59c17.load(std::memory_order_relaxed)&&p.release51.serial&&g_sync59c10r9.load(std::memory_order_acquire)){
+            if(directOkR159&&g_intent59c16.load(std::memory_order_acquire)&&g_intent_live59c17.load(std::memory_order_relaxed)&&p.release51.serial&&g_sync59c10r9.load(std::memory_order_acquire)){
                 if(p.tick&&now>=p.tick&&now-p.tick<g_intent_live_ms59c17.load(std::memory_order_relaxed)){pendingLease.wait(p);return;}
                 g_intent_direct_hits59c17.fetch_add(1,std::memory_order_relaxed);syncDirect59c10r9=true;syncReason59c12="VR_INTENT_STRIKE_WINDOW_NOT_OPEN_IN_TIME";goto sync_direct59c10r9;}
             if(syncOverdue59c10r9||syncOverdueAny59c12){syncDirect59c10r9=true;if(!p.release51.serial)syncReason59c12="NO_LIVE_ACTION_NO_RELEASE";goto sync_direct59c10r9;}
             if(p.release51.serial||g_sync59c10r9.load(std::memory_order_acquire)){pendingLease.wait(p);return;}}
-        if(frik_pose_probe::CombatExperiment175Enabled()||!g_direct_fallback178r37.load(std::memory_order_relaxed)){g_stats[5].fetch_add(1,std::memory_order_relaxed);
+        if(frik_pose_probe::CombatExperiment175Enabled()||!g_direct_fallback178r37.load(std::memory_order_relaxed)||!directOkR159){g_stats[5].fetch_add(1,std::memory_order_relaxed);
             if(Allow(4,6)){char m[220]{};std::snprintf(m,sizeof(m),"V66.178R37 GEOM_SKIP serial=%u reason=%s (live route selected: no direct-damage authority without Henry's live attack action)",p.serial,
                 g_live_fault178r35.load()?"LIVE_ROUTE_FAULTED":verified!=1?"LIVE_HANDLER_PROLOGUE_MISMATCH":NativeOwned178r33(now)?"ENGAGEMENT_LATCHED_NO_LIVE_ACTION":"NO_LIVE_ACTION");diagnostic_trace::Write(m);}
             return;}
     }
 sync_direct59c10r9:
+    // R159 safety net: everything after this label is the mod's direct transport (BuildAndSubmitMeleeHit). in a tutorial no
+    // branch above may get here (they are gated); if one ever does, the contact is not delivered instead of going direct.
+    if(!directOkR159){g_stats[5].fetch_add(1,std::memory_order_relaxed);
+        if(Allow(4,4)){char m[200]{};std::snprintf(m,sizeof(m),"R159 GEOM_SKIP serial=%u target=%u reason=TUTORIAL_NATIVE_ONLY (direct route off in a tutorial, no live strike window reached)",p.serial,p.entityId);diagnostic_trace::Write(m);}
+        return;}
     if(syncDirect59c10r9){ // R59.16C10R9: exactly-once claim, then the ordinary direct transport below
         if(p.lease47c2.serial&&!serialReservationC2.reserve(p.release51,now,g_sync59c10r9.load(std::memory_order_acquire))){g_drop_serial_claimed56.fetch_add(1,std::memory_order_relaxed);
             if(Allow(4,4)){char m[260]{};std::snprintf(m,sizeof(m),"C56 SYNC_CONTACT serial=%u target=%u route=DIRECT_NATIVE_HIT refused=%s release=%llu claimed=%llu reason=%s ageMs=%llu",

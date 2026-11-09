@@ -1,8 +1,10 @@
 #include "../src/vrik/finisher_observation_c2.h"
 #include "../src/vrik/contact_receipt58c1.h"
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <limits>
+#include <string>
 int main(){
     namespace f=kcd2vr::finisher_observation_c2;
     namespace c=kcd2vr::contact58c1;
@@ -43,5 +45,13 @@ int main(){
     }
     assert(c::lethalThrustReasonC2(r,1080,2,4,6,8)==c::LethalThrustRefusalC2::None);
     assert(c::lethalThrustReasonC2(r,1081,2,4,6,8)==c::LethalThrustRefusalC2::ReceiptAge);
+    // R155: the point must travel along the blade at the fastest contact; unknown geometry keeps the old predicate
+    {auto x=r;x.thrustAxialCos96=.85f;assert(reason(x)==c::LethalThrustRefusalC2::None&&c::lethalThrust(x,1010,2,4,6,8)&&c::axialThrust155(x));
+     x.thrustAxialCos96=.41f;assert(reason(x)==c::LethalThrustRefusalC2::NotAxial155&&!c::lethalThrust(x,1010,2,4,6,8)&&!c::axialThrust155(x));
+     assert(std::string(c::name(c::LethalThrustRefusalC2::NotAxial155))=="BLADE_ACROSS_THE_MOTION_NOT_A_STAB");
+     // the peak row: the axial cosine follows the FASTEST contact of this gesture+target
+     c::noteThrust96(555,123,3.0,990,std::nan(""),.9);c::noteThrust96(555,123,9.0,1000,std::nan(""),.3);c::noteThrust96(555,123,5.0,1005,std::nan(""),.95);
+     assert(c::thrustPeakSpeed96(555,123,1010)==9.f&&std::fabs(c::thrustAxialCos96(555,123,1010)-.3f)<1e-6f);
+     c::noteThrust96(556,123,4.0,1000);assert(std::isnan(c::thrustAxialCos96(556,123,1010)));}
     std::puts("finisher_observation_c2: multiple reasons, posthit phase annotation, no sever authority; old lethal predicate agreement PASS");
 }

@@ -2,6 +2,7 @@
 #include "xr_eye_srgb_r114.h" // R114: VrEyeSrgbR114 (live_runtime_d40.inl)
 #include "hud_lock_alpha_r141.h" // R141: VrLockpickOpaqueR141 (live_runtime_d40.inl, hud_layer_v6664.cpp)
 #include "ride_follow_r147.h" // R147: VrRideFollowXR147 (live_runtime_d40.inl, native_vr_pad_premap.cpp)
+#include "close_tutorial_r156.h" // R156: tutorial screen open (close_tutorial action map enabled) -> right B = held xi_back
 #include "xr_eye_hold_r141.h" // R141: VrEyeHoldR141 (live_runtime_d40.inl)
 #include "subsystems/alchemy/head_select_r116.h" // R116: VrAlchemyViewSelectR116 (live_runtime_d40.inl)
 #include "vrik/eye_ray_r121.h" // R121: VrInteractionEyeRayR121 (live_runtime_d40.inl)
@@ -12,6 +13,7 @@
 #include "subsystems/ranged_reload/stowed_hide_hw.h" // R121: VrHideBackWeapons / VrHideStowedAtStations (live_runtime_d40.inl)
 #include "vrik/impale_death_speed_r106.h" // R106: VrImpaleFastDeathR106 switch
 #include "core/cinematic_bars_r107.h" // R107: VrCinematicBarsR107 switch
+#include "ui_hud_r160.h" // R160 UI: VrUiUnifiedScaleR160 (one icon size) + VrUiTutorialYR160 (tutorial box position)
 #include "core/cutscene_signal_r132.h" // R132: view-system cutscene count (prologue cutscenes)
 #include "vrik/release_combat_r92.h"
 #include "subsystems/base/startup_graphics_d80.h"
@@ -109,10 +111,15 @@
 #include "subsystems/direct/combat_router_h3.h"
 #include "subsystems/direct/npc_tuning.h"
 #include "subsystems/direct/npc_defense.h"
+#include "subsystems/direct/npc_force_block153.h" // R153 NPC defence roll by skill
+#include "subsystems/direct/tutorial_native_r159.h" // R159: VrTutorialNativeHitsR159 (live_runtime_d40.inl)
+#include "subsystems/direct/training_vanilla_r163.h" // R163: VrTrainingVanillaNpcR163 (training fights: no mod write to any NPC)
 #include <climits>
 #include "diagnostics/hotkeys168r1.h"
 #include "diagnostics/hook_cost178r22.h" // V66.178R22c
 #include "diagnostics/capture_control168.h"
+#include "diagnostics/quest_diag_r158_client.h" // R158 Shift+F5 quest progression recorder
+#include "lb_prompt_x_r153.h" // R158: hold-to-look prompt map tick, read by the Shift+F5 recorder only
 #include "theater_exit113.h"
 #include "theater_toggle_r124.h" // R124 F6 Theater <-> Immersive toggle
 #include "ui_native_state.h"
@@ -1097,8 +1104,8 @@ static std::atomic<bool> g_roomscale_follow58{false},g_roomscale_dodge58{false};
 struct CombatCvarLease52 {
     static constexpr int kMax=24;const char* names[kMax]{};float values[kMax]{};float originals[kMax]{};bool had[kMax]{};int count=0;bool applied=false;
     void Add(const char* n,float v) noexcept {if(count<kMax){names[count]=n;values[count]=v;++count;}}
-    int freeModeR133=0;
-    void Load(bool player,bool shared,bool targeting=false,bool noLunge=false,int freeMode=0) noexcept {count=0;freeModeR133=freeMode;
+    int freeModeR133=0;bool sharedR163=false; // R163: the shared (global, NPCs too) cvars are part of the loaded lease
+    void Load(bool player,bool shared,bool targeting=false,bool noLunge=false,int freeMode=0) noexcept {count=0;freeModeR133=freeMode;sharedR163=shared;
         // R133: the target cone follows the free-targeting mode (free_targeting_plus_r133.h cone()). mode 0 = the
         // R52/R57 values below exactly as before.
         const auto coneR133=kcd2vr::free_targeting_r133::cone(freeMode);
@@ -2104,6 +2111,8 @@ void Mod::FillMenuState(VrMenuState& out) const
     out.passive_full_frame_scale = vr_passive_full_frame_scale_.load(std::memory_order_acquire);
     out.hud_distance_r110 = kcd2vr::ui_surface_geometry::HudDistanceR110(); // R110
     out.combat_crosshair_scale_r112 = kcd2vr::ui_hud_r112::CombatCrosshairScale(); // R112
+    out.vr_ui_unified_scale_r160 = kcd2vr::ui_hud_r160::Unified(); // R160 UI
+    out.vr_ui_tutorial_y_r160 = kcd2vr::ui_hud_r160::TutorialY(); // R160 UI
     out.pause_overlay_size = vr_pause_overlay_size_.load(std::memory_order_acquire);
     out.transient_zoom_retain = vr_transient_zoom_retain_.load(std::memory_order_acquire);
 #define KCD2VR_M2_HOST_SLOT 4 // M2_SOURCE_SELECTOR
@@ -2578,8 +2587,11 @@ bool Mod::ApplyMenuState(const VrMenuState& requestedState)
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     vr_flat_screen_scale_.store(flat_screen_scale, std::memory_order_release);
     vr_passive_full_frame_scale_.store(passive_full_frame_scale, std::memory_order_release);
-    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::isfinite(state.hud_distance_r110)?std::clamp(state.hud_distance_r110,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127):3.0f,std::memory_order_release); // R110
+    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::isfinite(state.hud_distance_r110)?std::clamp(state.hud_distance_r110,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127):1.2f,std::memory_order_release); // R110 (R160 UI: fallback = default 1.2)
     kcd2vr::ui_hud_r112::combatCrosshairScale.store(std::isfinite(state.combat_crosshair_scale_r112)?std::clamp(state.combat_crosshair_scale_r112,kcd2vr::ui_hud_r112::kCombatCrosshairMin,kcd2vr::ui_hud_r112::kCombatCrosshairMax):kcd2vr::ui_hud_r112::kCombatCrosshairDefault,std::memory_order_release); // R112
+    {const float unifiedR160=kcd2vr::ui_hud_r160::ClampUnified(state.vr_ui_unified_scale_r160),tutorialR160=kcd2vr::ui_hud_r160::ClampTutorialY(state.vr_ui_tutorial_y_r160); // R160 UI
+     const float oldUnifiedR160=kcd2vr::ui_hud_r160::unifiedScale.exchange(unifiedR160,std::memory_order_acq_rel),oldTutorialR160=kcd2vr::ui_hud_r160::tutorialY.exchange(tutorialR160,std::memory_order_acq_rel);
+     if(oldUnifiedR160!=unifiedR160||oldTutorialR160!=tutorialR160)vr_hud_reapply_requested_.store(true,std::memory_order_release);} // parents re-fit (the cursor clips follow their own keys)
     vr_pause_overlay_size_.store(pause_overlay_size, std::memory_order_release);
     vr_transient_zoom_retain_.store(transient_zoom_retain, std::memory_order_release);
 #define KCD2VR_M2_HOST_SLOT 63 // M2_SOURCE_SELECTOR
@@ -3258,6 +3270,8 @@ bool Mod::SaveMenuSettings() const
     ok = wf("VrPassiveFullFrameScale", vr_passive_full_frame_scale_.load(std::memory_order_acquire)) && ok;
     ok = wf("VrHudDistanceR110", kcd2vr::ui_surface_geometry::HudDistanceR110()) && ok; // R110
     ok = wf("VrCombatCrosshairScaleR112", kcd2vr::ui_hud_r112::CombatCrosshairScale()) && ok; // R112
+    ok = wf("VrUiUnifiedScaleR160", kcd2vr::ui_hud_r160::Unified()) && ok; // R160 UI: one icon size (VR HUD page)
+    ok = wf("VrUiTutorialYR160", kcd2vr::ui_hud_r160::TutorialY()) && ok; // R160 UI: tutorial box position (dev INTERACTION / PROMPTS)
     ok = wf("VrPauseOverlaySize", vr_pause_overlay_size_.load(std::memory_order_acquire)) && ok;
     ok = wf("VrTransientZoomRetain", vr_transient_zoom_retain_.load(std::memory_order_acquire)) && ok;
 #define KCD2VR_M2_HOST_SLOT 123 // M2_SOURCE_SELECTOR
@@ -3730,7 +3744,7 @@ bool Mod::LoadConfig()
 #include "subsystems/masterstrike_combos/host.inl" // M2_OWNED_SOURCE slot=161
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     ApplyLegacyPhysBodiesT4();
-    auto_hud_icon_scale_.store(std::isfinite(iconScale51c3)?std::clamp(iconScale51c3,.5f,6.f):1.75f);
+    auto_hud_icon_scale_.store(std::isfinite(iconScale51c3)?std::clamp(iconScale51c3,.5f,6.f):1.67f); // R160 UI default
 #define KCD2VR_M2_HOST_SLOT 162 // M2_SOURCE_SELECTOR
 #include "subsystems/hud_ui_controls/host.inl" // M2_OWNED_SOURCE slot=162
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
@@ -3745,8 +3759,8 @@ bool Mod::LoadConfig()
     // R30C1: dormant AutoHUD boundaries are not the user's manual placement.
     // New keys fall back to the effective old manual height; keep saved offsets.
     (void)0; // C37C3: manualHeight30c1 fallback replaced by the fixed defaults below
-    vr_ui_top_boundary_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrManualHudUpperBoundary",1.17f) /*C37C3 was manualHeight30c1*/,.55f,3.f));
-    vr_ui_bottom_boundary_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrManualHudLowerBoundary",1.63f) /*C37C3 was manualHeight30c1*/,.55f,3.f));
+    vr_ui_top_boundary_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrManualHudUpperBoundary",1.29f) /*R160 UI default = his INI, was 1.17*/ /*C37C3 was manualHeight30c1*/,.55f,3.f));
+    vr_ui_bottom_boundary_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrManualHudLowerBoundary",2.08f) /*R160 UI default = his INI, was 1.63*/ /*C37C3 was manualHeight30c1*/,.55f,3.f));
 #define KCD2VR_M2_HOST_SLOT 165 // M2_SOURCE_SELECTOR
 #include "subsystems/hud_ui_controls/host.inl" // M2_OWNED_SOURCE slot=165
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
@@ -3869,12 +3883,20 @@ bool Mod::LoadConfig()
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     kcd2vr::gore32::decap.store(g_decapitation59c7e.load()); // C32: the same switch now really takes the head off
     // R124: missing key = ON (Miki's INI); an explicit saved OFF stays OFF.
-    const bool dismemberD56=ReadIniBoolExplicit(explicit_ini,"Settings","VrDismemberment",true);
+    // R155 (Miki 8 Nov: "limb dismemberment - remove it, it is not working great"): default OFF. his INI carries
+    // VrDismemberment=true from R124, so the first R155 start writes it to false ONCE (marker VrDismembermentOffMigrated, same
+    // one-time pattern as VrPromptSizeR92R1); after that the key and the Experiments gore row (HEADS + LIMBS) are his again.
+    // head decapitation (VrDecapitation) is untouched.
+    {const bool migratedR155=ReadIniIntExplicit(explicit_ini,"Settings","VrDismembermentOffMigrated",0)>=1;
+     if(!migratedR155&&WritePrivateProfileStringA("Settings","VrDismemberment","false",explicit_ini)!=FALSE){
+        (void)WritePrivateProfileStringA("Settings","VrDismembermentOffMigrated","1",explicit_ini);
+        diagnostic_trace::WriteStatus("R155 VrDismemberment set to false once (limbs off by default; the Experiments gore row HEADS + LIMBS turns it back on)");}}
+    const bool dismemberD56=ReadIniBoolExplicit(explicit_ini,"Settings","VrDismemberment",false);
     prompt_policy_d80::showHints.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrShowInteractionHints",true));
     prompt_policy_d80::timed.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrTimedInteractionPrompts",true));
     // The previous release doubled station labels to 90%. Restore the requested
     // half-size once; preserve other tuned sizes and all later menu choices.
-    const float savedPromptScaleR92R1=ReadIniFloatExplicit(explicit_ini,"Settings","VrMinigamePromptScale",.45f);
+    const float savedPromptScaleR92R1=ReadIniFloatExplicit(explicit_ini,"Settings","VrMinigamePromptScale",.40f); // R160 UI: his INI value is the default (was .45)
     const bool firstPromptSizeR92R1=ReadIniIntExplicit(explicit_ini,"Settings","VrPromptSizeR92R1",0)<1;
     const bool repairPromptSizeR92R1=firstPromptSizeR92R1 &&
         std::isfinite(savedPromptScaleR92R1) && std::fabs(savedPromptScaleR92R1-.90f)<.001f;
@@ -3884,7 +3906,7 @@ bool Mod::LoadConfig()
         if(saved)(void)WritePrivateProfileStringA("Settings","VrPromptSizeR92R1","1",explicit_ini);
     }
     const float promptScaleD80=repairPromptSizeR92R1?.45f:savedPromptScaleR92R1;
-    prompt_policy_d80::minigameScale.store(std::isfinite(promptScaleD80)?std::clamp(promptScaleD80,.25f,1.f):.45f);
+    prompt_policy_d80::minigameScale.store(std::isfinite(promptScaleD80)?std::clamp(promptScaleD80,.25f,1.f):.40f);
     kcd2vr::gorepak50::dismember.store(dismemberD56);
 #define KCD2VR_M2_HOST_SLOT 180 // M2_SOURCE_SELECTOR
 #include "subsystems/gore/host.inl" // M2_OWNED_SOURCE slot=180
@@ -3905,7 +3927,7 @@ bool Mod::LoadConfig()
      i40::mode.store(std::clamp(ReadIniIntExplicit(explicit_ini,"Settings","VrImpaleByArmour",0),0,2));
      const float lo=std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpaleLightArmour",15.f),0.f,500.f);
      i40::lightArmour.store(lo);i40::hardArmour.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpaleHardArmour",60.f),lo+1.f,1000.f));
-     i40::minEnergy.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpaleMinEnergy",.30f),0.f,1.f));
+     i40::minEnergy.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpaleMinEnergy",.30f),0.f,1.f)); // R155: kept at .30 (Miki: 30 is rather too high); the stab-geometry rule, not the energy, stops cuts from impaling
      i40::throughEnergy.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpaleThroughEnergy",.75f),0.f,1.5f));
      i40::partialCm.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpalePartialCm",30.f),5.f,60.f));
      i40::throughCm.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrImpaleThroughCm",55.f),20.f,90.f));}
@@ -4402,9 +4424,12 @@ bool Mod::LoadConfig()
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     vr_flat_screen_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrFlatScreenScale", kcd2vr::view_defaults_b2::Get("VrFlatScreenScale", 1.70f)),0.45f,3.00f), std::memory_order_relaxed);
     vr_passive_full_frame_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrPassiveFullFrameScale", kcd2vr::view_defaults_b2::Get("VrPassiveFullFrameScale", 1.20f)),1.00f,2.00f), std::memory_order_relaxed);
-    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrHudDistanceR110",3.0f),kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127),std::memory_order_relaxed); // R110: HUD far away, same size
-    // R112: size of the big directional combat crosshair (CombatCursorCross), 0.25..1.50, default 0.50 (native was 1.00 = far too big in VR).
+    kcd2vr::ui_surface_geometry::hudDistanceR110.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrHudDistanceR110",1.2f) /*R160 UI: his INI value is the default (was 3.0)*/,kcd2vr::ui_surface_geometry::kHudConvergenceMinR127,kcd2vr::ui_surface_geometry::kHudConvergenceMaxR127),std::memory_order_relaxed); // R110: HUD far away, same size
+    // R112: size of the big directional combat crosshair (CombatCursorCross), 0.25..1.50, default 0.25 since R160 UI = his INI (was 0.50; native was 1.00 = far too big in VR).
     kcd2vr::ui_hud_r112::combatCrosshairScale.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrCombatCrosshairScaleR112",kcd2vr::ui_hud_r112::kCombatCrosshairDefault),kcd2vr::ui_hud_r112::kCombatCrosshairMin,kcd2vr::ui_hud_r112::kCombatCrosshairMax),std::memory_order_relaxed);
+    // R160 UI: one icon size for the whole HUD (1.0 = as before) and the tutorial box position (0 = native). see ui_hud_r160.h
+    kcd2vr::ui_hud_r160::unifiedScale.store(kcd2vr::ui_hud_r160::ClampUnified(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiUnifiedScaleR160",1.0f)),std::memory_order_release);
+    kcd2vr::ui_hud_r160::tutorialY.store(kcd2vr::ui_hud_r160::ClampTutorialY(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiTutorialYR160",0.0f)),std::memory_order_release);
     vr_pause_overlay_size_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrPauseOverlaySize", 0.98f),0.45f,1.15f), std::memory_order_relaxed);
     // V66.160 migration: 1.00 filled the whole VR canvas, so the right-anchored pause
     // list sat far right and oversized (also the death screen, which shares it). Move an
@@ -6072,7 +6097,8 @@ void Mod::Run()
         if(!hud_layer_v6664::Enabled()||!xr_manager_||!xr_manager_->GetHudSurfaceGeometry(geometry,epoch))return false;
         bool ok=false;
         if(desired==HudLayoutOwner::WholeReadable){
-            ok=flashui_probe::ApplyWholeReadableHud44c2(true,geometry,vr_ui_compactness_.load(),vr_ui_safe_width_.load(),vr_ui_top_boundary_.load(),vr_ui_bottom_boundary_.load(),vr_ui_safe_height_.load(),auto_hud_icon_scale_.load());
+            ok=flashui_probe::ApplyWholeReadableHud44c2(true,geometry,vr_ui_compactness_.load(),vr_ui_safe_width_.load(),vr_ui_top_boundary_.load(),vr_ui_bottom_boundary_.load(),vr_ui_safe_height_.load(),kcd2vr::ui_hud_r160::ParentIconScale(auto_hud_icon_scale_.load(),kcd2vr::ui_hud_r160::Unified()), // R160 UI: one icon size on every readable parent
+                vr_ui_dialogue_scale_.load(),vr_ui_dialogue_y_.load(),kcd2vr::ui_hud_r160::TutorialY()); // R160: dialogue text size + vertical position (cl/cr parents); R160 UI: tutorial box Y (tl + tutorialInDialog)
             // The corrected F2 owner also honours the health/compass/quick-slot
             // controls. Previously these sliders only affected the other layout.
             if(ok)(void)flashui_probe::ApplyUniformHudElements171(vr_ui_compass_scale_.load(),vr_ui_compass_y_.load(),
@@ -6240,7 +6266,7 @@ void Mod::Run()
 
         // D48: five finite recorder groups. F2/F5 retain their explicit D46 gameplay comparison rungs.
         static diagnostics::keys168r1::Edges captureKeys;
-        const auto capturePress=captureKeys.poll({f2_down,f3_down,f5_down},matrix_active||!developerMode);
+        auto capturePress=captureKeys.poll({f2_down,f3_down,f5_down},matrix_active||!developerMode); // R158: Shift+F5 consumes .interaction below
         diagnostics::capture168::poll(GetTickCount64());
         diagnostics::native_palette_d67r1::drain(diagnostics::perf_d61::nowMs(),diagnostic_trace::WritePerformanceD68);
         diagnostics::native_palette_d67r1::view::drain(diagnostics::perf_d61::nowMs(),diagnostic_trace::WritePerformanceD68);
@@ -6593,6 +6619,37 @@ void Mod::Run()
 
         // R36C4: expiry revokes the experiment too; it cannot remain invisibly armed.
         frik_pose_probe::ServiceInteractionExperiment36();
+        // R158 Shift+F5: quest progression recorder (quest_diag_r158.h). own 180 s session, read-only, log only.
+        // plain F5 below is unchanged (before R158 Shift+F5 also cycled the F5 ladder).
+        if(capturePress.interaction&&shift_down){
+            const auto now=std::uint64_t(GetTickCount64());
+            const bool on=!diagnostics::capture168::active(diagnostics::capture168::Domain::Quest,now);
+            diagnostics::capture168::select(diagnostics::capture168::Domain::Quest,on,now,"SHIFT_F5_QUEST");
+            if(on){const bool lua=kcd2vr::quest_diag_r158::EnsureLua();char m[320]{};
+                std::snprintf(m,sizeof(m),"R158 QUEST_BEGIN session=%llu luaBridge=%s rows=QUEST_STATE(4/s on change, 2 s repeat) QUEST_HENRY+QUEST_NPC(1/s, Lua, 25 m) writes=NONE",
+                    (unsigned long long)kcd2vr::quest_diag_r158::Session(),lua?"READY":"UNAVAILABLE(script VM hook not installed or no client slot; C++ rows only)");
+                diagnostic_trace::WriteFor(diagnostics::capture168::Domain::Quest,m);}
+            LabLadderCue(on?1:0);
+            capturePress.interaction=false; // Shift+F5 is the quest recorder only, the plain F5 ladder below does not see it
+        }
+        kcd2vr::quest_diag_r158::StateService(std::uint64_t(GetTickCount64()),[&](kcd2vr::quest_diag_r158::StateIn& q) noexcept {
+            const auto nowQ=std::uint64_t(GetTickCount64());
+            q.henryInCombat=combat_diag_probe::HenryInCombat178r31(nowQ);
+            const auto dq=activity_lens59c10r1::Dialogue(nowQ);
+            q.dlgKnown=dq.known;q.dlgActive=dq.active;q.dlgInstance=dq.instance;q.dlgState=dq.membership.state;q.dlgFlags=dq.membership.flags;
+            q.dlgParticipant=dq.membership.participant;q.dlgListed=dq.membership.listed;q.dlgInputKnown=dq.inputOwner.known;q.dlgInputEnabled=dq.inputOwner.enabled;
+            q.tutorialScreen=kcd2vr::close_tutorial_r156::Open(nowQ,kcd2vr::close_tutorial_r156::mapEnabledMs.load(std::memory_order_acquire));
+            {const auto h=kcd2vr::lb_prompt_x_r153::holdMapEnabledMs.load(std::memory_order_acquire);
+             q.holdLookMap=h&&nowQ>=h&&nowQ-h<=kcd2vr::lb_prompt_x_r153::kMapEnabledMs;}
+            void* con=SafeGetCryConsole();
+            if(void* v=con?SafeConsoleGetCVar(con,"wh_ui_TutorialsEnabled"):nullptr)q.tutorialsCvar=SafeCVarGetInt(v,INT_MIN);
+            if(void* v=con?SafeConsoleGetCVar(con,"wh_cs_ForceBlock"):nullptr)q.forceBlockCvar=SafeCVarGetInt(v,INT_MIN);
+            namespace fbq=kcd2vr::npc_force_block153;
+            const auto pub=fbq::publishedMs.load(std::memory_order_acquire);
+            q.opponentFresh=pub&&nowQ>=pub&&nowQ-pub<=fbq::kFreshMs&&fbq::opponent.load(std::memory_order_relaxed)!=0;
+            q.opponent=fbq::opponent.load(std::memory_order_relaxed);q.opponentReciprocal=fbq::reciprocal.load(std::memory_order_relaxed);
+            q.opponentSkill=fbq::skill.load(std::memory_order_relaxed);q.practiceWeapon=fbq::practiceWeapon.load(std::memory_order_relaxed);
+        });
         // F5 observes the actual failing configuration, with VRIK ON or OFF.
         if(capturePress.interaction){
             // OFF -> diagnostics -> physical Grip -> guided crafting -> OFF.
@@ -6727,23 +6784,31 @@ void Mod::Run()
                     char c[1024]{};if(g_combat_cvars52.Apply(false,c,sizeof(c)))diagnostic_trace::Write(c);
                     g_combat_cvars52.Load(g_player_rules52.load(),g_shared_rules52.load(),g_targeting_lease59c8,g_no_lunge594.load(),modeR133);
                 }
+                // R163: training fight (practice weapon) = the R52 SHARED rules (global cvars the NPCs read too) are given back and
+                // not leased; Henry's own player cvars stay. re-leased with them when the practice weapon is gone. only acts when
+                // the user opted in to shared rules (default OFF): otherwise this never changes anything.
+                {const bool sharedR163=g_shared_rules52.load()&&!kcd2vr::training_vanilla_r163::holdNow();
+                 if(sharedR163!=g_combat_cvars52.sharedR163){
+                    char c[1024]{};if(g_combat_cvars52.Apply(false,c,sizeof(c)))diagnostic_trace::Write(c);
+                    g_combat_cvars52.Load(g_player_rules52.load(),sharedR163,g_targeting_lease59c8,g_no_lunge594.load(),g_combat_cvars52.freeModeR133);}}
                 static int loggedModeR133=-1;
                 if(modeR133!=loggedModeR133){
                     loggedModeR133=modeR133;const auto k=r::cone(modeR133);char m[420]{};
                     std::snprintf(m,sizeof(m),"R133 FREE_TARGETING mode=%d(%s) combatCamera=%s queuedTurnVeto=%s viewHold=%s stickTurn=%s lockDeg=%.0f unlockDeg=%.0f lockAreaM=%.2f unlockHystM=%.2f",
                         modeR133,r::name(modeR133),modeR133?"LEASED_OFF":"NATIVE",modeR133?"ORDINARY_PHASES":"NATIVE",
-                        modeR133==r::FreePlus?"ON":"OFF",modeR133==r::FreePlus?"ON":"OFF",
+                        modeR133==r::FreePlus?"ON":modeR133==r::Free?"OWN_TURN_ONLY":"OFF",modeR133==r::Native?"NATIVE":"OWN_IN_LOCKED_FIGHT", // R154: row text follows R153 (mode 1 holds own turns, modes 1/2 own the locked-fight stick)
                         double(k.lockAngle)*57.29578,double(k.unlockAngle)*57.29578,double(k.lockArea),double(k.hyst?k.unlockHyst:.2f));
                     diagnostic_trace::Write(m);KCD2VR_DIAG_LOG(Bug,warning,"{}",m);
                 }
                 const auto nowR133=std::uint64_t(GetTickCount64());
                 const bool engagedR133=r::engaged(nowR133);
-                static bool wasEngagedR133=false;
-                if(engagedR133&&!wasEngagedR133){r::absorbFrames.store(0);r::stickFrames.store(0);r::bleedFrames.store(0);r::absorbedDeg.store(0.f);r::maxOffsetDeg.store(0.f);}
-                if(!engagedR133&&wasEngagedR133&&modeR133==r::FreePlus&&r::absorbFrames.load()){
-                    char m[360]{};std::snprintf(m,sizeof(m),
-                        "R133 FREE_PLUS fight_end gameTurnAbsorbedDeg=%.0f maxViewOffsetDeg=%.0f absorbFrames=%llu stickTurnedFrames=%llu offsetNowDeg=%.0f/%.0f (view/body; runs out while Henry turns back)",
-                        double(r::absorbedDeg.load()),double(r::maxOffsetDeg.load()),(unsigned long long)r::absorbFrames.load(),(unsigned long long)r::stickFrames.load(),
+                static bool wasEngagedR133=false;static float ownTurnBaseR153=0.f;
+                if(engagedR133&&!wasEngagedR133){r::absorbFrames.store(0);r::stickFrames.store(0);r::bleedFrames.store(0);r::absorbedDeg.store(0.f);r::maxOffsetDeg.store(0.f);ownTurnBaseR153=r::ownTurnDeg.load();}
+                const double ownTurnFightR153=double(r::ownTurnDeg.load()-ownTurnBaseR153); // R153: own stick turn this fight
+                if(!engagedR133&&wasEngagedR133&&modeR133!=r::Native&&(r::absorbFrames.load()||ownTurnFightR153>=1.)){
+                    char m[400]{};std::snprintf(m,sizeof(m),
+                        "R133 FREE_PLUS fight_end mode=%d gameTurnAbsorbedDeg=%.0f maxViewOffsetDeg=%.0f absorbFrames=%llu stickTurnedFrames=%llu ownStickTurnDeg=%.0f offsetNowDeg=%.0f/%.0f (view/body; runs out while Henry turns back)",
+                        modeR133,double(r::absorbedDeg.load()),double(r::maxOffsetDeg.load()),(unsigned long long)r::absorbFrames.load(),(unsigned long long)r::stickFrames.load(),ownTurnFightR153,
                         double(r::offsetView.load())*57.29578,double(r::offsetBody.load())*57.29578);
                     diagnostic_trace::Write(m);KCD2VR_DIAG_LOG(Bug,warning,"{}",m);
                 }
@@ -7439,6 +7504,7 @@ void Mod::Run()
         mix27(double(wholeWanted44c2));mix27(double(true));mix27(double(centered_safe_should_be_on));mix27(double(ui88_hud_epoch));mix27(double(ui88_hud_native_generation));mix27(double(dialogue_active));mix27(double(vr_auto_correct_hud_.load()));mix27(double(vr_hud_native_canvas_fit_.load()));mix27(double(enable_vr_ui_layout_.load()));
         // V66.178R30 (R28 review F09): EVERY consumed placement setting is part of the change key (R27 left out safe_height,
         // center_offset_y and the per-element X/Y/inset values, so a real vertical slider change could be skipped as a no-op).
+        mix27(double(kcd2vr::ui_hud_r160::Unified()));mix27(double(kcd2vr::ui_hud_r160::TutorialY())); // R160 UI
         mix27(double(vr_ui_bottom_boundary_.load()));mix27(double(vr_ui_center_offset_x_.load()));mix27(double(vr_ui_center_offset_y_.load()));mix27(double(vr_ui_compactness_.load()));mix27(double(auto_hud_icon_scale_.load()));mix27(double(vr_ui_compass_scale_.load()));mix27(double(vr_ui_compass_y_.load()));mix27(double(vr_ui_control_prompt_scale_.load()));mix27(double(vr_ui_control_prompt_x_.load()));mix27(double(vr_ui_control_prompt_y_.load()));mix27(double(vr_ui_dialogue_inset_pct_.load()));mix27(double(vr_ui_dialogue_scale_.load()));mix27(double(vr_ui_dialogue_y_.load()));mix27(double(vr_ui_hints_inset_pct_.load()));mix27(double(vr_ui_hints_scale_.load()));mix27(double(vr_ui_hints_y_.load()));mix27(double(vr_ui_interaction_menu_scale_.load()));mix27(double(vr_ui_interaction_menu_x_.load()));mix27(double(vr_ui_interaction_menu_y_.load()));mix27(double(vr_ui_item_panel_scale_.load()));mix27(double(vr_ui_item_panel_x_.load()));mix27(double(vr_ui_item_panel_y_.load()));mix27(double(vr_ui_lower_scale_.load()));mix27(double(vr_ui_lower_spread_.load()));mix27(double(vr_ui_lower_y_.load()));mix27(double(vr_ui_safe_height_.load()));mix27(double(vr_ui_safe_width_.load()));mix27(double(vr_ui_stats_scale_.load()));mix27(double(vr_ui_stats_x_.load()));mix27(double(vr_ui_stats_y_.load()));mix27(double(vr_ui_subtitle_scale_.load()));mix27(double(vr_ui_subtitle_y_.load()));mix27(double(vr_ui_top_boundary_.load()));mix27(double(vr_hud_native_canvas_size_.load()));mix27(double(vr_hud_native_canvas_spread_x_.load()));mix27(double(vr_hud_native_canvas_spread_y_.load()));
         const bool hudSameInputs27=hudFingerprint27==fp27&&f4_vrhud_safe_active==centered_safe_should_be_on;
         if(hudSameInputs27&&ui88_hud_pending){ui88_hud_pending=false;ui88_hud_attempts=0;} // identical request: nothing to apply
@@ -7477,7 +7543,8 @@ void Mod::Run()
         // R145: the yellow message line (InfoText: "you cleaned yourself", F2 status lines) follows the Interaction icons
         // slider (VrUiHintsScale), same owner window; outside it the authored size comes back.
         flashui_probe::UpdateInfoTextScaleR145(centered_safe_should_be_on&&(hud_layout_owner==HudLayoutOwner::WholeReadable||hud_layout_owner==HudLayoutOwner::UniformReadable)&&
-            !matrix_active&&!native_ui_snapshot.Open(ui_native_state::Loading)&&!native_ui_snapshot.Open(ui_native_state::Progress),vr_ui_hints_scale_.load(),now_ms);
+            !matrix_active&&!native_ui_snapshot.Open(ui_native_state::Loading)&&!native_ui_snapshot.Open(ui_native_state::Progress),
+            kcd2vr::ui_hud_r160::OwnScale(vr_ui_hints_scale_.load(),kcd2vr::ui_hud_r160::Unified(),.25f,1.f),now_ms); // R160 UI: cccursor clip, x one icon size
         // R125: the combat direction cross art hidden (VrCombatCrossR125=false, default) in every HUD mode (immersive palm HUD
         // or the normal one), lock + perfect block / master strike icons stay native. Re-asserted every 0.5 s, no latch.
         flashui_probe::UpdateCombatCrossArtR125(!kcd2vr::ui_hud_r112::combatCrossR125.load(std::memory_order_acquire),now_ms);
@@ -8308,19 +8375,30 @@ void Mod::Run()
         ui_hud_work59c7::Mix(hudLeaseEpoch54,native_ui_snapshot.epoch);
         {CVarLeaseBackend59c16 hintsIO{"wh_ui_ShowHints"};
          g_show_hints_d80.Update(hintsIO,true,prompt_policy_d80::showHints.load(std::memory_order_acquire),hudLeaseEpoch54);}
-        // R141 Minimal HUD: the game's own element switches (wh_ui_ShowBuffs/Crime/Wanted/Trespassing/FancyEvent/CommonEvent/
-        // GameLog/SkillCheck/ItemTransfer) held at 0 while ON: the game's HUD manager ANDs them into every re-show and stops
+        // R141 Minimal HUD: the game's own element switches (wh_ui_ShowBuffs/Crime/Wanted/Trespassing/CommonEvent/
+        // GameLog/ItemTransfer; R153: quest text FancyEvent + dialogue SkillCheck stay the game's) held at 0 while ON: the game's HUD manager ANDs them into every re-show and stops
         // those popup queues, so they do not come back after dialogue/menus/loads. checked every 1 s + on every HUD/menu
         // lifetime change, a refused write is retried; OFF writes the old values back. zero mask taken BEFORE the update
         // so the OFF edge still knows which clips the game itself hides.
         const unsigned minimalZeroR141=g_minimal_cvars_r141.ZeroMask();
         {MinimalCvarIoR141 io;const auto r=g_minimal_cvars_r141.Update(io,minimalR141,hudLeaseEpoch54,palmInput36.now);
          static unsigned loggedR141=~0u;
-         const unsigned key=r.held|(r.failed<<8)|(minimalR141?1u<<16:0u);
-         if(r.ran&&key!=loggedR141){loggedR141=key;char m[220]{};
-             std::snprintf(m,sizeof(m),"R141 MINIMAL_HUD cvars on=%d held=%u/%u failed=%u restored=%u (wh_ui_Show<Element>=0: the game keeps status icons and popups hidden)",
-                 minimalR141?1:0,r.held,unsigned(ui_minimal_hud_r141::kCvars.size()),r.failed,r.restored);
+         const unsigned key=r.held|(r.failed<<8)|(minimalR141?1u<<16:0u)|(r.notOurs<<20);
+         if(r.ran&&key!=loggedR141){loggedR141=key;char m[320]{};
+             std::snprintf(m,sizeof(m),"R141 MINIMAL_HUD cvars on=%d held=%u/%u failed=%u restored=%u notOurs=%02X (bits Buffs,Crime,Wanted,Trespassing,CommonEvent,GameLog,ItemTransfer; wh_ui_Show<Element>=0: the game keeps status icons and popups hidden)",
+                 minimalR141?1:0,r.held,unsigned(ui_minimal_hud_r141::kCvars.size()),r.failed,r.restored,r.notOurs);
              diagnostic_trace::WriteStatus(m);}} // KCD2VR.log only, one line per change
+        // R155: Minimal HUD OFF = every wh_ui_Show<Element> the feature ever wrote (incl. the R141-R152 FancyEvent/SkillCheck)
+        // back to the game's default 1 when it reads 0: the game saves these with its options, so a 0 that was not given
+        // back (already 0 when ON found it, game closed while ON) stayed 0 in every later run = quest text gone with
+        // Minimal HUD off (8 Nov). runs after the lease (the lease's own restore first), at start, on the OFF edge and on
+        // every HUD/menu lifetime change; a failed read/write is retried after 1 s. never while ON.
+        {MinimalRepairIoR141 io;const auto r=g_minimal_repair_r141.Update(io,minimalR141,hudLeaseEpoch54,palmInput36.now);
+         static unsigned loggedRepairR141=~0u;const unsigned key=r.zero|(r.repaired<<8)|(r.failed<<16);
+         if(r.ran&&key!=loggedRepairR141){loggedRepairR141=key;char m[300]{};
+             std::snprintf(m,sizeof(m),"R155 MINIMAL_HUD repair zero=%u repaired=%u failed=%u of %u (wh_ui_Show Buffs,Crime,Wanted,Trespassing,CommonEvent,GameLog,ItemTransfer,FancyEvent,SkillCheck back to 1 while Minimal HUD is off)",
+                 r.zero,r.repaired,r.failed,unsigned(ui_minimal_hud_r141::kRepairCvars.size()));
+             diagnostic_trace::WriteStatus(m);}} // KCD2VR.log only
         // R141 tutorials: VrHideTutorialsR141 or Minimal HUD = the game's own Tutorials option held at 0. given back in the main
         // menu and the pause menu (the options screen must see and save the player's own value), held again in the game.
         {const bool hiddenR141=ui_minimal_hud_r141::TutorialsHidden(ui_minimal_hud_r141::hideTutorials.load(std::memory_order_acquire),minimalR141);
@@ -8330,6 +8408,14 @@ void Mod::Run()
          if(r.ran&&key!=loggedTutorialR141){loggedTutorialR141=key;char m[200]{};
              std::snprintf(m,sizeof(m),"R141 TUTORIALS hidden=%d hold=%d held=%u failed=%u restored=%u (wh_ui_TutorialsEnabled; menus get the player's value)",
                  hiddenR141?1:0,holdR141?1:0,r.held,r.failed,r.restored);
+             diagnostic_trace::WriteStatus(m);}
+         // R155: SHOWN (both switches off) = wh_ui_TutorialsEnabled back to 1 when it reads 0 (a persisted 0 from a run that
+         // closed while hidden). start, hidden->shown edge, every lifetime change; retried after 1 s on failure.
+         TutorialCvarIoR141 rio;const auto rr=g_tutorials_repair_r141.Update(rio,hiddenR141,hudLeaseEpoch54,palmInput36.now);
+         static unsigned loggedTutorialRepairR141=~0u;const unsigned rkey=rr.zero|(rr.repaired<<8)|(rr.failed<<16);
+         if(rr.ran&&rkey!=loggedTutorialRepairR141){loggedTutorialRepairR141=rkey;char m[200]{};
+             std::snprintf(m,sizeof(m),"R155 TUTORIALS repair zero=%u repaired=%u failed=%u (wh_ui_TutorialsEnabled back to 1 while tutorials are SHOWN)",
+                 rr.zero,rr.repaired,rr.failed);
              diagnostic_trace::WriteStatus(m);}} // KCD2VR.log only
 
         // Palm visibility and alpha share the same reveal. Saved ordinary hide
@@ -8372,16 +8458,51 @@ void Mod::Run()
                  (void)g_lease_fall43.Retire(io43);
              }
              kcd2vr::lab58::impactLeaseOk.store(false,std::memory_order_release);}
-            {RagdollConsole59 io39;g_npc_block_state39.Service(consoleReady&&frik_pose_probe::CombatExperiment175Enabled()&&frik_pose_probe::F4Rung178r10()==3,
-                g_npc_block39.load(std::memory_order_relaxed),0,io39);} // C39
+            {   // R163 "Training fights: vanilla NPCs" (training_vanilla_r163.h): practice / quest weapon in Henry's hand = every mod
+                // feature that writes to an NPC (AI, animation, action timing, global NPC cvars) skips its write. decided again on
+                // every tick (no latch). edge: one F2 row (held list + what was given back); tutor counts: few always-on rows.
+                namespace tv=kcd2vr::training_vanilla_r163;
+                const auto nowR163=std::uint64_t(GetTickCount64());
+                const bool wantR163=tv::wanted(tv::enabled.load(std::memory_order_acquire),kcd2vr::tutorial_native_r159::tutorialNow(nowR163));
+                tv::held.store(wantR163,std::memory_order_release);
+                static tv::Edge edgeR163;static std::uint64_t sinceR163=0,tutorRowR163=0;
+                const auto tutorRow=[&](const char* when){tutorRowR163=nowR163;const auto c=tv::take();if(!tv::any(c))return;char counts[640]{};tv::formatCounts(counts,sizeof(counts),c);
+                    char m[820]{};std::snprintf(m,sizeof(m),"R163 TRAINING_VANILLA %s held-off writes (all/tutor): %s",when,counts);diagnostic_trace::Write(m);};
+                const int edge=edgeR163.step(wantR163);
+                if(edge==1){sinceR163=nowR163;tutorRowR163=0;(void)tv::take();tv::period.fetch_add(1,std::memory_order_relaxed); // counts start with this period
+                    // give back what is still held on an NPC: the force-block cvar now (its Service below keeps it native);
+                    // H3 / D70 cvars by their own lease restore below (active=false); NPC life gets dialogue=0 (Lua cleanup);
+                    // the R52 shared rules are re-leased without the shared cvars in the combat rung block; per-call views
+                    // (npc defence ETA / dodge rate, spacing, difficulty, look point, reaction zone, flinch pose) stop at once.
+                    const bool forceBlockOwned=g_npc_block_state39.owned;g_npc_block_state39.Restore();
+                    char held[400]{};tv::formatHeld(held,sizeof(held));char m[760]{};
+                    std::snprintf(m,sizeof(m),"R163 TRAINING_VANILLA on held=%s restored=forceBlock:%s,routerWindows:%s,dodgeWindow:%s,livelyNpc:cleanup,sharedRules:%s,flinch:stopped (practice / quest weapon in hand)",
+                        held,!forceBlockOwned?"none":g_npc_block_state39.owned?"retry":"original",g_router_windows_h3.owns()?"lease_restore":"none",
+                        g_dodge_window_d70.owns()?"lease_restore":"none",g_shared_rules52.load()?"release":"none");
+                    diagnostic_trace::WriteFor(diagnostics::capture168::Domain::Bug,m);}
+                else if(edge==0){tutorRow("period end");char m[200]{};
+                    std::snprintf(m,sizeof(m),"R163 TRAINING_VANILLA off heldMs=%llu (practice weapon gone or switch OFF: every NPC feature runs again)",
+                        (unsigned long long)(sinceR163&&nowR163>=sinceR163?nowR163-sinceR163:0));
+                    diagnostic_trace::WriteFor(diagnostics::capture168::Domain::Bug,m);}
+                else if(wantR163&&tv::tutorRowDue(true,tutorRowR163?tutorRowR163:sinceR163,nowR163))tutorRow("so far");
+            }
+            {RagdollConsole59 io39;const auto now39=std::uint64_t(GetTickCount64());
+             // R155: only in an actual fight (Henry's native inCombat flag 1, no dialogue / cutscene / Theater / menu), not on the
+             // F4 combat mode alone: a scripted quest NPC with Henry as reciprocal target must never meet a forced block
+             const bool fight39=kcd2vr::npc_force_block153::fightActive(consoleReady,frik_pose_probe::CombatExperiment175Enabled(), // R153: every F4 combat press, not only VR DIRECT
+                 combat_diag_probe::HenryInCombat178r31(now39),dialogue_active,cutscene_flat_ui,theater_presented,
+                 matrix_active||mis_menu_after_frame||pause_overlay_scene||death_overlay_scene);
+             g_npc_block_state39.Service(fight39,g_npc_block39.load(std::memory_order_relaxed),now39,io39);} // C39 (R163: Service skips while held)
             {CombatWindowsConsoleH3 ioH3;
              const bool activeH3=consoleReady&&frik_pose_probe::CombatExperiment175Enabled()&&!matrix_active&&
-                 !dialogue_active&&!theater_presented&&!mis_menu_after_frame&&!pause_overlay_scene&&!death_overlay_scene&&!cutscene_flat_ui;
+                 !dialogue_active&&!theater_presented&&!mis_menu_after_frame&&!pause_overlay_scene&&!death_overlay_scene&&!cutscene_flat_ui&&
+                 !kcd2vr::training_vanilla_r163::holdNow(); // R163: global wh_cs_* slot cvars (incl. AISlotDurationMod) native in training fights - the lease gives them back
              g_router_windows_h3.service(activeH3,GetTickCount64(),ioH3,[](const char* name,const char* event,float before,float after){
                  char line[256]{};std::snprintf(line,sizeof(line),"H3 WINDOW name=%s event=%s before=%.3f after=%.3f scope=GLOBAL_NATIVE_TIMING rpg=NATIVE ForceBlock=UNTOUCHED",name,event,double(before),double(after));diagnostic_trace::Write(line);});}
             {CombatWindowsConsoleH3 ioD70;
              const bool activeD70=consoleReady&&g_roomscale_dodge58.load(std::memory_order_acquire)&&!matrix_active&&
-                 !dialogue_active&&!theater_presented&&!mis_menu_after_frame&&!pause_overlay_scene&&!death_overlay_scene&&!cutscene_flat_ui;
+                 !dialogue_active&&!theater_presented&&!mis_menu_after_frame&&!pause_overlay_scene&&!death_overlay_scene&&!cutscene_flat_ui&&
+                 !kcd2vr::training_vanilla_r163::holdNow(); // R163: global Dodge_WindowMod (all actors) native in training fights - the lease gives it back
              g_dodge_window_d70.service(activeD70,GetTickCount64(),ioD70,[](const char* name,const char* event,float before,float after){
                  if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,GetTickCount64()))return;
                  char line[256]{};std::snprintf(line,sizeof(line),"D70 DODGE_WINDOW name=%s event=%s before=%.3f after=%.3f scope=GLOBAL_ALL_ACTORS result=NATIVE",name,event,double(before),double(after));diagnostic_trace::Write(line);});}
@@ -9276,14 +9397,20 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
             const auto gestureTalkH4=PrepareGestureTalkH4(padCtx,xr_head_valid&&palmInput36.gameplay);
             auto talkPadCtxH4=padCtx;talkPadCtxH4.quick_talk_claim_h4=gestureTalkH4.claimMaskH4||gestureTalkH4.openChat;
             talkPadCtxH4.carry_query_r25=native_input_look_lab::GetGamepadMode()==3?&native_input_look_lab::QueryCarryContext25:nullptr;
-            // R147: on the horse a short X tap takes the game's follow prompt (LB) - ride_follow_r147.h
+            // R147: a short X tap takes the game's follow prompt (LB) - ride_follow_r147.h (R155: on foot too when the prompt is listed)
             talkPadCtxH4.mounted_r147=kcd2vr::riding_vrik_d76::RiderRecentR98(std::uint64_t(GetTickCount64()));
             talkPadCtxH4.follow_query_r147=&native_input_look_lab::QueryFollowHint147;
+            talkPadCtxH4.lb_prompt_query_r153=&native_input_look_lab::QueryLbPromptHint153; // R153: hold to look / watch on X
+            talkPadCtxH4.close_tutorial_r156=kcd2vr::close_tutorial_r156::Open(std::uint64_t(GetTickCount64()),kcd2vr::close_tutorial_r156::mapEnabledMs.load(std::memory_order_acquire)); // R156: tutorial screen open -> right B = held xi_back
             auto pad=native_vr_pad_premap::Build(padLeft5916c3,padRight5916c3,talkPadCtxH4);
             {static unsigned char prevR147=0;if(pad.rideFollowLbR147&&!prevR147)diagnostic_trace::Write(pad.rideFollowLbR147==1?
-                "R147 RIDE_FOLLOW mounted X tap -> LB (the follow prompt was listed)":"R147 RIDE_FOLLOW mounted X tap -> LB (prompt list not readable, mounted fallback)");
+                "R147 RIDE_FOLLOW X tap -> LB (the follow prompt was listed; R155: on foot too)":"R147 RIDE_FOLLOW mounted X tap -> LB (prompt list not readable, mounted fallback)");
              prevR147=pad.rideFollowLbR147;
              if(pad.rideFollowTalkR147)diagnostic_trace::Write("R147 RIDE_FOLLOW mounted X tap -> Quick Speak (no follow prompt listed by the game)");}
+            {static bool prevR153=false;if(pad.lbPromptXR153&&!prevR153)diagnostic_trace::Write("R153 LB_PROMPT_X X press held through (hold to look / watch prompt listed by the game, its action dispatched within 4 s - R155, or its action map enabled now - R156)");
+             prevR153=pad.lbPromptXR153;}
+            {static bool prevR156=false;if(pad.closeTutorialBackR156&&!prevR156)diagnostic_trace::Write("R156 CLOSE_TUTORIAL right B -> xi_back held (the game's close_tutorial action map is enabled: tutorial screen open)");
+             prevR156=pad.closeTutorialBackR156;}
             if(pad.torchRequestTick62)(void)frik_pose_probe::RequestTorch62(false,pad.torchRequestTick62);
             if(pad.inventoryRequestR118)touch_bindings_.QueueInventoryR118(true); // R118: X hold on STEAMVR / PS VR2 layout -> Inventory (sent by TouchBindings below)
             if(pad.xUtilityPress62){char xm[200]{};std::snprintf(xm,sizeof(xm),
@@ -9432,18 +9559,30 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
                 namespace r=kcd2vr::free_targeting_r133;
                 const bool padGameplayR133=pad.gameplay_r133&&!padCtx.vr_menu&&!padCtx.theater&&!padCtx.system_menu&&
                     !padCtx.dialogue_navigation&&!padCtx.semantic_minigame&&!padCtx.apse_ui&&!padCtx.back_context&&
-                    xr_head_valid&&palmInput36.gameplay&&kcd2vr::free_targeting_d42::mode()==r::FreePlus&&
+                    xr_head_valid&&palmInput36.gameplay&&kcd2vr::free_targeting_d42::mode()!=r::Native&& // R153: mode 1 too (offset 0 = untouched)
                     kcd2vr::free_targeting_d42::enabled.load(std::memory_order_acquire);
+                static std::uint64_t lastTurnR153=0;const auto nowTurnR153=std::uint64_t(GetTickCount64());
+                const double dtTurnR153=lastTurnR153&&nowTurnR153>=lastTurnR153?double(nowTurnR153-lastTurnR153)/1000.:0.;lastTurnR153=nowTurnR153;
                 if(padGameplayR133){
                     const double offsetR133=r::offsetView.load(std::memory_order_acquire);
                     if(std::fabs(offsetR133)>r::kDoneRad&&(std::fabs(pad.lx)>.01f||std::fabs(pad.ly)>.01f)){
                         r::rotateStick(pad.lx,pad.ly,offsetR133);r::stickFrames.fetch_add(1,std::memory_order_relaxed);}
+                    // R153: locked fight in free targeting 1/2 - the game ignores the stick turn there, so we turn the view
+                    // and body ourselves (camera hook hold) and keep rx from the game. snap turns: touch_bindings (ownsTurn).
+                    if(r::ownsStickTurn(kcd2vr::free_targeting_d42::mode(),true,kcd2vr::free_targeting_d42::contextReady.load(std::memory_order_acquire),
+                           r::engaged(nowTurnR153),r::stickTurns(padRight5916c3.active,padRight5916c3.grip,padCtx.grip_weapon_comparison114),
+                           r::holdReady(nowTurnR153))){
+                        r::ownTurnMs.store(nowTurnR153,std::memory_order_release);
+                        if(!padCtx.snap_turn_d37&&pad.rx!=0.f)r::addYaw(r::stickYaw(pad.rx,dtTurnR153));
+                        pad.rx=0.f;
+                    }
                     const int signR133=r::bleedSign.load(std::memory_order_acquire);
                     if(signR133&&std::fabs(pad.rx)<.05f&&!r::userTurning(GetTickCount64())){
                         pad.rx=r::bleedRx(offsetR133,signR133);r::bleedFrames.fetch_add(1,std::memory_order_relaxed);}
                 }
             }
             ApplyRoomscalePad58(pad,padCtx,xr_head_valid&&palmInput36.gameplay); // Fresh XR validity and this frame's gameplay owner.
+            frik_pose_probe::PublishMoveStick160(pad.lx,pad.ly); // R160: own walking frees the attack counter-step
             {const auto quickNowR112=std::uint64_t(GetTickCount64()); // R112: quick-access D-pad (left weapon, right food) = selector change
              if(pad.dpad_left)ui_hud_r112::weaponQuickInputMs.store(quickNowR112,std::memory_order_release);
              if(pad.dpad_right)ui_hud_r112::foodQuickInputMs.store(quickNowR112,std::memory_order_release);}
@@ -9630,7 +9769,7 @@ static kcd2vr::corpse_grip_cg1::Gate corpseGripGateRightW5;
         g_vr_shadows_state26.Service(false,tick31,g_graphics_io31);
         g_eye_adapt26.Service(false,false,false,{},tick31,g_graphics_io31);}
     g_combat_lock178r13.Restore(); // V66.178R13: give the camera-lock cvars back on exit
-    g_combat_camera50.Restore();g_combat_cvars51.Restore();g_combat_cvars52.Restore();g_block_cooldown59c17.Restore();g_free_swing38.Restore(); // V66.178R51/R52 // V66.178R50C1 // R59.16C10R17
+    g_combat_camera50.Restore();g_combat_cvars51.Restore();g_combat_cvars52.Restore();g_block_cooldown59c17.Restore();g_free_swing38.Restore();g_npc_block_state39.Restore(); // V66.178R51/R52 // R153 // V66.178R50C1 // R59.16C10R17
     {CombatWindowsConsoleH3 ioH3;g_router_windows_h3.rearmRestore();for(unsigned retry=0;retry<3&&g_router_windows_h3.owns();++retry)
         g_router_windows_h3.service(false,GetTickCount64()+retry*250,ioH3,[](const char*,const char*,float,float){});
      if(g_router_windows_h3.owns())diagnostic_trace::Write("H3 WINDOW shutdownRestore=UNCONFIRMED consoleUnavailableOrWriteFailed=1");}

@@ -6,6 +6,7 @@
 #include "prompt_refresh_d56.h"
 #include "glyph_apply_r129.h"
 #include "../prompt_policy_d80.h"
+#include "ui_hud_r160.h" // R160 UI
 #include "flashui_probe.h"
 #include "native_script_t2.h"
 #include "interaction_alignment.h"
@@ -486,7 +487,7 @@ void PublishMinigamePromptsD80(bool active,std::uint64_t lifetime,unsigned phase
     static prompt_policy_d80::State state;
     static prompt_policy_d80::Publication publication;
     const prompt_policy_d80::Frame frame{active,openPalm,prompt_policy_d80::timed.load(std::memory_order_acquire),
-        lifetime,now,phase,prompt_policy_d80::minigameScale.load(std::memory_order_acquire),alchemy};
+        lifetime,now,phase,ui_hud_r160::StationScale(prompt_policy_d80::minigameScale.load(std::memory_order_acquire),ui_hud_r160::Unified()),alchemy}; // R160 UI: the parents carry the one icon size, crafting keeps its own
     const auto next=state.update(frame);const auto generation=flashui_probe::HudGeneration();
     const auto revision=prompt_policy_d80::refreshRevision.load(std::memory_order_acquire);
     if(!publication.Needed(next,generation,revision)&&!publication.Reassert(next,now))return; // R145: + every 1 s at a station

@@ -6,6 +6,8 @@
 // Full production impale coordinator; only native status/owner/action leaves
 // are doubled. Exact successor owner/status adapter is tested separately.
 #include "vrik/part_anchor59c7g.h"
+#include "subsystems/physics/corpse_follow_r101.h" // R153: the R101 follow leaf below (the fixture did not build since R101)
+#include <cstring>
 #include "vrik/blood49.h"
 #include "vrik/kick_style26.h"
 #include "vrik/contact_contract176.h"
@@ -68,7 +70,8 @@ static bool ReadImpaleSuccessorH18(const kcd2vr::partanchor59c7g::Identity& old,
 static bool bloodReenterH21=false;static double lastDriveSpeedH21=0;static unsigned rawAddsH21=0,rawRemovesH21=0;
 namespace gore32n{
 static void BloodV(kcd2vr::gore32::V3,kcd2vr::gore32::V3,std::uint32_t,const char*,float){if(bloodReenterH21){bloodReenterH21=false;g_pose_policy_generation57.fetch_add(2);}}
-static bool PartVelocity(std::uintptr_t body,int part,kcd2vr::gore32::V3 v){lastDriveSpeedH21=kcd2vr::gore32::len(v);assert(body==0x990&&part==379);++drivesH18;return driveH18;}
+static bool PartVelocity(std::uintptr_t body,int part,kcd2vr::gore32::V3 v){lastDriveSpeedH21=kcd2vr::gore32::len(v);assert((body==0x990&&part==379)||(body==0x440&&part==12));++drivesH18;return driveH18;} // R153: + the exact killing-hit body
+static kcd2vr::corpse_follow_r101::FollowResult BodyFollowR101(kcd2vr::corpse_follow_r101::Rest&,std::uintptr_t,int,std::uint64_t,int,std::uint64_t,kcd2vr::gore32::V3&){return {};} // R101 leaf: no follow in this fixture
 static unsigned PartHoldAdd60(std::uintptr_t,const kcd2vr::constraint_packet60::Packet&){++rawAddsH21;return 42;}
 static bool PartHoldRemove60(std::uintptr_t,unsigned){++rawRemovesH21;return true;}
 }
@@ -144,7 +147,7 @@ int main(){
  // otherwise fresh frame. Neither successor nor old-body status may acquire.
  request(13,37000);contact();statusAdvanceH18=30;const auto d13=drivesH18;
  tick(41490);assert(!pin()&&drivesH18==d13&&nowH18==41520);statusAdvanceH18=0;
- request(14,43000);legacyReadyH18=legacyPartH18=true;statusAdvanceH18=30;
+ request(14,43000);legacyReadyH18=legacyPartH18=true;statusAdvanceH18=30;contact();frameH18.output.contact119[0].native172.collider=0x440; // R153: the exact path needs the blade on him now
  tick(47490);assert(!pin()&&drivesH18==d13&&nowH18==47520&&oldStatusH18==1);statusAdvanceH18=0;
  request(15,49000);legacyReadyH18=legacyPartH18=true;rootAdvanceH18=30;
  tick(53490);assert(!pin()&&drivesH18==d13&&nowH18==53520&&oldStatusH18==1);rootAdvanceH18=0;
@@ -197,5 +200,19 @@ int main(){
  const ownerD40::Key unrelatedD40{ownerD40::Slot::LeftHand,0x1420,0x1990,72,2,380};
  assert(ownerD40::claims.acquire(handD40,unrelatedD40));request(24,76000);contact();tick(76100);assert(pin());
  ownerD40::claims.release(handD40);retire(76120);
+ // R153: the EXACT path (ragdoll root == killing-hit body 0x440) pins only where the blade touches that body NOW.
+ {const auto sameBody=[]{contact();auto& w=frameH18.output.contact119[0].native172;w.collider=0x440;w.part=12;frameH18.output.contact119[0].point={0,.8,0};};
+  request(201,80000);legacyReadyH18=legacyPartH18=true;tick(80100);assert(!pin()); // blade off him: no pin, no latch
+  tick(80150);assert(!pin());sameBody();tick(80200);ImpalePin178r15 p{};assert(g_impale_pin178r15.read(p)&&p.valid); // blade back on him: pins
+  assert(std::abs(p.x)<1e-5&&std::abs(p.y-.8)<1e-5&&std::abs(p.z)<1e-5); // at the CURRENT contact, not the old hit point (0,.7,0)
+  retire(80300);
+  kcd2vr::gore32::impaleFullDepthR128=false;request(202,82000);legacyReadyH18=legacyPartH18=true;tick(82100); // switch OFF: old pin at the hit
+  ImpalePin178r15 q{};assert(g_impale_pin178r15.read(q)&&q.valid&&std::abs(q.y-.7)<1e-5);retire(82200);kcd2vr::gore32::impaleFullDepthR128=true;
+  request(203,84000);legacyReadyH18=legacyPartH18=true;sameBody();frameH18.output.contact119[0].native172.owner=0x777;tick(84100);assert(!pin()); // another man
+  frameH18.output.contact119[0]={};tick(88600);assert(!pin());bool said=false;
+  for(const auto& l:diagnostic_trace::lines)if(l.find("serial=203")!=std::string::npos&&l.find("stage=GAVE_UP")!=std::string::npos&&l.find("reason=BLADE_NOT_IN_HIM_AT_PIN")!=std::string::npos)said=true;
+  assert(said);retire(88700);legacyReadyH18=legacyPartH18=false;
+  request(204,90000);legacyReadyH18=legacyPartH18=true;sameBody();tick(90100);assert(pin()); // R153 is no latch: a NEW stab is not blocked by 203
+  retire(90150);legacyReadyH18=legacyPartH18=false;}
  std::puts("PASS H18 actual coordinator: original lifetime/current source checks, per-victim hand exclusion, no cross-victim global block, no old-part transfer or repeated hit");
 }

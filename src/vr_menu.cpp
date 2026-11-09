@@ -3,6 +3,8 @@
 #include "subsystems/dice/selection_marker_r92.h"
 #include "vr_menu.h"
 #include "ui_surface_geometry.h" // R127: HUD convergence range
+#include "ui_hud_r160.h" // R160 UI: one icon size + tutorial position
+#include "ui_native_canvas.h" // R160: dialogue size / vertical neutral point (pure header)
 #include "subsystems/hud_ui_controls/prompt_policy_d80.h"
 #include "subsystems/experimental/claude_options_h8.h"
 #include "subsystems/experimental/deepseek_options_h29.h"
@@ -336,7 +338,7 @@ constexpr UiRect kV4UiMaster{620,112,822,136};
 constexpr UiRect kV4UiAuto{832,112,1038,136};
 constexpr UiRect kV4UiCompact{620,154,1038,178};
 constexpr UiRect kV4UiSafeWidth{620,202,1038,226};
-constexpr UiRect kPauseOverlay124{620,508,1038,532};
+constexpr UiRect kPauseOverlay124{620,548,824,572}; // only on INTERACTION / PROMPTS; R160 was 508..532; R160 UI: left half, one icon size right half
 constexpr UiRect kContextualHud162r1{620,580,822,604}; // R141: left half, Minimal HUD right half
 constexpr UiRect kMinimalHudR141{832,580,1038,604}; // R141 VR HUD page: Minimal HUD (VrMinimalHudR141)
 constexpr UiRect kHudLag22{620,610,1038,634}; // C22b VR HUD page (R115: moved down one row)
@@ -399,13 +401,63 @@ constexpr UiRect kUiPromptHintInset{620,208,1038,232};
 // (hud_corrected_active is always true since C33), and the crafting slider is checked first on a click.
 constexpr UiRect kCraftUiSizeR145{620,208,1038,232};
 constexpr UiRect kUiPromptHintY{620,256,1038,280};
-constexpr UiRect kUiControlPromptScale{620,356,1038,380};
+constexpr UiRect kUiControlPromptScale{620,356,824,380}; // R160 UI: left half, tutorial position right half
 constexpr UiRect kUiControlPromptX{620,404,1038,428};
 constexpr UiRect kUiControlPromptY{620,452,1038,476};
 constexpr UiRect kCinematicSizeR107{620,288,1038,312}; // R107 cutscene / dialogue / loading size
-constexpr UiRect kHudDistanceR110{620,480,1038,504}; // R110 HUD distance (same angular size)
-constexpr UiRect kUiPanelBack{620,548,802,580};
-constexpr UiRect kUiPanelApply{820,548,1038,580};
+// R160: the two dialogue rows sit in the (hidden under the corrected HUD) control prompt X/Y slots; HUD convergence,
+// pause overlay and the two buttons moved down one row each (also fixes the pause label drawn over the convergence track).
+constexpr UiRect kDlgSizeR160{620,404,1038,428}; // R160 INTERACTION / PROMPTS: dialogue text size (VrUiDialogueScale)
+constexpr UiRect kDlgYR160{620,452,1038,476}; // R160 INTERACTION / PROMPTS: dialogue vertical position (VrUiDialogueY)
+constexpr UiRect kHudDistanceR110{620,500,1038,524}; // R110 HUD distance (same angular size); R160 was 480..504
+constexpr UiRect kUiPanelBack{620,596,802,628}; // R160 was 548..580
+constexpr UiRect kUiPanelApply{820,596,1038,628}; // R160 was 548..580
+// R160 UI (developer mode, INTERACTION / PROMPTS): the two new rows share a row with an existing slider (half width each)
+constexpr UiRect kTutorialYR160{834,356,1038,380}; // R160 UI: tutorial box position (VrUiTutorialYR160), dev only
+constexpr UiRect kUnifiedDevR160{834,548,1038,572}; // R160 UI: one icon size (VrUiUnifiedScaleR160), same value as the simple page
+// R160 UI simple VR HUD page (developer mode OFF). Miki: "the lower icons are not really visible because of the darker
+// background at the low edge of the VR menu book". MIS_MENU_BOOK.bmp on the right page (x 620..1038): plain parchment
+// down to y ~495, the flower border + coat of arms 495..590, the dark wooden edge from ~625. every row (incl. the
+// slider labels 24 px above a track) stays in 104..494, checked by SimpleHudLayoutR160 below.
+constexpr UiRect kSimpleIconR160{620,132,1038,156};   // "Icon size" (VrUiUnifiedScaleR160)
+constexpr UiRect kSimpleCraftR160{620,182,1038,206};  // "Crafting / minigame icon size" (VrMinigamePromptScale)
+constexpr UiRect kModeImmersiveR160{620,228,754,254},kModeMinimalR160{762,228,896,254},kModeNormalR160{904,228,1038,254}; // HUD mode
+constexpr UiRect SimpleTickR160(int i){return UiRect{(i&1)?834:620,262+30*(i>>1),(i&1)?1038:824,288+30*(i>>1)};}
+constexpr int kSimpleTicksR160=11; // 6 rows of 2, the last right slot is empty
+constexpr UiRect kSimpleHudDistR160{620,468,1038,492}; // "HUD distance" (VrHudDistanceR110 / INF)
+constexpr bool SimpleHudLayoutR160(){
+    const UiRect sliders[]{kSimpleIconR160,kSimpleCraftR160,kSimpleHudDistR160};
+    for(const auto& r:sliders)if(r.l<620||r.r>1038||r.t-26<104||r.b>494)return false; // label + badge 26 px above the track
+    const UiRect rows[]{kModeImmersiveR160,kModeMinimalR160,kModeNormalR160};
+    for(const auto& r:rows)if(r.t<kSimpleCraftR160.b+20||r.b>SimpleTickR160(0).t-8)return false; // header text 20 px above
+    for(int i=0;i<kSimpleTicksR160;++i){const auto r=SimpleTickR160(i);if(r.l<620||r.r>1038||r.b>kSimpleHudDistR160.t-30)return false;}
+    return kSimpleIconR160.b+26<=kSimpleCraftR160.t;
+}
+static_assert(SimpleHudLayoutR160(),"R160 UI simple VR HUD page rows must stay above the dark lower edge of the book, no overlap");
+// R160 UI: the eleven ticks of the simple VR HUD page (Miki: "the ticks from the previous version (all of them - show block,
+// compass, status icons, etc., combat crosshair on/off and dot crosshair on/off etc.)" + "a tutorial on/off tick"). all
+// existing keys, the same fields the developer pages / Experiments rows use. inverted = the field means HIDDEN.
+template<class S> auto SimpleTickFieldR160(S& s,int i,bool& inverted,const wchar_t*& label) noexcept -> decltype(&s.contextual_hud) {
+    inverted=false;
+    switch(i){
+    case 0:label=L"Block message";return &s.show_block_indicator_h24;           // VrShowBlockIndicator
+    case 1:label=L"Tutorials";inverted=true;return &s.live_d39.hideTutorialsR141; // VrHideTutorialsR141 (ticked = shown)
+    case 2:label=L"Compass";return &s.hud_compass_visible;                       // VrHudCompassVisible
+    case 3:label=L"Status icons";return &s.hud_status_icons_visible;             // VrHudStatusIconsVisible
+    case 4:label=L"Lower icons";return &s.hud_lower_icons_visible;               // VrHudLowerIconsVisible (health / lower status)
+    case 5:label=L"Quick slots fade";return &s.quick_slots_on_selection_r115;    // VrHudQuickSlotFadeR112
+    case 6:label=L"Combat crosshair";return &s.live_d39.combatCrossR125;         // VrCombatCrossR125
+    case 7:label=L"Dot crosshair";return &s.hud_crosshair_visible;               // VrHudCrosshairVisible
+    case 8:label=L"Cinematic bars";return &s.live_d39.cinematicBarsR107;         // VrCinematicBarsR107
+    case 9:label=L"Lockpick solid";return &s.live_d39.lockpickOpaqueR141;        // VrLockpickOpaqueR141
+    case 10:label=L"Slow HUD follow";return &s.hud_lag_on;                       // VrHudFollowSlow (old VR HUD page tick)
+    default:label=L"";return nullptr;
+    }
+}
+// HUD mode: 0 IMMERSIVE (VrContextualHud palm glance), 1 MINIMAL IMMERSIVE (VrMinimalHudR141, palm glance forced on by
+// it), 2 NORMAL (both off). existing keys only, no new mode key.
+template<class S> int HudModeR160(const S& s) noexcept {return s.live_d39.minimalHudR141?1:s.contextual_hud?0:2;}
+template<class S> void SetHudModeR160(S& s,int mode) noexcept {s.contextual_hud=mode==0;s.live_d39.minimalHudR141=mode==1;}
 // Hidden legacy rectangles keep old persistence drag enums build-compatible.
 constexpr UiRect kUiPanelCookScale{-10,-10,-5,-5};
 constexpr UiRect kUiPanelCookX{-10,-10,-5,-5};
@@ -1559,7 +1611,7 @@ void VrMenu::HandleDrag(int x, int y)
     case DragControl::FlatScreenScale: s.flat_screen_scale=0.45f+t(kV4FlatScale)*2.55f; s.flat_screen_scale=std::round(s.flat_screen_scale*100.0f)/100.0f; break;
     case DragControl::HudDistanceR110:{ // R127 HUD convergence: 0.75..10 m log scale on the first 90 %, the last 10 % = INF (VrHudInfinityR125)
         namespace g=kcd2vr::ui_surface_geometry;
-        const float tt=t(kHudDistanceR110);s.live_d39.hudInfinityR125=tt>=0.92f;
+        const float tt=t(static_cast<MenuPage>(active_page_.load(std::memory_order_acquire))==MenuPage::VrHud?kSimpleHudDistR160:kHudDistanceR110);s.live_d39.hudInfinityR125=tt>=0.92f; // R160 UI: + simple VR HUD page row
         if(!s.live_d39.hudInfinityR125){
             const float d=g::kHudConvergenceMinR127*std::pow(g::kHudConvergenceMaxR127/g::kHudConvergenceMinR127,std::min(tt/0.90f,1.0f));
             s.hud_distance_r110=d<2.0f?std::round(d*20.0f)/20.0f:std::round(d*10.0f)/10.0f; // 5 cm steps below 2 m, 10 cm above
@@ -1567,9 +1619,11 @@ void VrMenu::HandleDrag(int x, int y)
         break;}
     case DragControl::CombatCrosshairR112: s.combat_crosshair_scale_r112=std::round((0.25f+t(kCombatCrosshairR112)*1.25f)*20.0f)/20.0f; break; // R112 25..150 %, 5 % steps
     case DragControl::PassiveFullFrameScale: s.passive_full_frame_scale=1.00f+t(kCinematicSizeR107)*1.00f; s.passive_full_frame_scale=std::round(s.passive_full_frame_scale*100.0f)/100.0f; break;
+    case DragControl::UnifiedScaleR160: s.vr_ui_unified_scale_r160=std::round((0.50f+t(static_cast<MenuPage>(active_page_.load(std::memory_order_acquire))==MenuPage::VrHud?kSimpleIconR160:kUnifiedDevR160)*1.00f)*20.0f)/20.0f; break; // R160 UI: 50..150 %, 5 % steps
+    case DragControl::TutorialYR160: s.vr_ui_tutorial_y_r160=std::round((-540.0f+t(kTutorialYR160)*1080.0f)/5.0f)*5.0f; break; // R160 UI: -540..+540 stage px, 5 px steps
     case DragControl::PauseOverlaySize: s.pause_overlay_size=0.45f+t(kPauseOverlay124)*0.70f; s.pause_overlay_size=std::round(s.pause_overlay_size*100.0f)/100.0f; break;
     case DragControl::CraftUiSizeR145: // R145 Crafting UI size 25..100 %, 5 % steps, live at the station (the movie owner re-applies)
-        prompt_policy_d80::minigameScale.store(std::round((0.25f+t(kCraftUiSizeR145)*0.75f)*20.0f)/20.0f,std::memory_order_release);
+        prompt_policy_d80::minigameScale.store(std::round((0.25f+t(static_cast<MenuPage>(active_page_.load(std::memory_order_acquire))==MenuPage::VrHud?kSimpleCraftR160:kCraftUiSizeR145)*0.75f)*20.0f)/20.0f,std::memory_order_release); // R160 UI: + simple VR HUD page row
         prompt_policy_d80::Refresh();MarkDirty();break;
     case DragControl::MergedMesh: s.merged_mesh_target=30.0f+t(kV4ViewDistance)*270.0f; s.merged_mesh_target=std::round(s.merged_mesh_target); break;
     case DragControl::EngineClarity: s.engine_clarity=t(kV4Sharpness)*0.75f; s.engine_clarity=std::round(s.engine_clarity*100.0f)/100.0f; break;
@@ -1640,8 +1694,9 @@ void VrMenu::HandleDrag(int x, int y)
     case DragControl::TargetDwell59c8: s.target_dwell_s=std::round(t(kTargetDwell59c8)*1.5f*20.f)/20.f; break; // R59.16C8: 0..1.5 s in 0.05 steps
     case DragControl::SupportSword59c7f: s.support_sword_cm=std::round(6.f+t(kSupportSword59c7f)*8.f); break;
     case DragControl::SupportPole59c7f: s.support_pole_cm=std::round(6.f+t(kSupportPole59c7f)*54.f); break;
-    case DragControl::UiDialogueScale: s.vr_ui_dialogue_scale=0.30f+t(kV4DialogUiScale)*1.20f; s.vr_ui_dialogue_scale=std::round(s.vr_ui_dialogue_scale*100.0f)/100.0f; break;
-    case DragControl::UiDialogueY: s.vr_ui_dialogue_y=-720.0f+t(kV4DialogUiY)*1440.0f; s.vr_ui_dialogue_y=std::round(s.vr_ui_dialogue_y/5.0f)*5.0f; break;
+    case DragControl::UiDialogueScale: s.vr_ui_dialogue_scale=0.30f+t(static_cast<MenuPage>(active_page_.load(std::memory_order_acquire))==MenuPage::VrHudElements?kDlgSizeR160:kV4DialogUiScale)*1.20f; s.vr_ui_dialogue_scale=std::round(s.vr_ui_dialogue_scale*100.0f)/100.0f; break;
+    case DragControl::UiDialogueY: s.vr_ui_dialogue_y=static_cast<MenuPage>(active_page_.load(std::memory_order_acquire))==MenuPage::VrHudElements? // R160: the usable range only (-540..+300 px around the old placement)
+        kcd2vr::ui_native_canvas::kDialogueYMinR160+t(kDlgYR160)*(kcd2vr::ui_native_canvas::kDialogueYMaxR160-kcd2vr::ui_native_canvas::kDialogueYMinR160):-720.0f+t(kV4DialogUiY)*1440.0f; s.vr_ui_dialogue_y=std::round(s.vr_ui_dialogue_y/5.0f)*5.0f; break;
     case DragControl::UiDialogueInset: s.vr_ui_dialogue_inset_pct=t(kV4DialogUiInset)*80.0f; s.vr_ui_dialogue_inset_pct=std::round(s.vr_ui_dialogue_inset_pct); break;
     case DragControl::DialogueZoomCompensation: { const float tt=t(kV4DialogZoom); s.dialogue_zoom_compensation=0.05f+tt*2.45f; s.dialogue_zoom_compensation=std::round(s.dialogue_zoom_compensation*100.0f)/100.0f; break; }
     case DragControl::DialogueFov: s.dialogue_fov_deg=70.0f+t(kV4DialogFov)*70.0f; s.dialogue_fov_deg=std::round(s.dialogue_fov_deg*2.0f)/2.0f; break;
@@ -1715,7 +1770,7 @@ void VrMenu::HandleDrag(int x, int y)
     const auto now=static_cast<std::uint64_t>(GetTickCount64());
     if(dc==DragControl::UiSubtitleScale || dc==DragControl::UiSubtitleY || dc==DragControl::UiDialogueScale || dc==DragControl::UiDialogueY || dc==DragControl::UiDialogueInset || dc==DragControl::UiHintsScale || dc==DragControl::UiHintsInset || dc==DragControl::UiHintsY || dc==DragControl::UiControlPromptScale || dc==DragControl::UiControlPromptX || dc==DragControl::UiControlPromptY || dc==DragControl::UiCompactness || dc==DragControl::UiSafeWidth || dc==DragControl::UiSafeHeight || dc==DragControl::UiTopBoundary || dc==DragControl::UiBottomBoundary || dc==DragControl::UiUniformCenterX || dc==DragControl::UiHudOffsetX || dc==DragControl::UiHudOffsetY || dc==DragControl::UiInteractionMenuScale || dc==DragControl::UiInteractionMenuX || dc==DragControl::UiInteractionMenuY || dc==DragControl::UiItemPanelScale || dc==DragControl::UiItemPanelX || dc==DragControl::UiItemPanelY){
         static std::uint64_t last=0; if(now-last>=80ull){ last=now; if(callbacks_.apply_vr_ui_layout) callbacks_.apply_vr_ui_layout(callbacks_.context,&s); }
-    } else if(dc==DragControl::UiCompassScale || dc==DragControl::UiCompassY || dc==DragControl::UiStatsScale || dc==DragControl::UiStatsX || dc==DragControl::UiStatsY || dc==DragControl::UiLowerScale || dc==DragControl::UiLowerY || dc==DragControl::UiLowerSpread || dc==DragControl::CombatCrosshairR112){
+    } else if(dc==DragControl::UiCompassScale || dc==DragControl::UiCompassY || dc==DragControl::UiStatsScale || dc==DragControl::UiStatsX || dc==DragControl::UiStatsY || dc==DragControl::UiLowerScale || dc==DragControl::UiLowerY || dc==DragControl::UiLowerSpread || dc==DragControl::CombatCrosshairR112 || dc==DragControl::UnifiedScaleR160 || dc==DragControl::TutorialYR160){ // R160 UI: live while dragging
         static std::uint64_t last_elements=0; if(now-last_elements>=80ull){ last_elements=now; if(callbacks_.apply_vr_ui_layout) callbacks_.apply_vr_ui_layout(callbacks_.context,&s); }
     }
     if(dc==DragControl::Gamma || dc==DragControl::Brightness || dc==DragControl::Contrast){
@@ -1760,7 +1815,7 @@ void VrMenu::CommitDrag(DragControl released)
         diagnostic_trace::Write(m); return; }
     if(released==DragControl::UiInteractionMenuScale || released==DragControl::UiInteractionMenuX || released==DragControl::UiInteractionMenuY){ save(); return; }
     if(released==DragControl::UiSubtitleScale || released==DragControl::UiSubtitleY || released==DragControl::UiDialogueScale || released==DragControl::UiDialogueY || released==DragControl::UiDialogueInset || released==DragControl::UiHintsScale || released==DragControl::UiHintsInset || released==DragControl::UiHintsY || released==DragControl::UiControlPromptScale || released==DragControl::UiControlPromptX || released==DragControl::UiControlPromptY || released==DragControl::UiCompactness || released==DragControl::UiSafeWidth || released==DragControl::UiSafeHeight || released==DragControl::UiHudOffsetX || released==DragControl::UiHudOffsetY){ if(callbacks_.apply_vr_ui_layout) callbacks_.apply_vr_ui_layout(callbacks_.context,&s); save(); return; }
-    if(released==DragControl::UiCompassScale || released==DragControl::UiCompassY || released==DragControl::UiStatsScale || released==DragControl::UiStatsX || released==DragControl::UiStatsY || released==DragControl::UiLowerScale || released==DragControl::UiLowerY || released==DragControl::UiLowerSpread || released==DragControl::CombatCrosshairR112){ if(callbacks_.apply_vr_ui_layout) callbacks_.apply_vr_ui_layout(callbacks_.context,&s); save(); return; }
+    if(released==DragControl::UiCompassScale || released==DragControl::UiCompassY || released==DragControl::UiStatsScale || released==DragControl::UiStatsX || released==DragControl::UiStatsY || released==DragControl::UiLowerScale || released==DragControl::UiLowerY || released==DragControl::UiLowerSpread || released==DragControl::CombatCrosshairR112 || released==DragControl::UnifiedScaleR160 || released==DragControl::TutorialYR160){ if(callbacks_.apply_vr_ui_layout) callbacks_.apply_vr_ui_layout(callbacks_.context,&s); save(); return; }
 }
 
 void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
@@ -1975,10 +2030,10 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
         const auto selectedPage=liveGroupD39_.load();
         const auto selected=live::group(selectedPage);
         if(selected==live::Group::Body||selected==live::Group::MotionD67||selected==live::Group::Combat||selected==live::Group::Hands||selected==live::Group::Objects||selected==live::Group::Gear){
-            const bool second=selectedPage==live::kGearPage3R125||selectedPage==live::kGearPage2R118||selectedPage==live::kBodyPage2D76||live::motionPage2D69(selectedPage)||selectedPage==live::kCombatPage2D70||selectedPage==live::kHandsPage2D71||selectedPage==live::kObjectsPage2D72;
+            const bool second=selectedPage==live::kGearPage3R125||selectedPage==live::kGearPage2R118||selectedPage==live::kBodyPage2D76||live::motionPage2D69(selectedPage)||selectedPage==live::kCombatPage2D70||selectedPage==live::kHandsPage2D71||selectedPage==live::kObjectsPage2D72||selectedPage==live::kObjectsPage3R158;
             const bool body=selected==live::Group::Body,combat=selected==live::Group::Combat,hands=selected==live::Group::Hands,objects=selected==live::Group::Objects,gear=selected==live::Group::Gear;
             DrawButton(dc,font_small_,ED39(live::kMotionPrevD69),L"< PAGE 1",second?kPanel2:kAccent);
-            Text(dc,font_small_,gear?(selectedPage==live::kGearPage3R125?L"HUD + impale 3 / 3":second?L"Controller 2 / 3":L"Gear 1 / 3"):body?(second?L"Body trials 2 / 2":L"Body controls 1 / 2"):objects?(second?L"INSTANT 2 / 2":L"Objects 1 / 2"):hands?(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"):combat?(second?L"Combat trial 2 / 2":L"Combat controls 1 / 2"):(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"),786,88,156,24,kMuted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            Text(dc,font_small_,gear?(selectedPage==live::kGearPage3R125?L"HUD + impale 3 / 3":second?L"Controller 2 / 3":L"Gear 1 / 3"):body?(second?L"Body trials 2 / 2":L"Body controls 1 / 2"):objects?(selectedPage==live::kObjectsPage3R158?L"Held props 3 / 3":second?L"INSTANT 2 / 3":L"Objects 1 / 3"):hands?(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"):combat?(second?L"Combat trial 2 / 2":L"Combat controls 1 / 2"):(second?L"VRIK trials 2 / 2":L"VRIK controls 1 / 2"),786,88,156,24,kMuted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
             DrawButton(dc,font_small_,ED39(live::kMotionNextD69),L"PAGE 2 >",second?kAccent:kPanel2);
         }
         for(unsigned n=0;n<live::kTabs.size();++n)DrawButton(dc,font_small_,ED39(live::kTabs[n]),live::kTabsText[n],unsigned(selected)==n?kAccent:kPanel2);
@@ -2119,7 +2174,7 @@ void VrMenu::DrawPanel(HDC dc, const VrMenuState& s)
             std::swprintf(v,128,L"%.2f s",double(s.exp_npc_eta_prepare)); DrawSlider(dc,font_small_,kM1EtaPrepareR109,L"Time to contact told to the enemy when you prepare a stroke",(s.exp_npc_eta_prepare-.10f)/.50f,v);
             std::swprintf(v,128,L"%.2f s",double(s.exp_npc_eta_strike)); DrawSlider(dc,font_small_,kM1EtaStrikeR109,L"Time to contact told to the enemy when you strike",(s.exp_npc_eta_strike-.10f)/.50f,v);
             DrawCheck(dc,font_small_,kM1RaiseR109,s.npc_defense_raise109,L"EARLIER CONTACT: enemy block / parry clip peak moved to the shortened time (raise experiment)");
-            DrawCheck(dc,font_small_,kM1BySkillR109,s.exp_direct_block_timing39,L"BY SKILL: enemy weapon skill sets his block / parry / dodge speed (2 rows above)");
+            DrawCheck(dc,font_small_,kM1BySkillR109,s.exp_direct_block_timing39,L"BY SKILL: enemy skill sets how often (25-75 %) and how fast he blocks / parries / dodges");
             DrawCheck(dc,font_small_,kM1DirBlockR109,s.exp_direct_dirblock39,L"Directional block: the waiting enemy is told the real side your blade comes from");
             std::swprintf(v,128,L"Difficulty: %ls. Defence speed: %ls. Unarmed distance: %ls.",s.npc_difficulty_percent<=0.f?L"native":s.npc_difficulty_ready?L"control ready":L"not active, native kept",
                 (s.exp_direct_block_timing39?s.exp_direct_block_lo39<=1.f&&s.exp_direct_block_hi39<=1.f:s.npc_defense_speed<=1.f&&!s.npc_defense_raise109&&s.npc_dodge_anim_speed109<=1.f)?L"native":s.npc_defense_ready?L"control ready":L"not active, native kept",

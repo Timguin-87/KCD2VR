@@ -325,6 +325,11 @@ static bool InstantPickupTransferD72(void* manager,const void* request,bool anim
     p.countD72=InstantPickupReadD72<std::uint32_t>(p.item,0x50);p.transferD72=original;
     p.instantD72=true;p.noticeD72=true;p.instantTokenD72=c.serial;
     if(!p.physics&&!PropVelocity596(p.entity))return toInventory("BODY_NOT_RIGID");
+    // R153 (VrPropFirmHoldR116 "Held small props: firm grip", ON): the item is carried locked to the hand from the
+    // first frame with the entity transform - the same carry R96 already switched to after the body did not follow
+    // the velocity servo for 100 ms (R152 run 11:18:47.037 accepted -> 11:18:47.289 KINEMATIC_CARRY_R96 = the visible
+    // delay with the hand glued to the item). OFF = the old servo first, R96 switch after 100 ms.
+    if(p.physics&&prop5916::firmHoldR116.load(std::memory_order_acquire)){p.physics=false;p.kinematicR96=true;}
     if(!kcd2vr::mutual_admission_t25::RetainPickupD72(p.side,c.serial))return toInventory("HAND_CLAIMED_BY_OTHER_GRAB");
     // A peer may have completed and published persistent debt between the
     // earlier observation and our CAS. Retain no claim if that hand is owned.
@@ -346,6 +351,7 @@ static bool InstantPickupTransferD72(void* manager,const void* request,bool anim
     scope->result=true;
     kcd2vr::instant_d72::Publish(kcd2vr::instant_d72::Family::Interactions,kcd2vr::instant_d72::State::Active);
     PropNote596("INSTANT_NATIVE_ACCEPTED_WORLD_HOLD",p,true,"NATIVE_NOTICE_ONCE_NO_PICKING_CHILD");
+    PropSelfCollisionR155(g_prop596,GetTickCount64()); // R155: from the first frame the item does not push Henry (R103 lease)
     // D85 interact: "taken" tick on the acquiring hand after the native notice
     // and identity readback succeeded; refused/failed transfers never buzz.
     (void)kcd2vr::haptics101::publish_event(p.side,p.key,.35f,35,GetTickCount64());
@@ -459,6 +465,9 @@ static void PropRetireInstantD72(const StagedProp596& p) noexcept {
     if(!p.instantD72)return;
     auto token=p.instantTokenD72;
     if(!token||!g_instant_pickup_hold_d72.compare_exchange_strong(token,0,std::memory_order_acq_rel))return;
+    // R155: Henry collides with the item again once it is clear of him (or after 4 s); a stowed item's body is gone
+    // by then and the lease just ends (self_collision_native_r103.inl Tick -> RESTORE / RESTORE_SKIPPED)
+    if(p.side>=0&&p.side<2)self_collision_r103n::Release(kcd2vr::self_collision_r103::instantOwner(p.side),std::uint64_t(GetTickCount64()));
     (void)kcd2vr::mutual_admission_t25::RetirePickupD72(p.side,p.instantTokenD72);
     ipd72::active.store(0,std::memory_order_release);
     kcd2vr::instant_d72::Publish(kcd2vr::instant_d72::Family::Interactions,kcd2vr::instant_d72::State::Native);

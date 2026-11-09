@@ -493,10 +493,10 @@
 #elif KCD2VR_M2_HOST_SLOT == 125
 // src/mod.cpp: loadconfig_02.inl
 // M2_SLOT_BEGIN 125
-    settings.bind("VrAutoHudIconScale",auto_hud_icon_scale_,1.75f);
+    settings.bind("VrAutoHudIconScale",auto_hud_icon_scale_,1.67f); /*R160 UI default = his INI*/
     settings.bind("VrUiCompactness", vr_ui_compactness_, 1.00f);
-    settings.bind("VrUiSafeWidth", vr_ui_safe_width_, 0.65f); // C57: same default as the explicit read
-    settings.bind("VrUiSafeHeight", vr_ui_safe_height_, 1.01f); // C57: same default as the explicit read
+    settings.bind("VrUiSafeWidth", vr_ui_safe_width_, 0.60f); /*R160 UI default = his INI*/ // C57: same default as the explicit read
+    settings.bind("VrUiSafeHeight", vr_ui_safe_height_, 0.92f); /*R160 UI default = his INI*/ // C57: same default as the explicit read
     settings.bind("VrUiTopBoundary", vr_ui_top_boundary_, 0.90f);
     settings.bind("VrUiBottomBoundary", vr_ui_bottom_boundary_, 0.90f);
     settings.bind("VrUiCenterOffsetX", vr_ui_center_offset_x_, 0.0f);
@@ -518,26 +518,26 @@
 #elif KCD2VR_M2_HOST_SLOT == 131
 // src/mod.cpp: loadconfig_05.inl
 // M2_SLOT_BEGIN 131
-    settings.bind("VrUiHintsScale", vr_ui_hints_scale_, 0.64f);
+    settings.bind("VrUiHintsScale", vr_ui_hints_scale_, 0.90f); /*R160 UI default = his INI*/
     settings.bind("VrUiHintsInsetPct", vr_ui_hints_inset_pct_, 33.0f);
     settings.bind("VrUiHintsY", vr_ui_hints_y_, -185.0f);
-    settings.bind("VrUiControlPromptScale", vr_ui_control_prompt_scale_, 0.70f);
+    settings.bind("VrUiControlPromptScale", vr_ui_control_prompt_scale_, 0.67f); /*R160 UI default = his INI*/
     settings.bind("VrUiControlPromptX", vr_ui_control_prompt_x_, 0.0f);
     settings.bind("VrUiControlPromptY", vr_ui_control_prompt_y_, 0.0f);
-    settings.bind("VrUiCompassScale", vr_ui_compass_scale_, 1.0f);
+    settings.bind("VrUiCompassScale", vr_ui_compass_scale_, 0.80f); /*R160 UI default = his INI*/
     settings.bind("VrUiCompassY", vr_ui_compass_y_, 0.0f);
-    settings.bind("VrUiStatsScale", vr_ui_stats_scale_, 1.0f);
+    settings.bind("VrUiStatsScale", vr_ui_stats_scale_, 0.81f); /*R160 UI default = his INI*/
     settings.bind("VrUiStatsX", vr_ui_stats_x_, 0.0f);
     settings.bind("VrUiStatsY", vr_ui_stats_y_, 0.0f);
     settings.bind("VrUiLowerScale", vr_ui_lower_scale_, 1.0f);
     settings.bind("VrUiLowerY", vr_ui_lower_y_, 0.0f);
-    settings.bind("VrUiLowerSpread", vr_ui_lower_spread_, 0.0f);
+    settings.bind("VrUiLowerSpread", vr_ui_lower_spread_, 114.0f); /*R160 UI default = his INI*/
     settings.bind("VrUiHideLetterbox", vr_ui_hide_letterbox_, false);
     settings.bind("VrHudCrosshairVisible", hud_crosshair_visible_, false);
     settings.bind("VrHudLowerIconsVisible", hud_lower_icons_visible_, true);
     settings.bind("VrHudCompassVisible", hud_compass_visible_, true);
     settings.bind("VrHudStatusIconsVisible", hud_status_icons_visible_, false);
-    settings.bind("VrContextualHud",vr_contextual_hud_,true); // C41: same default as the INI read (Miki)
+    settings.bind("VrContextualHud",vr_contextual_hud_,false); // C41: same default as the INI read (Miki); R160 UI: false = his INI (NORMAL HUD)
 // M2_SLOT_END 131
 #elif KCD2VR_M2_HOST_SLOT == 135
 // src/mod.cpp: loadconfig_06.inl
@@ -588,7 +588,7 @@
     hud_lag22_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrHudLag",0.4f),0.0f,1.0f),std::memory_order_relaxed);
     vr_auto_correct_hud_.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrAutoCorrectHud",false));
     vr_hud_native_canvas_fit_.store(false);
-    vr_contextual_hud_.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrContextualHud",true) /*C37C3 default = Miki ini*/);
+    vr_contextual_hud_.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrContextualHud",false) /*C37C3 default = Miki ini; R160 UI: false = his INI*/);
 // M2_SLOT_END 150
 #elif KCD2VR_M2_HOST_SLOT == 151
 // src/mod.cpp: loadconfig_14.inl
@@ -600,7 +600,7 @@
 #elif KCD2VR_M2_HOST_SLOT == 152
 // src/mod.cpp: loadconfig_15.inl
 // M2_SLOT_BEGIN 152
-    const auto iconScale51c3=ReadIniFloatExplicit(explicit_ini,"Settings","VrAutoHudIconScale",1.75f);
+    const auto iconScale51c3=ReadIniFloatExplicit(explicit_ini,"Settings","VrAutoHudIconScale",1.67f); /*R160 UI default = his INI*/
 // M2_SLOT_END 152
 #elif KCD2VR_M2_HOST_SLOT == 162
 // src/mod.cpp: loadconfig_16.inl
@@ -612,8 +612,8 @@
 // M2_SLOT_BEGIN 164
     vr_ui_center_offset_x_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiCenterOffsetX", 0.0f),-500.0f,500.0f),std::memory_order_relaxed);
     vr_ui_center_offset_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiCenterOffsetY", -115.0f),-500.0f,500.0f),std::memory_order_relaxed);
-    vr_ui_safe_width_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiSafeWidth", 0.65f) /*C37C3*/,0.60f,1.40f),std::memory_order_relaxed);
-    vr_ui_safe_height_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiSafeHeight", 1.01f) /*C37C3*/,0.60f,1.40f),std::memory_order_relaxed);
+    vr_ui_safe_width_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiSafeWidth", 0.60f) /*C37C3*/,0.60f,1.40f),std::memory_order_relaxed);
+    vr_ui_safe_height_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiSafeHeight", 0.92f) /*C37C3*/,0.60f,1.40f),std::memory_order_relaxed);
 // M2_SLOT_END 164
 #elif KCD2VR_M2_HOST_SLOT == 165
 // src/mod.cpp: loadconfig_18.inl
@@ -631,20 +631,20 @@
 #elif KCD2VR_M2_HOST_SLOT == 169
 // src/mod.cpp: loadconfig_20.inl
 // M2_SLOT_BEGIN 169
-    vr_ui_hints_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiHintsScale", 0.64f),0.25f,1.50f),std::memory_order_relaxed);
+    vr_ui_hints_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiHintsScale", 0.90f),0.25f,1.50f),std::memory_order_relaxed);
     vr_ui_hints_inset_pct_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiHintsInsetPct", 33.0f),0.0f,75.0f),std::memory_order_relaxed);
     vr_ui_hints_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiHintsY", -185.0f),-600.0f,600.0f),std::memory_order_relaxed);
-    vr_ui_control_prompt_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiControlPromptScale",0.70f),0.30f,1.50f),std::memory_order_relaxed);
+    vr_ui_control_prompt_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiControlPromptScale",0.67f),0.30f,1.50f),std::memory_order_relaxed);
     vr_ui_control_prompt_x_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiControlPromptX",0.0f),-700.0f,700.0f),std::memory_order_relaxed);
     vr_ui_control_prompt_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiControlPromptY",0.0f),-600.0f,600.0f),std::memory_order_relaxed);
-    vr_ui_compass_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiCompassScale",1.0f),0.15f,1.50f),std::memory_order_relaxed);
+    vr_ui_compass_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiCompassScale",0.80f),0.15f,1.50f),std::memory_order_relaxed);
     vr_ui_compass_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiCompassY",0.0f),-20.0f,100.0f),std::memory_order_relaxed);
-    vr_ui_stats_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiStatsScale",1.0f),0.15f,1.50f),std::memory_order_relaxed);
+    vr_ui_stats_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiStatsScale",0.81f),0.15f,1.50f),std::memory_order_relaxed);
     vr_ui_stats_x_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiStatsX",0.0f),-700.0f,700.0f),std::memory_order_relaxed);
     vr_ui_stats_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiStatsY",0.0f),-20.0f,100.0f),std::memory_order_relaxed);
     vr_ui_lower_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiLowerScale",1.0f),0.15f,2.00f),std::memory_order_relaxed);
     vr_ui_lower_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiLowerY",0.0f),-500.0f,500.0f),std::memory_order_relaxed);
-    vr_ui_lower_spread_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiLowerSpread",0.0f),-400.0f,400.0f),std::memory_order_relaxed);
+    vr_ui_lower_spread_.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrUiLowerSpread",114.0f),-400.0f,400.0f),std::memory_order_relaxed);
     vr_ui_hide_letterbox_.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrUiHideLetterbox",false),std::memory_order_relaxed);
 // M2_SLOT_END 169
 #elif KCD2VR_M2_HOST_SLOT == 173
@@ -669,7 +669,7 @@
 #elif KCD2VR_M2_HOST_SLOT == 190
 // src/mod.cpp: loadconfig_24.inl
 // M2_SLOT_BEGIN 190
-    vr_contextual_hud_.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrContextualHud",true) /*C37C3 default = Miki ini*/);
+    vr_contextual_hud_.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrContextualHud",false) /*C37C3 default = Miki ini; R160 UI: false = his INI*/);
 // M2_SLOT_END 190
 #elif KCD2VR_M2_HOST_SLOT == 214
 // src/mod.cpp: loadconfig_25.inl
@@ -694,13 +694,13 @@
 // M2_SLOT_BEGIN 221
     std::atomic<bool> enable_vr_ui_layout_{true};
     std::atomic<bool> vr_ui_auto_layout_{false};      // V64.0 F4 reversible MasterSwitch auto-layout lab
-    std::atomic<float> auto_hud_icon_scale_{1.75f};
+    std::atomic<float> auto_hud_icon_scale_{1.67f}; // R160 UI default
     std::atomic<unsigned> hud_session_rung57c1_{0}; // retired presentation rung; F2 capture never owns HUD
     std::atomic<float> vr_ui_compactness_{1.00f};     // semantic HUD scale
-    std::atomic<float> vr_ui_safe_width_{1.03f};       // V64.83 safe-zone horizontal size multiplier
-    std::atomic<float> vr_ui_safe_height_{1.03f};      // V64.83 legacy/semantic vertical size multiplier
-    std::atomic<float> vr_ui_top_boundary_{0.90f};     // V66.117R1 uniform HUD upper boundary factor
-    std::atomic<float> vr_ui_bottom_boundary_{0.90f};  // V66.117R1 uniform HUD lower boundary factor
+    std::atomic<float> vr_ui_safe_width_{0.60f}; // R160 UI default (was 1.03, always loaded)      // V64.83 safe-zone horizontal size multiplier
+    std::atomic<float> vr_ui_safe_height_{0.92f}; // R160 UI default (was 1.03, always loaded)      // V64.83 legacy/semantic vertical size multiplier
+    std::atomic<float> vr_ui_top_boundary_{1.29f}; // R160 UI default VrManualHudUpperBoundary (was 0.90, always loaded)     // V66.117R1 uniform HUD upper boundary factor
+    std::atomic<float> vr_ui_bottom_boundary_{2.08f}; // R160 UI default VrManualHudLowerBoundary (was 0.90, always loaded)  // V66.117R1 uniform HUD lower boundary factor
     std::atomic<float> vr_ui_center_offset_x_{0.0f};   // V64.51 centered HUD live global X offset in Flash design px
     std::atomic<float> vr_ui_center_offset_y_{-115.0f};   // V64.51 centered HUD live global Y offset in Flash design px
     std::atomic<bool> vr_hud_reapply_requested_{false}; // V64.51 one-shot live centered-HUD recompute
@@ -724,24 +724,24 @@
     std::atomic<float> vr_ui_item_panel_scale_{1.00f};
     std::atomic<float> vr_ui_item_panel_x_{0.0f};
     std::atomic<float> vr_ui_item_panel_y_{0.0f};
-    std::atomic<float> vr_ui_hints_scale_{0.64f};
+    std::atomic<float> vr_ui_hints_scale_{0.90f}; // R160 UI default
     std::atomic<float> vr_ui_hints_inset_pct_{33.0f};    // percent of half-screen, moves br.actionHints left
     std::atomic<float> vr_ui_hints_y_{-185.0f};             // design pixels relative to vanilla actionHints
-    std::atomic<float> vr_ui_control_prompt_scale_{0.70f};   // TutorialMessage (tl.tutorial)
+    std::atomic<float> vr_ui_control_prompt_scale_{0.67f}; // R160 UI default   // TutorialMessage (tl.tutorial)
     std::atomic<float> vr_ui_control_prompt_x_{0.0f};
     std::atomic<float> vr_ui_control_prompt_y_{0.0f};
 // M2_SLOT_END 228
 #elif KCD2VR_M2_HOST_SLOT == 229
 // src/mod.h: mod_state_04.inl
 // M2_SLOT_BEGIN 229
-    std::atomic<float> vr_ui_compass_scale_{1.00f};
+    std::atomic<float> vr_ui_compass_scale_{0.80f}; // R160 UI default
     std::atomic<float> vr_ui_compass_y_{0.0f};
-    std::atomic<float> vr_ui_stats_scale_{1.00f};
+    std::atomic<float> vr_ui_stats_scale_{0.81f}; // R160 UI default
     std::atomic<float> vr_ui_stats_x_{0.0f};
     std::atomic<float> vr_ui_stats_y_{0.0f};
     std::atomic<float> vr_ui_lower_scale_{1.00f};
     std::atomic<float> vr_ui_lower_y_{0.0f};
-    std::atomic<float> vr_ui_lower_spread_{0.0f};
+    std::atomic<float> vr_ui_lower_spread_{114.0f}; // R160 UI default
     std::atomic<bool> vr_ui_hide_letterbox_{false};
 // M2_SLOT_END 229
 #elif KCD2VR_M2_HOST_SLOT == 230
@@ -821,12 +821,12 @@
     bool vr_ui_layout = true;              // V62.4 native semantic HUD master
     bool vr_ui_auto_layout = false;        // V64.0 F4: root HUD follows final VR visual center
     bool hud_corrected_active = false; // current F2 session or AutoHUD owner, read-only
-    float auto_hud_icon_scale = 1.75f; // independent readable-parent scale, AutoHUD/F2 only
+    float auto_hud_icon_scale = 1.67f; // R160 UI default. // independent readable-parent scale, AutoHUD/F2 only
     float vr_ui_compactness = 1.00f;       // centered HUD semantic element scale
-    float vr_ui_safe_width = 1.03f;         // V64.83 safe-zone horizontal size multiplier
-    float vr_ui_safe_height = 1.03f;        // V64.83 legacy/semantic vertical size multiplier
-    float vr_ui_top_boundary = 0.90f;       // V66.115R3 uniform HUD: upper anchor boundary about authored center
-    float vr_ui_bottom_boundary = 0.90f;    // V66.115R3 uniform HUD: lower anchor boundary about authored center
+    float vr_ui_safe_width = 0.60f; // R160 UI default.        // V64.83 safe-zone horizontal size multiplier
+    float vr_ui_safe_height = 0.92f; // R160 UI default.        // V64.83 legacy/semantic vertical size multiplier
+    float vr_ui_top_boundary = 1.29f; // R160 UI default.       // V66.115R3 uniform HUD: upper anchor boundary about authored center
+    float vr_ui_bottom_boundary = 2.08f; // R160 UI default.    // V66.115R3 uniform HUD: lower anchor boundary about authored center
     float vr_ui_center_offset_x = 0.0f;    // V64.51 centered HUD global horizontal offset, design px
     float vr_ui_center_offset_y = -115.0f;    // V64.51 centered HUD global vertical offset, design px
 // M2_SLOT_END 254
@@ -842,24 +842,24 @@
     float vr_ui_item_panel_scale = 0.73f;
     float vr_ui_item_panel_x = -380.0f;
     float vr_ui_item_panel_y = -300.0f;
-    float vr_ui_hints_scale = 0.64f;
+    float vr_ui_hints_scale = 0.90f; // R160 UI default
     float vr_ui_hints_inset_pct = 33.0f;
     float vr_ui_hints_y = -185.0f;
-    float vr_ui_control_prompt_scale = 0.70f; // tl.tutorial / general tutorial-control prompt layer
+    float vr_ui_control_prompt_scale = 0.67f; // R160 UI default. // tl.tutorial / general tutorial-control prompt layer
     float vr_ui_control_prompt_x = 0.0f;
     float vr_ui_control_prompt_y = 0.0f;
 // M2_SLOT_END 260
 #elif KCD2VR_M2_HOST_SLOT == 261
 // src/vr_menu.h: menu_state_07.inl
 // M2_SLOT_BEGIN 261
-    float vr_ui_compass_scale = 1.00f;
+    float vr_ui_compass_scale = 0.80f; // R160 UI default
     float vr_ui_compass_y = 0.0f;           // percent of screen height, positive upward
-    float vr_ui_stats_scale = 1.00f;
+    float vr_ui_stats_scale = 0.81f; // R160 UI default
     float vr_ui_stats_x = 0.0f;             // stage px from screen centre
     float vr_ui_stats_y = 0.0f;             // percent of screen height, positive upward
     float vr_ui_lower_scale = 1.00f;        // quick weapon/food slots
     float vr_ui_lower_y = 0.0f;             // percent of screen height
-    float vr_ui_lower_spread = 0.0f;        // percent, symmetric horizontal spread
+    float vr_ui_lower_spread = 114.0f; // R160 UI default.       // percent, symmetric horizontal spread
     bool vr_ui_hide_letterbox = false;       // experimental Dynamic-HUD-style HUD strip suppression
 // M2_SLOT_END 261
 #elif KCD2VR_M2_HOST_SLOT == 262
@@ -1032,8 +1032,15 @@ struct MinimalCvarIoR141 {
     bool Read(unsigned i,int& value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kCvars[i]};return io.Read(value);}
     bool Write(unsigned i,int value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kCvars[i]};return io.Write(value);}
 };
+// R155: while OFF every element cvar this feature ever wrote (ui_minimal_hud_r141::kRepairCvars) is put back to 1 when it reads 0.
+static ui_minimal_hud_r141::CvarRepair g_minimal_repair_r141;
+struct MinimalRepairIoR141 {
+    bool Read(unsigned i,int& value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kRepairCvars[i]};return io.Read(value);}
+    bool Write(unsigned i,int value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kRepairCvars[i]};return io.Write(value);}
+};
 // R141 tutorials: the game's own Tutorials option wh_ui_TutorialsEnabled held at 0 (VrHideTutorialsR141 or Minimal HUD).
 static ui_minimal_hud_r141::TutorialLease g_tutorials_r141;
+static ui_minimal_hud_r141::TutorialRepair g_tutorials_repair_r141; // R155: SHOWN puts a persisted 0 back to 1
 struct TutorialCvarIoR141 {
     bool Read(unsigned,int& value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kTutorialCvar[0]};return io.Read(value);}
     bool Write(unsigned,int value) noexcept {CVarLeaseBackend59c16 io{ui_minimal_hud_r141::kTutorialCvar[0]};return io.Write(value);}

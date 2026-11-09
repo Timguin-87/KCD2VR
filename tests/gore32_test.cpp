@@ -35,6 +35,9 @@ int main(){
     // C46: three decap styles 0 HIDE / 1 LOOSE NECK / 2 STUMP+HEAD, default 2, anything else clamped
     ck(decapStyle44.load()==2&&kDecapStyleCount46==3&&clampDecapStyle46(-5)==0&&clampDecapStyle46(0)==0&&clampDecapStyle46(1)==1&&clampDecapStyle46(2)==2&&clampDecapStyle46(3)==2&&clampDecapStyle46(99)==2);
     for(unsigned i=0;i<16;++i)NoteDead(100+i,0x5000+i,5000);ck(!KnownDead(7,0x1000,6000)&&KnownDead(115,0x500F,6000)); // ring of 16
+    // R155: a save load forgets every death (8 Nov 12:57: men killed before the load were cut/stabbed as corpses while fighting); the next kill counts again
+    ForgetDead();ck(!KnownDead(115,0x500F,6000)&&!KnownDead(100,0x5000,6000));
+    NoteDead(115,0x500F,7000);ck(KnownDead(115,0x500F,7500)); // no latch: the new world's kills fill the table again
     ck(!neckHit({.35,0,1.45}));   // C41: arm / outer shoulder still not
     ck(headMaterial(1)&&headMaterial(5)&&headMaterial(38)&&!headMaterial(6)&&!headMaterial(0)&&!headMaterial(-1)&&!headMaterial(12)); // C41 surfaces
     ck(headAttachment("HoodLinen_m02")&&headAttachment("chaperon_hood_m01")&&headAttachment("CapLeather_m01")&&!headAttachment("CapeWool_m01")&&!headAttachment("CapeWool_m01-torso")); // C41 names

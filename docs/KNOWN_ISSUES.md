@@ -11,7 +11,8 @@ KCD2VR_HISTORY_AND_RESEARCH.md (section 10 and the area sections).
 - sometimes the view starts upside down or facing backwards (seen with SteamVR). a start/load that faces more than
   90 deg away gets recentered, the first head pose is in the log (`R105 XR_HEAD`). no root cause yet.
 - black frames now and then: no cause found in any log. if it happens, F2 at game start and note the time. when the
-  game stalls the last picture is shown again instead of black (`VrEyeHoldR141`).
+  game stalls the last picture is shown again instead of black (`VrEyeHoldR141`, R153 also in Theater / loading
+  screens). a long loading stall can still go dark in SteamVR: the game gives no frame at all then.
 - DLSS/FSR/XeSS per eye work, but image quality and frame rate depend on the GPU and driver. Native (no upscaling) is
   the safe choice. some render size changes need a game restart.
 - the HUD reading plane and the palm glance HUD need a comfort check per person (distance, size). full-field effects
@@ -19,7 +20,7 @@ KCD2VR_HISTORY_AND_RESEARCH.md (section 10 and the area sections).
 
 ## body / hands
 
-- elbows have never been perfect. there are three elbow choices in Experiments > BODY, none is "the natural one" yet.
+- elbows have never been perfect. there are three elbow choices in Experiments > VRIK (last row), none is "the natural one" yet.
 - weapon flicker while walking was worked on in R98 (shared frame delta), not confirmed in the headset since.
 - without a saved T-pose VRIK starts on a default arm profile from your eye height. do the calibration once
   (Shift+F8 or the VR menu) for your real arm length.

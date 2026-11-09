@@ -334,6 +334,10 @@ the KCD2VR.ini comments carry the details for each of these (grep the R number):
   diagnostic_trace::Write (less cost with recording off). R147 on the horse a short left X tap sends the game's Follow.
   R148 SteamVR start/load facing behind you -> recenter when the head faces >90 deg away, intro screen re-placed.
   R149 (nov 8) no saved T-pose -> VRIK still starts on a default arm profile from the eye height.
+  R153 NPC defence by skill: R146 only sped up a defence the NPC already chose, in the nov 8 run (F4 press 1) weak
+  enemies never chose one. with BY SKILL on, one roll per Henry swing against his reciprocal opponent, 25 % at
+  skill 0 .. 75 % at skill 30, a won roll leases the game's wh_cs_ForceBlock=1 for that swing (C40 had retired the
+  cvar because it is global). VrDirectNpcBlock 1/2/3 (65 %/always/always perfect) now work in every F4 press.
 
 ### 1.2 lessons (the pattern that made every repair worse)
 
@@ -2675,7 +2679,13 @@ open / untested:
  - kicks everywhere (R99 kickInputReadyR99, block press -> phase 256): untested since R99.
  - weapon flicker while walking: R98 rebase + shared frame delta. i said R97 was "quite happy", R98+ untested.
  - upside-down / backwards start sometimes (steamvr?): R105 logs the first head pose (R105 XR_HEAD row), R148 recenters a start/load that faces >90 deg away.
- - black frames: no cause in any log. F2 at game start and tell the time.
+ - black frames: R153 (log 8 Nov 11:03-11:23, SteamVR): in the F2 windows every xrEndFrame had a projection
+   (F2_CAUSAL stage 12 flags=layer count 2-4, never 0), refused=0, every failed eye copy was held (EYE_HOLD reshown
+   17 at the first load, 6 at 11:21:48-53, noImage/tooOld/mismatch 0). gaps R141 did not cover: Theater frames
+   (main menu / loading theater) with no copy went out with NO layer, and the menu vanished during a hold. R153
+   holds the theater picture too (xr_eye_hold_r141 RecordTheater/PickTheater, same ticket, 2 s) and re-shows the
+   last menu image during any hold. still open: one empty frame at a scene switch (ticket changed mid-copy, by
+   design), and a long load where the game gives nothing for >2 s.
  - mortar / "release as drop in" over the kettle misbehaving in R101 run: R103 admission fix, untested.
  - the plate held in alchemy misaligned: R92R3/R103, untested.
  - pose-restore can in theory keep VRIK off until restart if the exact failed buffer never comes back (the R105

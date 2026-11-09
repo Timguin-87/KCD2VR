@@ -67,7 +67,7 @@
 #undef KCD2VR_MENU_DRAW_KWEAPONRELEASET1
 
         std::swprintf(v,128,L"%.2f s",double(s.target_dwell_s)); DrawSlider(dc,font_small_,kTargetDwell59c8,L"Target switch: look away this long before the lock moves",s.target_dwell_s/1.5f,v); // R59.16C8
-        std::swprintf(v,128,L"%.0f%%",double(s.vr_ui_dialogue_scale*100.f)); DrawSlider(dc,font_small_,kV4DialogUiScale,L"Dialogue text size",(s.vr_ui_dialogue_scale-.30f)/1.20f,v);
+        std::swprintf(v,128,L"%.0f%%",double(kcd2vr::ui_native_canvas::DialogueFactorR160(s.vr_ui_dialogue_scale)*100.f)); DrawSlider(dc,font_small_,kV4DialogUiScale,L"Dialogue text size",(s.vr_ui_dialogue_scale-.30f)/1.20f,v);
 
 
 #elif defined(KCD2VR_MENU_CLICK_DIALOGUE)

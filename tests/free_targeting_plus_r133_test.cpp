@@ -72,7 +72,7 @@ int main(){
     // mode change / recenter reset
     {r::Hold h{};r::Input in{};in.modePlus=true;in.context=true;in.engaged=true;in.cameraYaw=0;r::step(h,in);in.cameraYaw=D;r::step(h,in);
      in.reset=true;ck(r::step(h,in)==r::Step::Cleared&&h.view==0,"recenter/load clears the offset");
-     in.reset=false;in.modePlus=false;in.cameraYaw=2*D;ck(r::step(h,in)==r::Step::Off,"modes 0/1 never hold");}
+     in.reset=false;in.modePlus=false;in.cameraYaw=2*D;ck(r::step(h,in)==r::Step::Off,"mode 0 never holds (R153: mode 1 holds own turns only, turnOnly)");}
     // stick: world direction = view direction
     {bool ok=true;for(double N=-3;N<3;N+=.7)for(double phi=-3;phi<3;phi+=.9){float x=.3f,y=.8f;r::rotateStick(x,y,phi);
         const double wx=std::cos(N)*x-std::sin(N)*y,wy=std::sin(N)*x+std::cos(N)*y;
@@ -88,6 +88,54 @@ int main(){
     ck(std::fabs(r::bleedRx(1,-1))<=.55f&&std::fabs(r::bleedRx(.05,-1))>=.18f&&r::bleedRx(.01,-1)==0,"bleed stick bounded .18-.55, nothing under 1 deg");
     r::opponentMs=1000;ck(r::engaged(2400)&&!r::engaged(2600),"engaged = opponent seen in the last 1.5 s");
     r::userTurnMs=1000;ck(r::userTurning(1200)&&!r::userTurning(1300),"user turn window 250 ms");
+    // R153: own stick turn in a locked fight (Miki 8 Nov: "free targeting ... locks my joystick turn too")
+    {// mode 2: own turn turns view+body, the game's turn in the same frames is still absorbed
+     r::Hold h{};r::Input in{};in.modePlus=true;in.context=true;in.engaged=true;in.haveRoot=true;in.ownTurn=true;in.userTurn=true;
+     double cam=.1,root=.1;std::uint64_t t=100;
+     in.cameraYaw=cam;in.rootYaw=root;in.now=t;r::step(h,in);
+     for(int i=0;i<30;++i){cam+=D;root+=D;in.cameraYaw=cam;in.rootYaw=root;in.now=t+=11;in.userYaw=-2*D;
+        const auto s=r::step(h,in);ck(s==r::Step::Absorb,"mode 2 own turn: the game's turn is still absorbed (no Pass)");}
+     ck(near(h.view,-30*D-60*D,1e-9)&&near(h.body,-90*D,1e-9),"mode 2: 60 deg own right turn + 30 deg game turn absorbed");
+     ck(near(r::wrap(cam+h.view),.1-60*D,1e-9),"world view yaw = turned exactly by the stick, not by the game");
+     ck(near(h.ownTurnDeg,60,1e-6),"receipt counts own turn degrees");}
+    {// mode 1 (turnOnly): own turn held, the game's turn stays visible (never absorbed)
+     r::Hold h{};r::Input in{};in.modePlus=true;in.turnOnly=true;in.context=true;in.engaged=true;in.haveRoot=true;in.ownTurn=true;
+     double cam=0;std::uint64_t t=100;in.cameraYaw=cam;in.rootYaw=cam;in.now=t;r::step(h,in);
+     for(int i=0;i<20;++i){cam+=D;in.cameraYaw=cam;in.rootYaw=cam;in.now=t+=11;in.userYaw=i<10?3*D:0;ck(r::step(h,in)==r::Step::Pass,"mode 1 never absorbs");}
+     ck(near(h.view,30*D,1e-9)&&near(h.body,30*D,1e-9),"mode 1: only the 30 deg own left turn is in the offset");
+     ck(near(r::wrap(cam+h.view),50*D,1e-9),"mode 1 view = game camera + own turn");
+     // fight over -> the existing bleed runs out the own turn too
+     in.engaged=false;in.ownTurn=false;in.userYaw=0;r::Step s=r::Step::Pass;int n=0;
+     for(;n<600;++n){in.cameraYaw=cam;in.rootYaw=cam;in.now=t+=11;s=r::step(h,in);if(s!=r::Step::Bleed)break;cam+=-r::bleedRx(h.view,h.bleedSign)*2*D;}
+     ck(n>3&&s==r::Step::Pass&&h.view==0&&h.body==0,"mode 1 after the fight: Henry turns back under the view, offset gone, no snap");}
+    {// mode 1 without own turns = exactly as before: offset stays 0, nothing absorbed
+     r::Hold h{};r::Input in{};in.modePlus=true;in.turnOnly=true;in.context=true;in.engaged=true;in.haveRoot=true;double cam=0;std::uint64_t t=5;
+     bool ok=true;for(int i=0;i<50;++i){in.cameraYaw=cam;in.rootYaw=cam;in.now=t+=11;ok=ok&&r::step(h,in)==r::Step::Pass;cam+=D;}
+     in.engaged=false;for(int i=0;i<50;++i){in.cameraYaw=cam;in.now=t+=11;ok=ok&&r::step(h,in)==r::Step::Pass;cam+=D;}
+     ck(ok&&h.view==0&&h.body==0&&h.bleeds==0,"mode 1 with no stick turn: view offset never leaves 0");}
+    {// mode 2 without ownTurn (grip aim etc.): the old rule, the stick turn passes
+     r::Hold h{};r::Input in{};in.modePlus=true;in.context=true;in.engaged=true;in.cameraYaw=0;in.now=1;r::step(h,in);
+     in.userTurn=true;in.cameraYaw=5*D;in.now=12;ck(r::step(h,in)==r::Step::Pass&&h.view==0,"no own turn: a stick turn the game answers still passes");}
+    {// reset / mode 0 drop an own turn
+     r::Hold h{};r::Input in{};in.modePlus=true;in.context=true;in.engaged=true;in.userYaw=10*D;r::step(h,in);ck(near(h.view,10*D,1e-9),"own turn applied");
+     in.userYaw=10*D;in.reset=true;r::step(h,in);ck(h.view==0,"recenter drops an own turn");
+     in.reset=false;in.modePlus=false;in.userYaw=10*D;ck(r::step(h,in)==r::Step::Off&&h.view==0,"mode 0: own turn never applied");
+     in.modePlus=true;in.userYaw=std::nan("");r::step(h,in);ck(h.view==0,"garbage yaw ignored");}
+    // gates and conversions
+    ck(!r::ownsStickTurn(0,true,true,true,true,true),"mode 0 (game lock) never takes the stick");
+    ck(r::ownsStickTurn(1,true,true,true,true,true)&&r::ownsStickTurn(2,true,true,true,true,true),"modes 1 and 2 take the stick in a locked fight");
+    ck(!r::ownsStickTurn(2,true,true,false,true,true),"no opponent -> the game turns Henry as before");
+    ck(!r::ownsStickTurn(2,false,true,true,true,true)&&!r::ownsStickTurn(2,true,false,true,true,true),"menu/dialogue/clinch -> not taken");
+    ck(!r::ownsStickTurn(2,true,true,true,false,true),"right grip aim keeps the stick");
+    ck(!r::ownsStickTurn(2,true,true,true,true,false),"camera hold not showing turns (horse, recenter, activity view) -> stick stays the game's, never dead");
+    r::holdReadyMs=500;ck(r::holdReady(700)&&!r::holdReady(800),"hold ready window 250 ms");
+    ck(r::stickTurns(true,.2f,false)&&!r::stickTurns(true,.8f,false)&&r::stickTurns(true,.8f,true)&&!r::stickTurns(false,0,false),"same grip rule as the pad");
+    ck(near(r::stickYaw(1.f,.5),-120*D*.05,1e-9),"full right stick: 120 deg/s, dt capped at 50 ms");
+    ck(near(r::stickYaw(-.5f,.011),.5*120*D*.011,1e-9)&&r::stickYaw(.5f,0)==0&&r::stickYaw(std::nanf(""),.01)==0,"half left stick turns left; dt 0 / nan -> 0");
+    ck(near(r::snapYaw(.9f),-30*D,1e-9)&&near(r::snapYaw(-.9f),30*D,1e-9),"snap = 30 deg, right = negative Cry yaw");
+    r::pendingYaw=0;r::addYaw(.1);r::addYaw(-.03);ck(near(r::takeYaw(),.07,1e-6)&&r::takeYaw()==0,"pending own yaw is summed and taken once");
+    r::addYaw(5);ck(near(r::takeYaw(),1,1e-6),"pending own yaw bounded");
+    r::ownTurnMs=1000;ck(r::ownsTurn(1250)&&!r::ownsTurn(1251)&&!r::ownsTurn(999),"own turn window 250 ms");
     std::printf("R133 free targeting mode / FREE PLUS hold: %u checks, %u failures; game/headset NOT_RUN\n",checks,failures);
     return failures?1:0;
 }

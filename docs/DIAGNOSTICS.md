@@ -15,6 +15,7 @@ keys do nothing, F7, F6, F1, F10 and Shift+F8 always work.
 | Shift+F2 | performance + motion trace, without the heavy interaction recording. |
 | F3 | combat recorder on/off: requests, native admission, reaction/paired action identity and results. it does not change the combat mode. |
 | F5 | interactions and minigames: off -> interaction recording -> physical Grip/spatial door comparison -> guided crafting/legacy door comparison -> off. target, action, attachment, return, transfer, storage haptic, smith fall/LT, alchemy rate, dice state, physical reload ownership. |
+| Shift+F5 | quest progression recorder (R158): Henry's combat danger, the dialogue instance, tutorial screen, and every NPC within 25 m (dead, in combat, can talk, chat request...). read only, see below. plain F5 is not changed. |
 | Shift+F7 | VRIK recorder: off -> baseline -> fresh publication comparison -> elbow preference comparison -> off. raw goal, final wrist, contact identity/normal, freshness, release correction, hand references. |
 | F7 | opens/closes the VR menu (not a recorder). |
 | F6 | switches Theater (flat screen) <-> Immersive. stays until the next F6 or the next native menu/scene change. an L3+R3 click only switches back to Immersive. |
@@ -77,6 +78,36 @@ the masks.
 
 F5 / Shift+F7 / F11 `RELOAD_NATIVE_DECISION`: clock refusal, native layer/scope, interval/event from/to/permitted
 values before restoration. 32 edges per domain per session.
+
+## Shift+F5 quest progression (R158)
+
+for a quest that does not go on (an NPC should talk and does not). press Shift+F5 BEFORE the moment (before you hit
+Hans in the sparring, before you kill the last ruffian in the courtyard), do the scene, wait at the place where it
+should continue, then send the log. 180 s like the other keys, Shift+F5 again stops it. one short high beep = on, one long low tone = off. nothing on
+screen, nothing written to the game, only rows in KCD2VR.log. needs the R158 companion pak for the Lua rows.
+
+- `R158 QUEST_BEGIN` / `R158 QUEST_END`: start and end. `luaBridge=UNAVAILABLE` = only the QUEST_STATE rows will come.
+- `R158 QUEST_STATE` (C++, checked 4x a second, written when something changed, else every 2 s with `repeat=1`):
+  `henryInCombat` (the game's own combat flag of Henry, -1 = not seen, the combat hook is idle out of F4 combat),
+  `dialogue{...}` (the native dialogue instance: active = a real conversation with the dialog input map on, instance 0
+  = no dialogue exists), `tutorialScreen` (a full screen tutorial is open), `holdLookPrompt` (hold to look prompt
+  offered), `wh_ui_TutorialsEnabled` / `wh_cs_ForceBlock` (cvar values), `opponent{...}` (Henry's combat opponent, both
+  sides point at each other = reciprocal, with his skill), `practiceWeapon` (wooden / quest weapon in hand).
+- `R158 QUEST_HENRY` (Lua, every 2 s): `combatDanger` and `tenseCircumstance` - the same two the game asks before ANY
+  dialogue or chat can start (BasicAIActions.lua). 1 here after the fight is over = the game still thinks Henry is in
+  danger and no NPC will start talking. `npcs25m` = how many NPCs are near.
+- `R158 QUEST_NPC` (Lua, one row per NPC when it changes, `new=1` the first time): name, distance, `dead`,
+  `unconscious`, `hp`, `combatMode`, `combatDanger`, `arrangedFight` (scripted fight / sparring context),
+  `canTalk` / `canChat` (would the game let him talk to Henry), `chatRequest` (he wants to talk = Rosa in the window
+  should get 1 here), `acceptedChat`, `waitingReply` (he waits for Henry to answer), `dialogRestricted`, `following`.
+  a ruffian still `dead=0` within 25 m = the courtyard is not "all dead" for the quest yet.
+- `R158 QUEST_NPC_GONE`: that NPC left the 25 m or despawned.
+- `R158 QUEST_LUA state=NO_REPLY`: the companion pak has no zzkcd2vr_quest_diag_r158.lua (old pak) - the C++ rows still come.
+
+what it can NOT show: the quest's own phase (combat tutorial phase, objective state) - the game keeps that in the
+native quest system and the mod has no verified read for it; the tutorial text/id in the tutorial box (it goes
+straight into the Flash movie, no hook sees it); Henry's stamina (no reader); hostility/faction. so the phase is read
+from the pattern: hits landed (F3 strike rows) + Henry still in combat danger + Hans arrangedFight=1/combatMode=1.
 
 things to keep in mind:
 - a row missing can mean a dropped or out-of-window observation, not that the native callback never ran. queue

@@ -38,5 +38,20 @@ int main(){
         memory[fixture::node+8]=fixture::head;assert(!inspect().known);
     }
     memory=stable;memory[fixture::name]='a';memory[fixture::node+0x10]=fixture::node;assert(!inspect().known);
-    std::puts("PASS actual dialog input ownership: bounded scalar map lookup, exact lifetime/name, disabled bark refusal, mutation/absence fail closed; native calls=0");
+    // R156: the same walk by map name (hold-to-look prompt map). the fixture tree holds only "dialog" (nil children = head).
+    memory=stable;
+    result=owner::inspectMap(b,"dialog",read);assert(result.known&&result.enabled&&result.map==fixture::map);
+    result=owner::inspectMap(b,"infinite_hold_interaction_init",read);assert(result.known&&!result.enabled&&result.reason==owner::Reason::Missing);
+    {// a second map "infinite_hold_interaction_init" as the right child of "dialog": found, enabled byte read, revalidated
+     constexpr std::uintptr_t hold=0x150000,holdMap=0x160000,holdName=0x170000;
+     memory[fixture::node+0x10]=hold;memory[fixture::manager+0x58]=2;memory[hold+8]=fixture::node;memory[hold]=fixture::head;memory[hold+0x10]=fixture::head;
+     memory[hold+0x19]=0;memory[hold+0x20]=holdName;memory[hold+0x28]=holdMap;memory[holdMap]=b+0x4048530;memory[holdMap+0x10]=fixture::manager;memory[holdMap+0x58]=holdName;memory[holdMap+9]=1;
+     const char* text="infinite_hold_interaction_init";for(unsigned i=0;;++i){memory[holdName+i]=static_cast<unsigned char>(text[i]);if(!text[i])break;}
+     result=owner::inspectMap(b,"infinite_hold_interaction_init",read);assert(result.known&&result.enabled&&result.map==holdMap);
+     memory[holdMap+9]=0;result=owner::inspectMap(b,"infinite_hold_interaction_init",read);assert(result.known&&!result.enabled&&result.reason==owner::Reason::Disabled);
+     result=owner::inspectMap(b,"dialog",read);assert(result.known&&result.enabled&&result.map==fixture::map);
+     memory[holdName+29]='x';result=owner::inspectMap(b,"infinite_hold_interaction_init",read);assert(!result.enabled); // exact name only
+     assert(!owner::inspectMap(b,"",read).known&&!owner::inspectMap(b,nullptr,read).known);
+     char tooLong[70];for(int i=0;i<69;++i)tooLong[i]='a';tooLong[69]=0;assert(!owner::inspectMap(b,tooLong,read).known);}
+    std::puts("PASS actual dialog input ownership: bounded scalar map lookup, exact lifetime/name, disabled bark refusal, mutation/absence fail closed; native calls=0; R156 by-name map lookup");
 }

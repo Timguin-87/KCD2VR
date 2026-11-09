@@ -6,6 +6,7 @@
 #include <optional>
 #include <utility>
 #include "vrik/motion_owned59c4.h"
+#include "training_vanilla_r163.h" // R163: no NPC defence speed change in training fights (practice weapon)
 #if !defined(KCD2VR_NPC_DEFENSE_HOST_TEST)
 #include <Windows.h>
 #include <intrin.h>
@@ -106,7 +107,9 @@ Address EtaView(Address timing,Address opponent,Address property,Address vft,Pro
     Owner owner{};float original=0;Address actionVft=0;
     if(!RaiseOwner(timing,opponent,property,owner)||!Read(owner.action,actionVft))return property;
     const float factor=RaiseFor(owner.actor,actionVft==b+0x3BE12C0);
-    if(factor==1.f||!Copy(property,view.bytes.data(),view.bytes.size()))return property;
+    if(factor==1.f)return property;
+    if(kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor))return property; // R163: native ETA
+    if(!Copy(property,view.bytes.data(),view.bytes.size()))return property;
     std::memcpy(&original,view.bytes.data()+8,sizeof(original));
     if(!std::isfinite(original)||original<=0)return property;
     const float shortened=original/factor;
@@ -158,11 +161,12 @@ void ApplyRate(void* animation,float requested,Address returnPc) {
     float applied=requested;Owner owner{};const auto b=image.load(std::memory_order_acquire);
     const auto at=reinterpret_cast<Address>(animation);float factor=1.f;
     if(ready.load(std::memory_order_acquire)&&Wanted()&&std::isfinite(requested)&&requested>0){
+        // R163: a training fight (practice weapon) keeps the native dodge rate (training_vanilla_r163.h)
         if(returnPc==b+0x1648C08&&entering&&DodgeBoundary(entering->action,owner)&&
            owner.actor==entering->actor&&Equal(owner.actor+0x3A0,at)){
-            if((factor=DodgeFor(owner.actor))>1.f){applied=requested*factor;entering->rateApplied=true;}
+            if((factor=DodgeFor(owner.actor))>1.f&&!kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor)){applied=requested*factor;entering->rateApplied=true;}
         }else if(returnPc==b+0x9E3D38&&CurrentDodge(at,owner)){
-            if((factor=DodgeFor(owner.actor))>1.f){applied=requested*factor;
+            if((factor=DodgeFor(owner.actor))>1.f&&!kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor)){applied=requested*factor;
             if(entering&&entering->action==owner.action&&entering->actor==owner.actor)entering->rateApplied=true;}
         }
     }
@@ -190,7 +194,8 @@ bool __fastcall DodgeEnter(void* action) {
     const bool accepted=original?original(action):false;
     float factor=1.f;Owner owner{};float nativeRate=0;Address animation=0;
     if(accepted&&ready.load(std::memory_order_acquire)&&Wanted()&&!scope.rateApplied&&
-       DodgeBoundary(self,owner)&&(factor=DodgeFor(owner.actor))>1.f&&CurrentRate(owner.actor,nativeRate)&&Read(owner.actor+0x3A0,animation)&&animation){
+       DodgeBoundary(self,owner)&&(factor=DodgeFor(owner.actor))>1.f&&CurrentRate(owner.actor,nativeRate)&&Read(owner.actor+0x3A0,animation)&&animation&&
+       !kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor)){ // R163
         // Enter is native ownership even before channel installation. If a
         // synchronous callback already installed a DIFFERENT action, however,
         // this old entry must not change that replacement's animation rate.

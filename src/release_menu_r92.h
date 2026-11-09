@@ -34,7 +34,7 @@ inline constexpr std::array<Entry,8> pages[3]{{{
  {Row::HudInfinity,L"HUD depth",L"INF: each eye its own HUD copy, flat and never double. DISTANCE: one HUD at the VR HUD distance."},
  {Row::CombatCross,L"Combat direction cross",L"HIDDEN: only the lock / perfect block / master strike icons show in a fight."},
  // R141 (Miki: "only interaction prompts and health and compass by the hand looking and dialogue text, everything other disabled")
- {Row::MinimalHud,L"Minimal HUD",L"ON: only prompts, dialogue, subtitles and compass / health on the palm. Everything else stays hidden."},
+ {Row::MinimalHud,L"Minimal HUD",L"ON: only prompts, dialogue, subtitles, quest text and palm compass / health. Everything else stays hidden."}, // R153 quest text
  {Row::Tutorials,L"Tutorial messages",L"HIDDEN: no tutorial popups (the game's own Tutorials option). Minimal HUD hides them too."}, // R141
  {Row::None,L"",L""},{Row::None,L"",L""},{Row::None,L"",L""}
 }}};

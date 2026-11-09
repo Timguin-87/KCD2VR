@@ -442,6 +442,9 @@ enum class CommandKind : unsigned char { None,Prepare,Slash,Thrust,Abort,BowBegi
 // Consumed as a native zone call only; it never presses or releases anything.
 struct Command { CommandKind kind{};int side=0,set=-1;std::uint64_t key=0,epoch=0,sample=0,tick=0;double fraction=0;Vec3 direction{};std::uint64_t bodyEpoch=0,generation=0;int zone117=-1;CommandKind stroke117=CommandKind::None; int originZone167=-1;Vec3 origin167{};double timingSpeed178r22c2=0;bool controlledHoldH26=false; bool held57=false; /* R57: prepare from a cocked, resting hand */ bool cutFeint62=false; /* same prepared cut, new purposeful translated segment */ std::uint64_t gesture59c3=0; bool recognizerAbort18=false; /* intentional classifier abandonment only; context loss stays hard */ double effortScale19=0.,effortMass19=1.1;bool effortSupport19=false,effortKnown19=false; bool kick59=false; kcd2vr::kick5916c3::Ticket kickTicket59c3{}; /* explicit companion-dependent native kick exception */ std::uint64_t masterHandoff23=0; /* C23: native window serial that released guard for THIS gesture; the consumer rechecks the live count */ std::uint64_t throwEpochH21=0,physicsEpochH21=0; kcd2vr::solver_command_h28::Stamp solverH28{}; std::uint64_t recoveryEpochH30=0; /* producer-stamped original semantic owner; never retag queued attacks after hard loss */ kcd2vr::corpse_grip_cg1::DrawOccurrence corpseClaimCg1{}; bool optionalBladeZoneD84=false; bool feintFE=false; /* D34 FE: post-commit HYBRID feint request; the consumer never cancels on refusal */ kcd2vr::draw_motion_d63::Source drawSourceD63{}; Vec3 aimDirWorldD65C{},aimUpWorldD65C{},aimNockWorldD65C{};bool aimWorldD65C=false; /* BowFire only, same-command world-space aim; native consumer requalifies */ };
 enum class BowReason116 : unsigned char { None, Waiting, Acquired, Drawing, PrimaryReleased, Unreachable, HandUnavailable, Deviation, HardSeparation, ShortRelease, FireRequested, GeometryUnavailable };
+// R155: a HELD, nocked physical draw rides through this much bowActions/bowGeometryReady175 dropout (ms of tracking
+// ticks) while the Grip stays closed and both hands are still valid; longer is the ordinary HandUnavailable cancel.
+inline constexpr std::uint64_t kBowDropoutMs155=200;
 struct BowObservation116 { BowReason116 reason{};double gap=0,along=0,lateral=0,maxDraw=0;bool needsQuiver=false,rearm=false; };
 // V66.178R30 (R28 review F02): one immutable completed-impact record (see Output::impactRecord178r30).
 struct ImpactRecord178r30 {std::uintptr_t collider=0;std::uint64_t gesture59c3=0;std::uint64_t tick=0,key=0,generation=0,epoch=0,request=0,sample=0;double speed=0;std::uint32_t entityId=0;int body=0,part=-1,surfaceIdx=-1,kind=-1;int bodyMaterial=-1;Vec3 point{},normal{};bool valid=false;int feature59c7g=0;bool twoHands59c7g=false;
@@ -680,6 +683,7 @@ struct WeaponState {
     // V66.102
     Vec3 recoil{},recoilVelocity{};          // model-space contact rebound (decays back to the hand)
     std::uint64_t supportCandidateSince=0,arrowSince=0,lateralSince=0;
+    std::uint64_t bowDropoutSince155=0; // R155: first tick of the current readiness dropout of a held draw, 0 = none
     // C10R2: only a distance-only release may rearm on a deliberate return.
     std::uint64_t supportRearmReturnSince59c10=0;bool supportDistanceRelease59c10=false;
     double supportSlide=0;                   // polearm support position along the weapon axis (m)
@@ -1410,6 +1414,24 @@ Output step(State& state,const Input& in,const std::array<Profile,2>& profiles,S
         if(!p.key)state.acquisitionAttemptD45[side]={}; // actual no-item interval ends the binding
         QuarantinedImpactPublicationH8 quarantinePublicationH8(in,p,s,out,side);
         const bool valid=profile_input_valid_r20(in,p,side);
+        // R155 (Miki 8 Nov: bow arrow "jumps back to the unpulled position" / "disables itself"; 8 Nov log 11:08:52.763 and
+        // 11:09:05.6: BOW_STATE HAND_UNAVAILABLE gap=0 rearm=1 with gripRL=1.000 at full draw, 11:08:53.754 the Grip opened
+        // a second later): ONE solve with bowActions or bowGeometryReady175 false (a tracking sample the runtime reported
+        // held with the string hand at the face, an 80 ms geometry/nock receipt that expired for one solve) cancelled the
+        // whole held draw: native uncharge (the string and arrow snap back), rearm (open and close the Grip again).
+        // a HELD, nocked physical draw now keeps its state through such a dropout for kBowDropoutMs155 while the string
+        // hand still squeezes and both hands are valid; a longer dropout, tracking loss or an open hand cancel as before.
+        // no latch: the clock clears as soon as readiness is back or the draw ends. new draws still need full readiness.
+        bool bowActionsR155=in.bowActions,bowGeometryReadyR155=in.bowGeometryReady175;
+        if(p.bow()&&side==1&&physical_bow175(in)&&s.bowHeld&&!s.carry146&&(!in.bowActions||!in.bowGeometryReady175)&&
+           in.allowed&&in.tracked[0]&&in.tracked[1]&&manual_bow_geometry146(p)){
+            const double holdR155=bow_uses_trigger175(in)?in.trigger[0]:in.grip[0];
+            if(!std::isfinite(holdR155)||holdR155<.25)s.bowDropoutSince155=0;
+            else{
+                if(!s.bowDropoutSince155||in.tick<s.bowDropoutSince155)s.bowDropoutSince155=in.tick;
+                if(in.tick-s.bowDropoutSince155<=kBowDropoutMs155)bowActionsR155=bowGeometryReadyR155=true;
+            }
+        }else s.bowDropoutSince155=0;
         if(!valid){out.resetH29[side]={1,s.gesture59c3,s.committedGestureH26.tick};out.releaseReason121[side]=1;
             out.invalidMask55c1[side]=(!p.key?1u:0u)|(!p.primary?2u:0u)|(p.side!=side?4u:0u)|
                 (!in.tracked[side]?8u:0u)|(!finite(in.hands[side])?16u:0u)|(!finite(p.grip[side])?32u:0u)|
@@ -2157,7 +2179,7 @@ Output step(State& state,const Input& in,const std::array<Profile,2>& profiles,S
         bool bowGripAcquired19c4r2=false;
         (void)upgrade_bow_nock43(s,p);
         const bool bowCouple38=p.bow()&&physical_bow175(in)&&s.bowHeld&&!s.carry146&&
-            in.bowActions&&otherFree&&(in.grip[0]>=.25||(in.bowGripDraw47c2&&s.bowGrip38));
+            bowActionsR155&&otherFree&&(in.grip[0]>=.25||(in.bowGripDraw47c2&&s.bowGrip38));
         if(!bowCouple38){s.bowGrip38=false;s.bowCorrection38={};}
         else {
             if(!s.bowGrip38&&in.grip[0]>=.55){
@@ -2792,14 +2814,14 @@ Output step(State& state,const Input& in,const std::array<Profile,2>& profiles,S
             // Keep only the grasp identity; never stretch or hide the hand.
         }
         publishDisplayRejoinR13(contact);
-        if(p.bow()&&s.bowHeld&&!in.bowActions){
+        if(p.bow()&&s.bowHeld&&!bowActionsR155){
             out.add(CommandKind::BowCancel,in,p);s.bowHeld=false;s.bowRearm=true;
             out.bow116.reason=BowReason116::HandUnavailable;
         }
         // A selected physical bow stays not-ready until geometry/tracking returns
         // and its Trigger has been neutral. Grip cannot rearm a held Trigger.
         const bool manualBowGeometry146=manual_bow_geometry146(p);
-        if(p.bow()&&physical_bow175(in)&&(!manualBowGeometry146||!in.bowGeometryReady175||!in.bowActions)){
+        if(p.bow()&&physical_bow175(in)&&(!manualBowGeometry146||!bowGeometryReadyR155||!bowActionsR155)){
             if(s.bowHeld)out.add(CommandKind::BowCancel,in,p);
             s.bowHeld=s.carry146=false;s.bowFraction=0;s.bowRearm=true;
             out.bow116.reason=manualBowGeometry146?BowReason116::HandUnavailable:BowReason116::GeometryUnavailable;
@@ -2825,7 +2847,7 @@ Output step(State& state,const Input& in,const std::array<Profile,2>& profiles,S
             out.bowHeld=s.bowHeld;s.bowFraction=0;
             // Leave the wrist at its tracked endpoint. Native string/arrow
             // attachment is separate from the input edge and remains unverified.
-        }else if(in.bowActions&&p.bow()&&side==1&&p.support&&finite(p.grip[0])&&m::unit(p.axis)){
+        }else if(bowActionsR155&&p.bow()&&side==1&&p.support&&finite(p.grip[0])&&m::unit(p.axis)){
             // V66.107: with the over-the-shoulder quiver the RIGHT GRIP is the arrow hand
             // (take the arrow with grip over the right shoulder, keep holding, it nocks at the
             // string, pull back, release grip to shoot). Without the quiver, RT owns the draw.

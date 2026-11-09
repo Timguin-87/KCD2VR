@@ -4,6 +4,7 @@
 #include "vrik/attack_xi178r8.h" // V66.178R13: provenance of our own attack/guard/special symbols
 #include "diagnostic_trace.h"
 #include "retail_build112.h"
+#include "lb_prompt_x_r153.h" // R153: infinite hold (look / watch) prompt on X
 
 #include <DetourModKit/hook.hpp>
 #include <DetourModKit/logger.hpp>
@@ -463,6 +464,41 @@ void UpdateFollowQuery147() noexcept {
     g_follow_answer147.store((std::uint64_t(std::uint32_t(GetTickCount64()))<<2)|unsigned(value+1),std::memory_order_release);
 }
 
+// R153: the same verified native hint rows as ReadFollowHint147, looking for an infinite_hold_interaction_* prompt
+// (the game's hold to look / watch prompt). metadata only, dispatch thread, only while a new X press asks.
+std::atomic<std::uint32_t> g_lbx_want153{0};std::atomic<std::uint64_t> g_lbx_answer153{0};
+int ReadLbPromptHint153(std::uintptr_t base) noexcept {
+    if(!base||!retail_build112::Ready(base))return -1;
+    __try {
+        static const unsigned char graph[]={0x48,0x8b,0x88,0x28,0x01,0x00,0x00,0x4c,0x8b,0x79,0x58};
+        static const unsigned char stride[]={0x48,0x81,0xc2,0xe0,0x00,0x00,0x00};
+        if(std::memcmp(reinterpret_cast<void*>(base+0x7F402D),graph,sizeof(graph))||
+           std::memcmp(reinterpret_cast<void*>(base+0x8E6521),stride,sizeof(stride)))return -1;
+        const auto game=*reinterpret_cast<const std::uintptr_t*>(base+0x549D388);
+        if(!game)return -1;
+        const auto service=*reinterpret_cast<const std::uintptr_t*>(game+0x128);
+        if(!service)return -1;
+        const auto manager=*reinterpret_cast<const std::uintptr_t*>(service+0x58);
+        if(!manager||*reinterpret_cast<const std::uintptr_t*>(manager)!=base+0x3F60DC0||
+           *reinterpret_cast<const std::uintptr_t*>(manager+8)!=base+0x3F60DD8||
+           !*reinterpret_cast<const unsigned char*>(manager+0x124))return -1;
+        const auto first=*reinterpret_cast<const std::uintptr_t*>(manager+0x50);
+        const auto last=*reinterpret_cast<const std::uintptr_t*>(manager+0x58);
+        if(last<first||(last-first)%0xE0||(last-first)/0xE0>64||(last!=first&&!first))return -1;
+        bool found=false;
+        for(auto row=first;row!=last&&!found;row+=0xE0)found=kcd2vr::lb_prompt_x_r153::Matches(*reinterpret_cast<const char*const*>(row));
+        if(*reinterpret_cast<const std::uintptr_t*>(manager+0x50)!=first||
+           *reinterpret_cast<const std::uintptr_t*>(manager+0x58)!=last)return -1;
+        return found?1:0;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return -1;}
+}
+void UpdateLbPromptQuery153() noexcept {
+    const auto want=g_lbx_want153.load(std::memory_order_acquire);if(!want)return;
+    const auto now=std::uint32_t(GetTickCount64());if(now-want>80)return;
+    const int value=ReadLbPromptHint153(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll")));
+    g_lbx_answer153.store((std::uint64_t(std::uint32_t(GetTickCount64()))<<2)|unsigned(value+1),std::memory_order_release);
+}
+
 void flush_gamepad_same_dispatch_thread(std::uintptr_t controller,char flag) noexcept {
     const int mode=g_gamepad_mode.load(std::memory_order_acquire); if(mode<2||!g_original) return;
     kcd2vr::pad_dispatch_d84::Frame pad{};
@@ -488,6 +524,7 @@ void flush_gamepad_same_dispatch_thread(std::uintptr_t controller,char flag) noe
     if(mode>=3){
         UpdateCarryQuery25();
         UpdateFollowQuery147(); // R147
+        UpdateLbPromptQuery153(); // R153
         // V66.178R18 (review F05): combat symbols + ownership + serial come from ONE packet read once.
         const auto pk=kcd2vr::attack_xi178r8::unpack(pad.combat18);
         kcd2vr::attack_xi178r8::emitTriggers51c3(pk,[&](const char* name,float value,bool digital,bool held){
@@ -783,6 +820,15 @@ int QueryFollowHint147(bool want) noexcept {
     const auto now=std::uint32_t(GetTickCount64());
     g_follow_want147.store(now?now:1u,std::memory_order_release);
     const auto answer=g_follow_answer147.load(std::memory_order_acquire);
+    if(!answer||now-std::uint32_t(answer>>2)>80)return -1;
+    return int(answer&3)-1;
+}
+
+int QueryLbPromptHint153(bool want) noexcept {
+    if(!want||g_gamepad_mode.load(std::memory_order_acquire)!=3){g_lbx_want153.store(0,std::memory_order_release);return -1;}
+    const auto now=std::uint32_t(GetTickCount64());
+    g_lbx_want153.store(now?now:1u,std::memory_order_release);
+    const auto answer=g_lbx_answer153.load(std::memory_order_acquire);
     if(!answer||now-std::uint32_t(answer>>2)>80)return -1;
     return int(answer&3)-1;
 }

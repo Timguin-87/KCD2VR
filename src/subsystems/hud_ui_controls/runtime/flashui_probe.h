@@ -43,7 +43,7 @@ bool ApplyUniformReadableHudLayout(bool enabled, const ui_surface_geometry::Hud&
 bool ApplyUniformDialogueLayout(bool enabled, float dialogueScale, float dialogueY, float dialogueInsetPct,
                                 float subtitleScale, float subtitleY) noexcept;
 bool NativeCanvasActive() noexcept;
-bool ApplyWholeReadableHud44c2(bool enabled,const ui_surface_geometry::Hud&,float size,float width,float upper,float lower,float height=1.f ,float iconScale=1.f) noexcept;
+bool ApplyWholeReadableHud44c2(bool enabled,const ui_surface_geometry::Hud&,float size,float width,float upper,float lower,float height=1.f ,float iconScale=1.f,float dialogueScale=.71f,float dialogueY=420.f,float tutorialY=0.f) noexcept; // R160 dialogue: .71/420 = neutral; R160 UI tutorial Y: 0 = native
 void UpdatePalmAlpha44c2(bool active,bool left,bool right,bool qam,std::uint64_t generation) noexcept;
 // R112: big directional combat crosshair size (ui_hud_r112::combatCrosshairScale); enabled=false restores native.
 void UpdateCombatCrosshairR112(bool enabled,std::uint64_t now) noexcept;

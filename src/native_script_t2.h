@@ -12,7 +12,7 @@ struct Context {
 };
 using Client=void(*)(const Context&) noexcept;
 using Wanted=bool(*)() noexcept; // atomic intent only; no native/VM calls here.
-// At most ten fixed own clients (D72 saved-body drag and D73 opt-in NPC life). Idempotent; independent domain enable gates.
+// At most twelve fixed own clients (R158: was ten, all ten were taken) (D72 saved-body drag and D73 opt-in NPC life). Idempotent; independent domain enable gates.
 bool Register(Client,Wanted=nullptr) noexcept;
 bool Install() noexcept;
 // Disable clients without tearing down an in-flight native trampoline. The

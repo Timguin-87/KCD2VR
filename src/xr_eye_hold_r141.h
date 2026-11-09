@@ -47,4 +47,23 @@ inline Result Pick(const Images& sc0,std::uint32_t i0,const Images& sc1,std::uin
     for(int eye=0;eye<2;++eye){views[eye].pose=h[eye]->pose;views[eye].fov=h[eye]->fov;}
     return Result::Held;
 }
+// R153 (Miki 8 Nov: "some black frames still showing"): the same stall in Theater (main menu, loading screens,
+// cutscene/menu theater) still went out with NO layer at all = black, because the hold above is projection only.
+// Theater shows ONE quad from left eye swapchain image (eyes_[0]); the pose comes from the theater anchor of
+// this frame, so only "this image holds a theater picture of this same presentation scene" is remembered.
+// slot kTheaterSlot never matches a projection eye (0/1), so Pick() above never re-shows a theater picture.
+inline constexpr int kTheaterSlot=2;
+inline void RecordTheater(Images& images,std::uint32_t index,std::uint64_t ticket,std::uint64_t nowMs) {
+    if(index>=64)return;
+    if(images.size()<=index)images.resize(index+1);
+    images[index]=Held{};images[index].frame=ticket;images[index].tickMs=nowMs;images[index].slot=kTheaterSlot;images[index].valid=true;
+}
+// the left image released this frame still holds a theater picture of this scene (ticket), younger than kHoldMs
+inline Result PickTheater(const Images& sc0,std::uint32_t i0,std::uint64_t ticket,std::uint64_t nowMs) noexcept {
+    if(i0>=sc0.size()||!sc0[i0].valid)return Result::Missing;
+    const Held& h=sc0[i0];
+    if(h.slot!=kTheaterSlot||h.frame!=ticket)return Result::Mismatch;
+    if(nowMs<h.tickMs||nowMs-h.tickMs>kHoldMs)return Result::TooOld;
+    return Result::Held;
+}
 }

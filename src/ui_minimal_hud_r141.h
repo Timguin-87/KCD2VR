@@ -23,8 +23,12 @@
 // InfoText (text at the cursor), Subtitles, DialogLeft/Right (dialogue lines + choices), Bubbles, the minigame
 // elements (dice, shooting contest), the full-screen faders/vignette, and the palm glance: compass on the left palm,
 // health/stamina on the right palm (R105/D84 palm HUD, forced on while Minimal HUD is on).
-// hidden: status icons (Buffs, Crime, Wanted, Trespassing), quest/xp/money/perk/item popups (FancyEvent, CommonEvent,
-// GameLog, SkillCheck, ItemTransfer), the whole action cursor (centre point, combat direction cross with its lock and
+// R153 (Miki 8 Nov: "minimal HUD should show the quest text and dialogue text - I wanted to get rid only of the middle
+// cross, and that the UI does not constantly turn on"): kept too: FancyEvent (tc.fancyEvent = ShowQuestEvent +
+// ShowObjectiveEvent: new quest / objective updated / done with the objective tracker text, perk gained) and
+// SkillCheck (bc.skillCheck = ShowSkillCheckResult: the dialogue skill check success/fail line under the subtitles).
+// hidden: status icons (Buffs, Crime, Wanted, Trespassing), xp/level/reputation, game log and item popups (CommonEvent,
+// GameLog, ItemTransfer), the whole action cursor (centre point, combat direction cross with its lock and
 // perfect block / master strike icons), compass bar and health bar when you do not look at the palm.
 // quick weapon/potion slots stay as R115 made them (only while you select, 3 s): they are a selection prompt.
 // tutorial popups (wh_ui_TutorialsEnabled) are off too while ON, see TutorialLease below.
@@ -38,14 +42,20 @@
 namespace kcd2vr::ui_minimal_hud_r141 {
 inline std::atomic<bool> enabled{false};
 // game cvars written 0 while ON (hold, re-checked every second and on every HUD/menu lifetime change).
-inline constexpr std::array<const char*,9> kCvars{{
+// R153: FancyEvent (quest text) and SkillCheck (dialogue skill check text) are no longer in the list: never written.
+inline constexpr std::array<const char*,7> kCvars{{
     "wh_ui_ShowBuffs","wh_ui_ShowCrime","wh_ui_ShowWanted","wh_ui_ShowTrespassing",
-    "wh_ui_ShowFancyEvent","wh_ui_ShowCommonEvent","wh_ui_ShowGameLog","wh_ui_ShowSkillCheck","wh_ui_ShowItemTransfer"}};
+    "wh_ui_ShowCommonEvent","wh_ui_ShowGameLog","wh_ui_ShowItemTransfer"}};
 // our HUD.xml names, same order as kCvars: also set invisible every HUD generation and every 500 ms (an ActionScript
 // re-show inside hud.gfx does not ask the cvar). kCursorClip = cccursor.actioncursor, only in free gameplay.
-inline constexpr std::array<const char*,9> kClips{{
-    "Buffs","Crime","Wanted","Trespassing","FancyEvent","CommonEvent","GameLog","SkillCheck","ItemTransfer"}};
+inline constexpr std::array<const char*,kCvars.size()> kClips{{
+    "Buffs","Crime","Wanted","Trespassing","CommonEvent","GameLog","ItemTransfer"}};
 inline constexpr const char* kCursorClip="Cursor";
+// R155: every wh_ui_Show<Element> this feature EVER wrote 0 (R141-R152 also held FancyEvent and SkillCheck). while OFF
+// all of them are put back to the game's default 1 when they read 0 (CvarRepairT below).
+inline constexpr std::array<const char*,9> kRepairCvars{{
+    "wh_ui_ShowBuffs","wh_ui_ShowCrime","wh_ui_ShowWanted","wh_ui_ShowTrespassing",
+    "wh_ui_ShowCommonEvent","wh_ui_ShowGameLog","wh_ui_ShowItemTransfer","wh_ui_ShowFancyEvent","wh_ui_ShowSkillCheck"}};
 inline constexpr std::uint64_t kRecheckMs=1000,kRehideMs=500;
 // saved HUD preferences while ON: crosshair, compass, vitals and status off. the palm HUD (VisibilityMask) still
 // turns the compass/vitals groups into the left/right palm reveal; status stays off even on the right palm.
@@ -54,7 +64,9 @@ inline constexpr unsigned kPreferences=ui_contextual_hud162r1::HideCrosshair163|
 inline constexpr unsigned Preferences(unsigned saved,bool on) noexcept {return on?(saved|kPreferences):saved;}
 inline constexpr bool PalmEnabled(bool contextualHud,bool on) noexcept {return contextualHud||on;}
 
-struct Report {bool ran=false;unsigned held=0,writes=0,failed=0,restored=0;};
+// notOurs bit i: cvar i was already 0 when ON found it (the player's own / an old 0, never given back) or was changed
+// by somebody else before OFF. R153: the R152 log showed held=9 restored=7 with no way to see which two.
+struct Report {bool ran=false;unsigned held=0,writes=0,failed=0,restored=0,notOurs=0;};
 // Holds the cvars at 0. original = the value seen before our first write, written back when OFF (only if the cvar
 // is still our 0: a value somebody else set later is theirs). a refused write / failed readback is retried on the
 // next check (1 s) and on every lifetime change: no latch. IO: bool Read(unsigned,int&), bool Write(unsigned,int).
@@ -77,14 +89,14 @@ public:
         for(unsigned i=0;i<e_.size();++i){auto&x=e_[i];int current=0;
             if(want){
                 if(!io.Read(i,current)){x.zero=false;++r.failed;continue;}
-                if(current==0){x.zero=true;++r.held;continue;} // ours, or the player's own 0 (then not ours to restore)
+                if(current==0){x.zero=true;++r.held;if(!x.owned)r.notOurs|=1u<<i;continue;} // ours, or the player's own 0 (then not ours to restore)
                 if(!x.owned)x.original=current;
                 int check=1;
                 if(io.Write(i,0)&&io.Read(i,check)&&check==0){x.owned=true;x.zero=true;++r.writes;++r.held;}
                 else {x.zero=false;++r.failed;} // refused: next check tries again
             } else if(x.owned){
                 if(!io.Read(i,current)){++r.failed;continue;} // keep the restore debt, retry next call
-                if(current!=0){x.owned=false;x.zero=false;continue;} // changed by someone else: theirs now
+                if(current!=0){x.owned=false;x.zero=false;r.notOurs|=1u<<i;continue;} // changed by someone else: theirs now
                 if(io.Write(i,x.original)){x.owned=false;x.zero=x.original==0;++r.restored;} else ++r.failed;
             }
         }
@@ -92,6 +104,37 @@ public:
     }
 };
 using CvarLease=CvarLeaseT<kCvars.size()>;
+
+// R155 (Miki 8 Nov, R153 build with VrMinimalHudR141=false: "the quests were not showing ... it worked before"): the
+// game saves the wh_ui_Show<Element> values with its options, so a 0 the lease did not give back (already 0 when ON
+// found it = notOurs, the game closed while ON, an older build) stays 0 in every later run - the 11:03 log (R152)
+// showed held=9/9 ... restored=7: two cvars were never written back, the quest text (FancyEvent) was one of them.
+// so while OFF the mod writes the game's default 1 to every cvar in kRepairCvars that reads 0: once at start, on every
+// ON->OFF edge and on every HUD/menu lifetime change (save load, new HUD). no ownership test (the game persisted the 0,
+// nobody else gives it back), no latch: a failed read/write is retried after kRecheckMs. never runs while ON.
+struct RepairReport {bool ran=false;unsigned zero=0,repaired=0,failed=0;};
+template<std::size_t N> class CvarRepairT {
+    bool have_=false,on_=false,retry_=false;std::uint64_t epoch_=0,last_=0;
+public:
+    bool Due(bool on,std::uint64_t epoch,std::uint64_t now) const noexcept {
+        if(on)return false;
+        if(!have_||on_||epoch!=epoch_)return true;
+        return retry_&&(now<last_||now-last_>=kRecheckMs);
+    }
+    template<class IO> RepairReport Update(IO& io,bool on,std::uint64_t epoch,std::uint64_t now) noexcept {
+        RepairReport r{};if(!Due(on,epoch,now)){on_=on;return r;}
+        r.ran=true;have_=true;on_=on;epoch_=epoch;last_=now;
+        for(unsigned i=0;i<N;++i){int current=0;
+            if(!io.Read(i,current)){++r.failed;continue;}
+            if(current!=0)continue;
+            ++r.zero;int check=0;
+            if(io.Write(i,1)&&io.Read(i,check)&&check==1)++r.repaired;else ++r.failed;
+        }
+        retry_=r.failed!=0;
+        return r;
+    }
+};
+using CvarRepair=CvarRepairT<kRepairCvars.size()>;
 
 // R141 tutorials (Miki 7 Nov: "we need in HUD options to disable tutorial messages too"). the game's own option cvar
 // wh_ui_TutorialsEnabled ("Toggles tutorials. Default is 1.", registered at WHGame 0x600777, read by the tutorial
@@ -104,6 +147,9 @@ using CvarLease=CvarLeaseT<kCvars.size()>;
 inline std::atomic<bool> hideTutorials{false};
 inline constexpr std::array<const char*,1> kTutorialCvar{{"wh_ui_TutorialsEnabled"}};
 using TutorialLease=CvarLeaseT<1>;
+// R155: same repair as the element cvars: SHOWN (own switch off and Minimal HUD off) writes 1 back when it reads 0
+// (start, hidden->shown edge, every lifetime change). the game's own Tutorials option then means: use the mod switch.
+using TutorialRepair=CvarRepairT<1>;
 inline constexpr bool TutorialsHidden(bool hide,bool minimal) noexcept {return hide||minimal;}
 inline constexpr bool TutorialHold(bool hidden,bool optionsReachable) noexcept {return hidden&&!optionsReachable;}
 

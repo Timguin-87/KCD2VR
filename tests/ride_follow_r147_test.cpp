@@ -1,5 +1,5 @@
-// R147 host test: on the horse a short left X tap (PS VR2 Square) = one LB tap when the game lists the follow prompt
-// (ride_follow_r147.h) in the REAL native pad premap, everything else unchanged, + the Experiments switch
+// R147 host test: a short left X tap (PS VR2 Square) = one LB tap when the game lists the follow prompt, on the horse and
+// (R155) on foot (ride_follow_r147.h) in the REAL native pad premap, everything else unchanged, + the Experiments switch
 // (GEAR page 3 row 8, VrRideFollowXR147).
 // g++ -std=c++20 -D__fastcall= -D__cdecl= -D__stdcall= -D__thiscall= -I src -I tests -I tests/syntax_shims -I tests/openxr_sdk tests/ride_follow_r147_test.cpp src/native_vr_pad_premap.cpp
 #include <windows.h>
@@ -43,17 +43,24 @@ int main(){
     {   // 1. the decision table
         ck(rf::SendLb(true,true,100,1)&&rf::SendLb(true,true,100,-1),"mounted tap: prompt listed or list unreadable = LB");
         ck(!rf::SendLb(true,true,100,0),"mounted tap, no follow prompt = old meaning (talk)");
-        ck(!rf::SendLb(true,false,100,1),"not mounted = never (walking unchanged)");
+        ck(rf::SendLb(true,false,100,1),"R155: on foot, follow prompt listed = LB too");
+        ck(!rf::SendLb(true,false,100,0)&&!rf::SendLb(true,false,100,-1),"on foot: not listed or unreadable = talk (no mounted fallback)");
         ck(!rf::SendLb(false,true,100,1),"switch OFF = never");
         ck(!rf::SendLb(true,true,rf::kTapMs,1)&&rf::SendLb(true,true,rf::kTapMs-1,1),"tap = shorter than 300 ms");
         ck(rf::Merge(-1,-1)==-1&&rf::Merge(-1,0)==0&&rf::Merge(0,1)==1&&rf::Merge(1,0)==1&&rf::Merge(0,-1)==0,"merge: listed wins, then not listed, then unknown");
         ck(rf::enabled.load()&&std::string_view(rf::kKey)=="VrRideFollowXR147","default ON, INI key");
     }
     pm::Reset();cl::Set(0);
-    {   // 2. off the horse: exactly the old X (prompt state does not matter)
-        g_answer=1;auto o=PressX(100,false);ck(o.talk&&!o.lb&&!o.flag&&!o.keptTalk,"walking X tap = Quick Speak, no LB even with Follow listed");
-        g_asks=0;o=PressX(100,false);ck(g_asks==0,"walking: the prompt list is never asked");
+    {   // 2. off the horse (R155): Follow listed = LB tap; otherwise exactly the old X
+        g_answer=1;g_asks=0;auto o=PressX(100,false);ck(o.lb&&!o.talk&&o.flag==1&&!o.keptTalk&&g_asks>0,"walking X tap + Follow listed = one LB tap, no talk (R155)");
+        g_answer=0;o=PressX(100,false);ck(o.talk&&!o.lb&&!o.flag&&!o.keptTalk,"walking X tap, no Follow prompt = Quick Speak as before (no mounted log line)");
+        g_answer=-1;o=PressX(100,false);ck(o.talk&&!o.lb&&!o.flag,"walking, prompt list unreadable = Quick Speak (the LB fallback is mounted only)");
+        o=PressX(100,false,false);ck(o.talk&&!o.lb,"walking, no query (not native pad mode 3) = Quick Speak");
+        g_answer=1;o=PressX(400,false);ck(o.talk&&!o.lb,"walking 0.4 s press (not a tap) = Quick Speak as before");
         o=PressX(600,false);ck(o.torch&&!o.talk&&!o.lb,"walking X hold = torch");
+        rf::enabled.store(false);o=PressX(100,false);ck(o.talk&&!o.lb,"switch OFF: walking X tap = talk");
+        rf::enabled.store(true);o=PressX(100,false);ck(o.lb&&!o.talk,"switch ON again: walking X tap = LB");
+        g_answer=0;o=PressX(100,false);ck(o.talk&&!o.lb,"no latch: next tap without Follow = talk");
     }
     {   // 3. on the horse
         g_answer=1;g_asks=0;auto o=PressX(100,true);ck(o.lb&&!o.talk&&o.flag==1&&g_asks>0,"mounted X tap + Follow listed = one LB tap, no talk");

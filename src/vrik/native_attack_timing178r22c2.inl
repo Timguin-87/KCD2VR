@@ -266,10 +266,26 @@ static float NativeHitTimeSpeed59c17(AttackTimingScope22* scope,void* component,
     g_native_hit_applied59c17.fetch_add(1,std::memory_order_relaxed);
     return scaled;
 }
+// R161 tutorial GAME TIMING (tutorial_native_r159.h mode 2): decided ONCE at this attack start (the D4DA56 speed call of the
+// admitted VR attack). practice / quest weapon in hand -> the game's own speed: no VrNativeHitTime, no 44C1 scale, and the
+// motion clock (native_attack_clock50c2.inl) reads the same decision for this swing. one F2 row per edge.
+static bool TutorialGameTimingAtStartR161(const AttackTimingScope22* scope,std::uintptr_t caller) noexcept {
+    if(!scope||scope->used||caller!=WhBase()+0xD4DA56||scope->intent.kind==at22::Kind::Punch)return false; // not this attack's start call (punches: H11 fist timing untouched)
+    namespace tn=kcd2vr::tutorial_native_r159;
+    const auto now=std::uint64_t(GetTickCount64());
+    const bool native=tn::swingTiming.decideAtStart(scope->intent.tick,tn::nativeTimingOnlyNow(now));
+    const int edge=tn::timingEdge.step(native);
+    if(edge>=0){char m[200]{};std::snprintf(m,sizeof(m),"R161 TUTORIAL_TIMING %s mode=%s gesture=%llu (%s)",edge?"on":"off",
+        tn::modeName(tn::mode.load(std::memory_order_acquire)),(unsigned long long)scope->intent.gesture59c3,
+        edge?"practice weapon: game's own attack speed, no VrNativeHitTime / clock catch-up":"mod attack timing as set again");
+        diagnostic_trace::WriteFor(diagnostics::capture168::Domain::Bug,m);}
+    return native;
+}
 static float __fastcall NativeAttackSpeed22(void* component) noexcept {
     const auto caller=reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     const float native=g_attack_speed22?g_attack_speed22(component):1.f;
     auto* scope=g_attack_timing_scope22;
+    if(scope&&component==scope->speedComponent&&TutorialGameTimingAtStartR161(scope,caller)){scope->used=true;return native;} // R161
     {const float eta=NativeHitTimeSpeed59c17(scope,component,caller,native);if(eta>0)return eta;} // R59.16C10R17
     if(!scope||scope->clock50||scope->used||component!=scope->speedComponent||caller!=WhBase()+0xD4DA56||
        !NativeTimingMode44c1()||scope->policy!=g_attack_timing_policy22.load()||

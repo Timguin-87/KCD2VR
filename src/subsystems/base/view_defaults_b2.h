@@ -34,13 +34,13 @@ inline constexpr Value Values[]={
  {"VrFpsCap",90},
  {"VrFpsCapEnabled",0},
  {"VrGameFov",95},
- {"VrGamma",0.65},
+ {"VrGamma",1}, // R156: 1 = the game's picture (0.65 compensated the double sRGB encode of the eye blit)
  {"VrHorizontalFov",95},
  {"VrImmersiveFov",0},
  {"VrLeftOffsetX",0},
  {"VrLeftOffsetY",0},
  {"VrMergedMeshDistance",120},
- {"VrPassiveFullFrameScale",1.2},
+ {"VrPassiveFullFrameScale",1.56}, // R160 UI: his INI (was 1.2)
  {"VrPoseSourceMode",0},
  {"VrPresentationMode",3},
  {"VrPresentationZoom",1},

@@ -6,7 +6,8 @@ static bool PhysChargePrepareLeaf6698(void* action,float dt) noexcept {
         release.generation==n.bowGeneration175;
     if(!f.input.sample||f.request!=n.request||f.input.bodyEpoch!=n.epoch||n.epoch!=g_pose_epoch6689.load()||
        f.profiles[1].key!=n.key||f.profiles[1].generation!=n.bowGeneration175||
-       (!f.output.bowHeld&&!pendingRelease)||!f.input.allowed||!f.input.bowActions||
+       (!f.output.bowHeld&&!pendingRelease)||!f.input.allowed||
+       (!f.input.bowActions&&!f.output.bowHeld)|| // R155: a held draw rides through a short readiness dropout (physical_weapon.h kBowDropoutMs155); refusing here aborted the native charge under it
        !f.input.tracked[0]||!f.input.tracked[1]||now<f.input.tick||now-f.input.tick>100)return false;
     if(n.physicalBow175&&(f.input.nativeBowTrigger126||!ph::manual_bow_geometry146(f.profiles[1])))return false;
     __try {

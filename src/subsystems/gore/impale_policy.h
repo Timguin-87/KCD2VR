@@ -76,7 +76,7 @@ inline bool candidateThrust(const contact58c1::Receipt& r,std::uint64_t now,std:
                             std::uint64_t generation,std::uint64_t epoch,std::uint64_t request) noexcept {
     return r.serial&&r.attempt&&r.target&&r.targetIdentity&&r.collider&&r.rawPart>=0&&r.continuation&&
         r.seen&&r.accepted&&r.applied&&r.fields&&r.bodyContact&&r.kind==1&&
-        contact58c1::piercing97(r)&&
+        contact58c1::axialThrust155(r)&&contact58c1::piercing97(r)&&
         r.blocked==0&&r.perfect==0&&r.parry==0&&
         std::isfinite(r.damage)&&r.damage>0&&r.key==key&&r.generation==generation&&
         r.epoch==epoch&&r.request==request&&r.tick&&now>=r.tick&&now-r.tick<=80&&
@@ -86,7 +86,7 @@ inline bool candidateThrust(const contact58c1::Receipt& r,std::uint64_t now,std:
 // Cheap pre-filter for the armour read (combat TU, completed receipt): a body thrust the game did not defend.
 inline bool wantsArmour(const contact58c1::Receipt& r) noexcept {
     return r.accepted&&r.applied&&r.fields&&r.bodyContact&&r.kind==1&&
-        contact58c1::piercing97(r)&&r.blocked==0&&r.perfect==0&&r.parry==0&&r.target;
+        contact58c1::axialThrust155(r)&&contact58c1::piercing97(r)&&r.blocked==0&&r.perfect==0&&r.parry==0&&r.target;
 }
 
 // ---------------------------------------------------------------- penetration model (ours)

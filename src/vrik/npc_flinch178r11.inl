@@ -43,6 +43,7 @@ static void FlinchRequest178r11(const PhysFrame6698& f,int side,double scale) no
     if(!g_flinch_enabled178r11.load(std::memory_order_relaxed)||g_flinch_fault178r11.load()||!CombatFull178r10Enabled())return;
     namespace n=kcd2vr::npc_contact172;const auto& c=f.output.contact119[side];
     if(!c.native172.entityId||!(c.native172.body==n::Body::Living||c.native172.body==n::Body::Articulated))return;
+    if(kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcFlinch))return; // R163: training fight, no NPC pose write
     void* entity=FlinchEntityById178r11(c.native172.entityId);if(!entity)return;
     void* ci=CharacterForEntity6689(entity);void* anim=nullptr;if(!ci||!ValidateCharInstance(ci,anim))return;
     void* player=g_last_player_pose.load(std::memory_order_acquire);void* playerChar=nullptr;void* playerAnim=nullptr;
@@ -64,6 +65,7 @@ static void FlinchRequest178r11(const PhysFrame6698& f,int side,double scale) no
 }
 static bool FlinchCandidate178r11(void* charPlus8,FlinchActive178r11& a) noexcept {
     if(!g_flinch_enabled178r11.load(std::memory_order_relaxed)||g_flinch_fault178r11.load()||!charPlus8)return false;
+    if(kcd2vr::training_vanilla_r163::holdNow())return false; // R163: a running flinch stops at once (the native pose is never re-written)
     if(!g_flinch_active178r11.read(a)||!a.character)return false;
     if(reinterpret_cast<std::uintptr_t>(charPlus8)!=reinterpret_cast<std::uintptr_t>(a.character)+8u)return false;
     const auto now=std::uint64_t(GetTickCount64());return now>=a.start&&now-a.start<=kFlinchMs178r11;

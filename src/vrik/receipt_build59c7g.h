@@ -18,7 +18,8 @@ contact58c1::Receipt makeReceipt(const Pending& p,const NativeResult& r,std::uin
  for(int i=0;i<3;++i)v.point[i]=p.pos[i];
  v.energy=std::isfinite(p.powerRatio59c8)?p.powerRatio59c8:-1.f; // C44: the stroke energy travels with the receipt (impale threshold)
  if(p.kind==1){v.thrustSpeed96=contact58c1::thrustPeakSpeed96(p.gesture59c3,target,now); // R96: fastest contact of this thrust (impale threshold only)
-  v.thrustTipDepth96=contact58c1::thrustTipDepth96(p.gesture59c3,target,now);} // R97: tip under the touched surface (blade-contact pierce proof)
+  v.thrustTipDepth96=contact58c1::thrustTipDepth96(p.gesture59c3,target,now); // R97: tip under the touched surface (blade-contact pierce proof)
+  v.thrustAxialCos96=contact58c1::thrustAxialCos96(p.gesture59c3,target,now);} // R155: point speed along the blade at that fastest contact (stab, not a chop with the point)
  return v;
 }
 inline bodycombo59c7g::Contact physicalCandidate(const contact58c1::Receipt& r) noexcept {

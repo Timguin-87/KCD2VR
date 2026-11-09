@@ -6,13 +6,13 @@ namespace bi=kcd2vr::block_indicator_h24;
 static unsigned checks=0,failures=0;
 static void ck(bool v,const char* what){++checks;failures+=!v;std::printf("%s %s\n",v?"PASS":"FAIL",what);}
 int main(){
- kcd2vr::VrMenuState s{};ck(!s.show_block_indicator_h24&&!bi::defaultEnabled,"actual menu state defaults OFF");
+ kcd2vr::VrMenuState s{};ck(s.show_block_indicator_h24&&bi::defaultEnabled,"actual menu state defaults ON (R160 UI = his INI)");
  ck(!bi::visible(false,true,false,false)&&!bi::visible(true,false,false,false),"disabled or native clear is hidden");
  ck(bi::visible(true,true,false,false),"fresh native block selected in gameplay is shown");
  ck(!bi::visible(true,true,true,false)&&!bi::visible(true,true,false,true),"menu and calibration own presentation");
  ck(kcd2vr::combat_menu49::clean(),"first Experiments row is inside page and nonoverlapping");
  char dir[MAX_PATH]{},ini[MAX_PATH]{};GetTempPathA(MAX_PATH,dir);GetTempFileNameA(dir,"h24",0,ini);DeleteFileA(ini);
- ck(GetPrivateProfileIntA("Settings",bi::iniKey,bi::defaultEnabled?1:0,ini)==0,"missing persisted key defaults OFF");
+ ck(GetPrivateProfileIntA("Settings",bi::iniKey,bi::defaultEnabled?1:0,ini)==1,"missing persisted key defaults ON (R160 UI)");
  ck(WritePrivateProfileStringA("Settings",bi::iniKey,"1",ini)&&GetPrivateProfileIntA("Settings",bi::iniKey,0,ini)==1,"actual production INI key roundtrips ON");
  ck(WritePrivateProfileStringA("Settings",bi::iniKey,"0",ini)&&GetPrivateProfileIntA("Settings",bi::iniKey,1,ini)==0,"actual production INI key roundtrips OFF");DeleteFileA(ini);
  constexpr int width=1100,height=700;HDC dc=CreateCompatibleDC(nullptr);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=width;info.bmiHeader.biHeight=-height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;void* bits=nullptr;

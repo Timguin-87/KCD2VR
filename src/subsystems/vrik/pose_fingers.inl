@@ -400,7 +400,7 @@ static bool QualifiedCombatFistH34(const TrackingSnapshot& ts,std::uint64_t epoc
         owner.request==g_fist_epoch101.load()&&kcd2vr::contact176::fresh(owner.tick,now,80);
 }
 static bool ApplyFingerLocals6689(CoherentState6689& s,int side,float grip,float trigger,const HandContact6695* contact=nullptr,float openBias=0.f,bool nativeCurveTrialH7=false) noexcept {
-    if(HandClaimBlockedT24(side,reinterpret_cast<std::uintptr_t>(s.character),g_pose_epoch6689.load(),g_weapon_request_epoch6694.load()))return true; // Native evaluated finger locals retain ownership.
+    if(HandClaimBlockedT24(side,reinterpret_cast<std::uintptr_t>(s.character),g_pose_epoch6689.load(),g_weapon_request_epoch6694.load())&&!PropHoldOwnsHandR155(side))return true; // Native evaluated finger locals retain ownership (R155: not for the mod's own held item).
     if(!s.fingerMap[side]||!s.open[side].ready||!s.closed[side].ready)return true; // Native, never invented fist.
     openBias=std::clamp(openBias,0.f,1.f);
     const bool trial=nativeCurveTrialH7&&s.nativeCurveClosedH7[side].ready;

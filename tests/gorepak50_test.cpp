@@ -93,5 +93,14 @@ int main(){
      ck(t.find("att={{n='body_hands',s='x/hands.skin'},},lvl=1,sw={{n='body_arms',c='kcd2vr_cut_body_arms',s='x/arms.skin'},}})")!=std::string::npos);
      ck(t.find("bad name")==std::string::npos); // unsafe tokens never reach Lua
      Event old=e43;old.level43=0;ck(buildLua(old,l43,sizeof(l43))>0);ck(std::string(l43).find("lvl=")==std::string::npos&&std::string(l43).find("att={{n='body_hands',s='x/hands.skin'},}})")!=std::string::npos);}
+    // R153: legs never sever, arms and head unchanged
+    ck(severableR153(Cut::Head)&&severableR153(Cut::LeftHand)&&severableR153(Cut::RightHand));
+    ck(!severableR153(Cut::LeftFoot)&&!severableR153(Cut::RightFoot)&&!severableR153(Cut::None));
+    // R153: the native elbow handover defaults the pak's floating wound caps off (only when unset), inside the capability check
+    {Event a{};a.target=9;a.cut=Cut::RightHand;a.level43=1;a.nSw43=1;a.swOrig[0]="body_arms";a.swMade[0]="kcd2vr_cut_body_arms";a.swSkin[0]="x/arms.skin";
+     char la[2000];ck(buildLua(a,la,sizeof(la))>0);const std::string s(la);
+     ck(s.rfind("if KCD2VR_Gore and KCD2VR_Gore.protocol==1 and KCD2VR_Gore.Cut and KCD2VR_Gore.nativeLimbHandoverR93==1 then if KCD2VR_Gore.limbCaps==nil then KCD2VR_Gore.limbCaps=false end local ok,err=pcall(KCD2VR_Gore.Cut,{target=9,cut='rh',",0)==0);
+     Event o=a;o.level43=0;ck(buildLua(o,la,sizeof(la))>0);ck(std::string(la).find("limbCaps")==std::string::npos);  // old/head events unchanged
+     Event h{};h.target=7;h.cut=Cut::Head;h.headSkin="a/h.skin";ck(buildLua(h,la,sizeof(la))>0&&std::string(la).find("limbCaps")==std::string::npos);}
     std::printf("gorepak50_test: %u checks OK\n",n);return 0;
 }

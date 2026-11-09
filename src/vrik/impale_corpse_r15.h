@@ -5,6 +5,7 @@
 // hit an articulated body, technique THRUST, at this speed) plus the game's OWN death proof for that exact
 // entity in this lifetime (gore32::KnownDead, from the native lethal receipt). The latch then takes the same
 // hang path a killing stab takes (root Ready via ImpaleRoot47, victim wait, hold60). R93R3: the shared VrImpaleHang menu option owns admission.
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
@@ -21,11 +22,11 @@ struct Candidate {
     double tipDepth96=std::nan(""); // R97: tip under the touched surface (m, strike_feature_d41::tipDepth96), NaN unknown
 };
 inline core::SnapshotMailbox<Candidate> latest;
-enum class Why:int {Ok=0,Off,NotThrust,NotArticulated,NotKnownDead,TooWeak,Stale,Invalid,NotOwned,NotPiercingFeature};
+enum class Why:int {Ok=0,Off,NotThrust,NotArticulated,NotKnownDead,TooWeak,Stale,Invalid,NotOwned,NotPiercingFeature,NotAxial};
 inline const char* name(Why w) noexcept {
     switch(w){case Why::Ok:return "OK";case Why::Off:return "OFF";case Why::NotThrust:return "NOT_A_THRUST";
     case Why::NotArticulated:return "NOT_A_RAGDOLL_BODY";case Why::NotKnownDead:return "NOT_KILLED_BY_THE_GAME_THIS_LIFETIME";
-    case Why::NotPiercingFeature:return "NO_PROVEN_PIERCING_TIP";
+    case Why::NotPiercingFeature:return "NO_PROVEN_PIERCING_TIP";case Why::NotAxial:return "BLADE_ACROSS_THE_MOTION_NOT_A_STAB";
     case Why::TooWeak:return "TOO_WEAK";case Why::Stale:return "STALE";case Why::NotOwned:return "WEAPON_NOT_OWNED";default:return "INVALID";}
 }
 inline double power(double speed) noexcept {
@@ -33,6 +34,18 @@ inline double power(double speed) noexcept {
     if(!std::isfinite(speed)||speed<=0||!(r>0))return 0;
     return std::min(1.0,speed/r);
 }
+// R155 (Miki 8 Nov: "impalements were triggered also by cuts, not stabs"): the technique (kind 1) is the recognizer's word
+// at the START of the stroke (hand along the blade). 12:57:30 serial 69 was such a 'STAB' whose blade point came DOWN
+// across the body at 13.66 m/s transverse speed (C39 row) - a chop with the point, and it was admitted as a stab (N2 OK,
+// C44 kind=THRUST). the real killing stab (12:57:21 serial 58) had 3.79 m/s transverse at >= 6.24 m/s along. so the
+// impale now also asks the CONTACT: the blade axis must carry at least as much of the point's speed as the transverse
+// part (within 45 degrees of the blade line, cos >= .707). unknown geometry (no D56 speeds) is not refused.
+// axialCos(total,transverse) = along / total from the two D56 speeds at the contact (NaN = unknown).
+inline constexpr double kThrustAxialCosR155=.70710678;
+inline double axialCos(double total,double transverse) noexcept {
+    if(!std::isfinite(total)||!std::isfinite(transverse)||!(total>1e-6)||transverse<0)return std::nan("");
+    const double t=std::min(transverse,total);return std::sqrt(std::max(0.0,total*total-t*t))/total;}
+inline bool axialEnough(double cos) noexcept {return !std::isfinite(cos)||cos>=kThrustAxialCosR155;}
 // kind: ImpactRecord technique (0 cut, 1 thrust). articulated: record body == Articulated. knownDead: gore32::KnownDead
 // for this entity identity now. needEnergy: VrImpaleMinEnergy. ageMs: now - record tick.
 inline Why qualify(bool on,int kind,bool articulated,bool knownDead,double speed,double needEnergy,std::uint64_t ageMs,
@@ -50,10 +63,12 @@ inline Why qualify(bool on,int kind,bool articulated,bool knownDead,double speed
 // The physical producer additionally joins the actual struck feature. The
 // old motion-only qualifier remains a diagnostic helper, never admission.
 // R97: a BLADE contact counts only with the tip under the touched surface (see strike_feature_d41::canPierce).
+// R155: axial = axialCos() of this contact (NaN unknown = not refused); the blade must travel along its own line.
 inline Why qualifyPhysicalD41(bool on,int kind,int feature,int weaponClass,bool articulated,bool knownDead,
-    double speed,double needEnergy,std::uint64_t ageMs,bool owned,const double point[3],double tipDepth=std::nan("")) noexcept {
+    double speed,double needEnergy,std::uint64_t ageMs,bool owned,const double point[3],double tipDepth=std::nan(""),double axial=std::nan("")) noexcept {
     const auto prior=qualify(on,kind,articulated,knownDead,speed,needEnergy,ageMs,owned,point);
     if(prior!=Why::Ok)return prior;
+    if(!axialEnough(axial))return Why::NotAxial;
     return strike_feature_d41::canPierce(feature,weaponClass,tipDepth)?Why::Ok:Why::NotPiercingFeature;
 }
 // Weapon side: a fresh candidate of THIS weapon (same key/generation, owner epochs) that was not consumed yet.

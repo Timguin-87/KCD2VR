@@ -5,6 +5,9 @@
 #include "subsystems/physics/runtime/native_weapon_contact_event_h24.h"
 #include "diagnostics/hmd_dodge_context_h24.h"
 #include "subsystems/experimental/free_targeting_plus_r133.h" // R133: Henry's opponent edge for FREE PLUS
+#include "subsystems/direct/npc_force_block153.h" // R153: Henry's phase + reciprocal opponent skill for the NPC defence roll
+#include "subsystems/direct/tutorial_native_r159.h" // R159: "Tutorials: native hits only" gate of the direct route (geometry_hit178r27.inl)
+#include "subsystems/direct/training_vanilla_r163.h" // R163: "Training fights: vanilla NPCs" gates (native_state_context.inl, counter stab, stagger rule)
 #include "vrik/direct_response36.h"
 #include "core/collab_test_h21.h"
 #include "vrik/direct_counter39.h" // C39 DIRECT counter candidate receipt (pure)

@@ -21,6 +21,23 @@ public:
         queued_.fetch_add(1,std::memory_order_relaxed);
         tail_=(tail_+1)%Capacity;++size_;lock_.clear(std::memory_order_release);return true;
     }
+    // R154: status rows (WriteStatus: few, never per frame) must not vanish behind a producer or the worker that
+    // holds the flag for the microseconds of one copy. The 8 Nov log lost its "R141 TUTORIALS" give-back row that
+    // way (34 single-record drops in 20 min of F2, never a burst = contention, not a full queue). Bounded: at most
+    // `spins` try-lock attempts, a full queue is still a drop. Hot producers keep the one-shot Push above.
+    bool PushSpin(const char* text,std::uint64_t stamp,unsigned spins=64) noexcept {
+        if(!text||!text[0])return false;
+        for(unsigned i=0;i<spins;++i){
+            if(lock_.test_and_set(std::memory_order_acquire))continue;
+            if(size_==Capacity){lock_.clear(std::memory_order_release);dropped_.fetch_add(1);return false;}
+            auto& r=records_[tail_];r.filetime=stamp;
+            std::size_t n=0;while(n+1<MessageSize&&text[n]){r.message[n]=text[n];++n;}r.message[n]=0;
+            if(text[n])truncated_.fetch_add(1,std::memory_order_relaxed);
+            queued_.fetch_add(1,std::memory_order_relaxed);
+            tail_=(tail_+1)%Capacity;++size_;lock_.clear(std::memory_order_release);return true;
+        }
+        dropped_.fetch_add(1);return false;
+    }
     bool Pop(Record& out) noexcept {
         if(lock_.test_and_set(std::memory_order_acquire))return false;
         if(!size_){lock_.clear(std::memory_order_release);return false;}

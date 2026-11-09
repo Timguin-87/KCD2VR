@@ -514,7 +514,8 @@ void __fastcall ActorUpdateDetour(void* actor,float frameTime) noexcept {kcd2vr:
     if(g_update_original){kcd2vr::hookcost178r22::Original og{kcd2vr::hookcost178r22::ActorUpdate};g_update_original(actor,frameTime);}
     // H20: HMD dodge needs native combat context in fists/default modes too.
     // Geometry fallback and recorder lifetimes must not own this read-only cache.
-    if(Rd<std::uintptr_t>(actor,0,0)==g_base+kCombatPlayerVft)geom27::PublishHenryCombatContextH20(actor);
+    if(Rd<std::uintptr_t>(actor,0,0)==g_base+kCombatPlayerVft){geom27::PublishHenryCombatContextH20(actor);geom27::PublishNpcDefense153(actor); // R153
+        frik_pose_probe::CounterStepAfterUpdate160(actor);} // R160: VrCombatNoStep - Henry's attack keeps its start position (forward lunge removed)
     if(geom27::victim5916c3::count.load(std::memory_order_relaxed))geom27::victim5916c3::Observe(actor,std::uint64_t(GetTickCount64()));
     if(geom27::Enabled()){geom27::ActorLookupScopeH7 actorLookupScopeH7;geom27::ActorSeen27(actor);if(Rd<std::uintptr_t>(actor,0,0)==g_base+kCombatPlayerVft){geom27::ObserveHenry178r31(actor);geom27::Drain(actor);geom27::KickDrain37(actor);}}
     else{if(Rd<std::uintptr_t>(actor,0,0)==g_base+kCombatPlayerVft)services59c5::staminaScaling59c17.store(false,std::memory_order_relaxed); // R59.16C10R17: no fallback -> no discount

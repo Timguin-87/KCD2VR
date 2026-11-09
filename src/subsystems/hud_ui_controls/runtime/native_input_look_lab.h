@@ -34,6 +34,8 @@ int QueryCarryContext25(std::uint32_t press) noexcept;
 // R147: is the game's follow prompt (focus_follow_init_interactor_press) listed in the same native hint rows now?
 // want=false retires the query. -1 unknown (no fresh answer / unreadable), 0 not listed, 1 listed. ride_follow_r147.h
 int QueryFollowHint147(bool want) noexcept;
+// R153: is an infinite_hold_interaction_* prompt (hold to look / watch) listed in the same hint rows now? same codes.
+int QueryLbPromptHint153(bool want) noexcept;
 void SetStickDirectionKeys(bool enabled) noexcept; // V66.178R6 xi_thumb[lr]_{up,down,left,right}
 bool NativeLeftStickReady() noexcept;
 bool NativeRightStickReady() noexcept;

@@ -8,6 +8,8 @@
 #include "diagnostic_trace.h"
 #include "diagnostics/capture168.h"
 #include "dialogue_participants_d52.h"
+#include "lb_prompt_x_r153.h" // R156: hold-to-look prompt offered = its action map enabled (seen here, used by the X press)
+#include "close_tutorial_r156.h" // R156: tutorial screen open = its close_tutorial action map enabled (seen here, used by the B press)
 #include <DetourModKit/hook.hpp>
 #include <windows.h>
 #include <optional>
@@ -74,6 +76,19 @@ void __fastcall View(void* self,void* output) {
     const auto dialog=dialogue_state59c10r2::observe(base,reinterpret_cast<std::uintptr_t>(self),now,
         [](std::uintptr_t address,auto& value){return Read(address,value);},recording);
     dialogue.publish(dialog);
+    {// R156: the hold-to-look / watch prompt is offered exactly while the game enables its "infinite_hold_interaction_init"
+     // action map (REVIEW155_lbx2: enabled at 3 of 75 X presses, the three at the prompt). the same verified named-map walk
+     // as the dialog input owner above, bounded SEH reads, no native call. lb_prompt_x_r153.h takes the tick as "listed"
+     // BEFORE the first X tap (R155 needed one wasted tap to see the map through the OnAction detour).
+     const auto hold=dialogue_input_owner19c3::inspectMap(base,"infinite_hold_interaction_init",
+         [](std::uintptr_t address,auto& value){return Read(address,value);});
+     if(hold.known&&hold.enabled)kcd2vr::lb_prompt_x_r153::holdMapEnabledMs.store(now,std::memory_order_release);}
+    {// R156: a full-screen tutorial is open exactly while the game enables its "close_tutorial" action map (xi_back only,
+     // no VR button sends it - Miki could not close those screens). the same verified named-map walk as the dialog input
+     // owner, bounded SEH reads, no native call; the pad premap turns the right B into a held xi_back while this is fresh.
+     const auto tut=dialogue_input_owner19c3::inspectMap(base,kcd2vr::close_tutorial_r156::kMapName,
+         [](std::uintptr_t address,auto& value){return Read(address,value);});
+     if(tut.known&&tut.enabled)kcd2vr::close_tutorial_r156::mapEnabledMs.store(now,std::memory_order_release);}
     (void)dialogue_participants_d52::capture(dialog,base,now,dialoguePeopleBudgetD52,
         [](std::uintptr_t address,auto& value){return Read(address,value);},
         [](const auto& people){return dialoguePeopleD52.publish(people);});

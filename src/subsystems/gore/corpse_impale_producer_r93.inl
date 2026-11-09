@@ -26,7 +26,8 @@ static void CorpseImpaleProducerR93() noexcept {
         const double pt[3]{r.point.x,r.point.y,r.point.z};
         const double need=double(kcd2vr::impale40::minEnergy.load(std::memory_order_relaxed));
         const double depthR97=ImpactTipDepthR97(sf,s,r.point,r.normal); // R97: a BLADE touch needs the tip under his surface
-        const auto why=icr::qualifyPhysicalD41(true,r.kind,r.feature59c7g,sf.profiles[s].classId,articulated,dead,r.speed,need,now-r.tick,owned,pt,depthR97);
+        const double axial155=icr::axialCos(r.goreCutD56.totalSpeed,r.goreCutD56.transverseSpeed); // R155: the point must travel along the blade (a chop with the point is not a stab)
+        const auto why=icr::qualifyPhysicalD41(true,r.kind,r.feature59c7g,sf.profiles[s].classId,articulated,dead,r.speed,need,now-r.tick,owned,pt,depthR97,axial155);
         if(why==icr::Why::Ok){
             icr::Candidate c{};c.serial=(0x15000000ull<<8)+now*2+std::uint64_t(s);c.tick=r.tick;c.key=r.key;c.generation=r.generation;c.epoch=r.epoch;c.request=r.request;
             c.target=r.entityId;c.identity=ident;c.collider=r.collider;c.part=r.part;c.bodyMaterial=r.bodyMaterial;c.side=s;
@@ -36,8 +37,8 @@ static void CorpseImpaleProducerR93() noexcept {
             (void)icr::latest.publish(c);
         }
         if(diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now)){char m[300]{};std::snprintf(m,sizeof(m),
-            "N2 IMPALE_CORPSE_STAB side=%d target=%u verdict=%s speed=%.2f power=%.2f need=%.2f articulated=%d deadByGame=%d owned=%d part=%d feature=%d tipDepthCm=%.1f",
-            s,r.entityId,icr::name(why),r.speed,icr::power(r.speed),need,articulated?1:0,dead?1:0,owned?1:0,r.part,r.feature59c7g,std::isfinite(depthR97)?depthR97*100.0:-1.0);diagnostic_trace::Write(m);}
+            "N2 IMPALE_CORPSE_STAB side=%d target=%u verdict=%s speed=%.2f power=%.2f need=%.2f articulated=%d deadByGame=%d owned=%d part=%d feature=%d tipDepthCm=%.1f axialCos=%.2f",
+            s,r.entityId,icr::name(why),r.speed,icr::power(r.speed),need,articulated?1:0,dead?1:0,owned?1:0,r.part,r.feature59c7g,std::isfinite(depthR97)?depthR97*100.0:-1.0,std::isfinite(axial155)?axial155:-1.0);diagnostic_trace::Write(m);}
         if(why==icr::Why::TooWeak&&articulated&&dead&&(now<sayR15||now-sayR15>2000)){sayR15=now;
             char t[140]{};std::snprintf(t,sizeof(t),"impale: stab the body harder (power %.2f, need %.2f)",icr::power(r.speed),need);
             frik_pose_probe::PublishVisibleFailure(t);}

@@ -5,7 +5,10 @@ Nexus: https://www.nexusmods.com/kingdomcomedeliverance2/mods/3607
 
 Full 6DoF head tracking, VRIK body, a reworked physical combat system, hand handled minigames, comfort options, controller bindings for movement and combat and a dedicated in-headset VR menu. I wanted to make the best game I ever played fully playable in VR, so it feels like a native VR game as much as possible, but with the RPG systems and progression still working. The game still decides combat results, inventory, recipes and what you are allowed to interact with - the VR side gives it your real movements.
 
-Note: this is a beta, made by one passion-driven hobby developer in his free time over the last ~12 months, very slowly at first, the last 3 months a lot faster with the help of (expensive) AI. Don't expect perfection, I am shoehorning gestures and VRIK into an animation based game with a lot of buttons and a complex combat system. It's genuinely playable, but it's a very long game and i can't test every quest.
+Note: this is a beta, made by one passion-driven hobby developer in his free time over the last ~12 months, very slowly at first, the last 3 months a lot faster with the help of (expensive) AI. Don't expect perfection, I am shoehorning gestures and VRIK into an animation based game with a lot of buttons and a complex combat system. It's genuinely playable, but it's a very long game and i can't test every quest. There are some quest bugs I encountered (tutorial fight) - so maybe load a save after it... don't know about Tomcat Masterstrike test yet.
+
+Update: VRIK update (more smooth if you have like 85-90 fps, capped openxr fresh pose helped a little). FSR update (better), DLSS too (less black frames). HUD repair for everybody.  Enemies now blocking and evading a lot more. Combos are still finnicky. 
+SteamVR orientation fixed. Could not get more performance out of it yet. use my user.cfg if you want. -devmode is not necessary anymore. 
 
 ## Features
 
@@ -71,8 +74,8 @@ want the setup window again any time without touching the ini? make a `config.ba
 - right trigger while swinging = power attack / feint
 - left stick move, right stick turn (snap turn is an option), right stick up jump, down crouch, L3 sprint, R3 kick
 - **A**: use / talk / pick up
-- **B**: back in menus, hold 2 s to escape any menu
-- **X**: quick talk, hold X = torch (SteamVR / PS VR2 layout: hold X = inventory). while riding: X tap = Follow
+- **B**: back in menus, hold 2 s to escape any menu. full-screen tutorial screens: hold B closes them (the game wants the View/back button there, B sends it while such a screen is open)
+- **X**: quick talk, hold X = torch (SteamVR / PS VR2 layout: hold X = inventory). when the game shows Follow (on foot or riding): X tap = Follow. when the game shows a "hold LB" prompt (look / watch / listen): press and HOLD X instead - the glyph says LB, the VR button is X
 - **Y**: call horse, hold Y = dog (or command the dog with gestures)
 - **right thumb rest** = modifier (on PS VR2: finger resting on O or triangle):
   - + left stick up (hold 0.5 s): parchment map (B closes)
@@ -83,7 +86,7 @@ want the setup window again any time without touching the ini? make a `config.ba
   - + left menu button: pause menu
 - **left menu button**: inventory and the other menus (SteamVR layout: hold X, the left menu button opens the SteamVR overlay)
 - **right menu / Oculus button**: recenter
-- **keyboard**: F6 theater / immersive, F7 VR menu, F8 VRIK calibration
+- **keyboard**: F6 theater / immersive, F7 VR menu, F8 VRIK calibration. with developer mode: recorder keys (F2, F3, F5, Shift+F5 quest progression ...), see docs/DIAGNOSTICS.md
 
 **native (non VRIK) controls** as an emergency option (or if a tutorial wants the native inputs): like a gamepad - right grip free look, left grip D-pad, right trigger attack, left trigger block, right stick attack directions.
 
@@ -126,7 +129,7 @@ the GitHub issues are more up to date than this list.
 
 ## Reporting bugs
 
-please post issues on GitHub rather than in the Nexus comments, it's much easier to track. send `KCD2VR.log` from the game's binary folder (it's overwritten at every start, so copy it first). for a detailed log turn on developer mode and press F2 (rendering / bugs), F3 (combat) or F5 (interactions) while it happens.
+please post issues on GitHub rather than in the Nexus comments, it's much easier to track. send `KCD2VR.log` from the game's binary folder (it's overwritten at every start, so copy it first). for a detailed log turn on developer mode and press F2 (rendering / bugs), F3 (combat), F5 (interactions) or Shift+F5 (quest progression - when an NPC should talk and doesnt, press it before the scene) while it happens. all keys are in docs/DIAGNOSTICS.md.
 
 give me 1-2 weeks after the release, i need a break from all this.
 
@@ -150,6 +153,10 @@ DetourModKit (prebuilt, capacity128) and the other dependencies are bundled in `
 
 ## Patch history
 
+- **R153** - fixed: Minimal HUD kept hiding quest text, right-stick turn in a locked fight, instant pickup item vanishing, legs cut off by the gore pak (arms only now), NPC block by skill never rolled, hold-to-look prompt on X, menu gone during a black-frame hold, impale pinned at an old hit point
+- **R152** - fixed: SteamVR upside-down / turned start (LOCAL space)
+- **R151** - Follow prompt on X (PS Square) while riding, LB still works
+- **R149-R150** - added: VRIK starts without a T-pose (default arms, F8 for exact arms). docs rewritten, old review reports removed
 - **R148** - SteamVR: intro / main menu screen comes in front of you, save load no longer faces you backwards
 - **R147** - added: X tap = Follow while riding (the game wanted LB)
 - **R146** - fixed: enemy weapon skill now really sets their block / parry / dodge speed. fixed: wrong "quiver" message with the bow. less log work when nothing records

@@ -1309,6 +1309,13 @@ static PhysCommandDecisionH8 PhysCommandAuthorityH8(const PhysFrame6698& frame,p
     }
     return PhysCommandDecisionH8::Continue;
 }
+// R163: the practice / quest weapon detector (R156 npc_force_block153::practiceWeapon, read by the R156 / R159 / R163 gates)
+// was published only by the active physical path below, so with native controls / native body / a dialogue it went stale and
+// the gates saw "no training fight" (REVIEW162_tut: practiceWeapon=0 from 22:15:54 while he held the wooden sword). the same
+// read-only equipment snapshot is refreshed here every 250 ms while the physical path is inactive. no write, no command.
+static void PhysPracticeRefreshR163(std::uint64_t now) noexcept {
+    static std::uint64_t due=0;if(due&&now<due&&due-now<=250)return;due=now+250;
+    PhysEquipment6698 e{};(void)PhysRefreshEquipment103(e,now);}
 static void PhysNativeTickImpl6698() noexcept {
     // Copied F3/F7 payloads are formatted by the sole mod-worker consumer.
     // Native input, equipment and combat processing retain this callback.
@@ -1341,7 +1348,7 @@ static void PhysNativeTickImpl6698() noexcept {
         for(auto& key:g_weapon_release_pending_t1)key.store(0,std::memory_order_release);}
     PhysRung1Summary30c1(frame,now,active,have,abortRequested30c1);
     kcd2vr::vr_combat111::nativeEngageClipVisible178r33.store(combat_diag_probe::NativeOwned178r33(now),std::memory_order_relaxed); // V66.178R33: clip ownership follows the engagement latch
-    if(!active){NativeHeldInvalidateT4();g_native_held_reason_t4.store(heldT4::Enabled()?HeldPhysicsSourceT4::Context:HeldPhysicsSourceT4::Disabled,std::memory_order_release);PhysPublishSupplyDispatchT25(frame,PhysEquipment6698{},false,now);g_phys_collision_owner110.store(nullptr,std::memory_order_release);return;}
+    if(!active){PhysPracticeRefreshR163(now);NativeHeldInvalidateT4();g_native_held_reason_t4.store(heldT4::Enabled()?HeldPhysicsSourceT4::Context:HeldPhysicsSourceT4::Disabled,std::memory_order_release);PhysPublishSupplyDispatchT25(frame,PhysEquipment6698{},false,now);g_phys_collision_owner110.store(nullptr,std::memory_order_release);return;}
     PhysEquipment6698 e{};const auto leftMembershipSnapshotH36=g_left_native_membership_h36.load(std::memory_order_acquire);
     static std::uint64_t equipmentGapSince135=0;
     {PerfScope101R2 equipmentTiming(4);

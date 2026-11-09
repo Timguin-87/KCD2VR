@@ -52,6 +52,24 @@ int main(){
         ck(click(live::rowRect(4))==live::Click::Changed&&s.live_d39.eyeHoldR141,"ON again");
         ck(live::rows(selected)[0].id==live::Id::HudInfinityR125&&live::rows(selected)[2].id==live::Id::ImpaleFullDepthR128,"R125/R128 rows unchanged");
     }
+    {   // 3. R153 Theater hold: a stalled Theater frame re-shows the left image's theater picture of the same scene
+        h::Images L,R;XrCompositionLayerProjectionView v[2]{};
+        for(std::uint32_t i=0;i<3;++i){h::Forget(L,i);h::Forget(R,i);h::RecordTheater(L,i,7,1000+11*i);} // 3 theater frames, scene 7
+        ck(h::PickTheater(L,0,7,1040)==h::Result::Held,"theater stall -> last theater picture again (was: no layer = black)");
+        ck(h::PickTheater(L,0,8,1040)==h::Result::Mismatch,"other scene (ticket changed) -> not held");
+        ck(h::PickTheater(L,1,7,1011+h::kHoldMs+1)==h::Result::TooOld,"theater hold bounded by 2 s too");
+        ck(h::PickTheater(L,2,7,1022+h::kHoldMs)==h::Result::Held,"exactly 2 s still held");
+        ck(h::PickTheater(L,0,7,900)==h::Result::TooOld,"clock backwards -> no hold");
+        ck(h::PickTheater(L,5,7,1040)==h::Result::Missing,"never written index");
+        ck(h::Pick(L,0,R,0,false,1040,v)!=h::Result::Held&&h::Pick(L,0,L,0,false,1040,v)==h::Result::Mismatch,
+           "a theater picture is never re-shown as a projection");
+        h::Record(L,1,0,pose(0),fov(1),3,1030);
+        ck(h::PickTheater(L,1,7,1040)==h::Result::Mismatch,"a projection picture is never re-shown on the theater quad");
+        h::Forget(L,2);ck(h::PickTheater(L,2,7,1040)==h::Result::Missing,"physical map / written-but-cancelled frame forgot it");
+        h::Images P,Q;h::Record(P,0,0,pose(1),fov(1),4,10);h::Record(Q,0,1,pose(2),fov(1),4,10);
+        ck(h::Pick(P,0,Q,0,false,20,v)==h::Result::Held,"projection hold unchanged");
+        h::RecordTheater(P,100,7,1);ck(P.size()==1,"bogus index ignored");
+    }
     std::printf("eye_hold_r141_test %u/%u\n",total-fail,total);
     return fail?1:0;
 }

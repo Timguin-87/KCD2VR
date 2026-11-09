@@ -14,6 +14,7 @@
 #include <mutex>
 #include "ui_prompt_scale120r3.h"
 #include "ui_hud_r112.h" // R112 combat crosshair size + quick-slot fade
+#include "ui_hud_r160.h" // R160 UI: one icon size (VrUiUnifiedScaleR160) for the cccursor clips
 #include "ui_minimal_hud_r141.h" // R141 Minimal HUD (game element cvars + visible-flag filter + re-hide)
 #include "ui_station_prompts_d74.h"
 #include "../prompt_policy_d80.h"
@@ -1243,7 +1244,8 @@ bool ApplyReadablePromptScale(bool enabled,float hints,float controls) noexcept 
         }
     }cursor;
     cursor.hud=hud;cursor.generation=io.generation;
-    const bool cursorOk=g_action_cursor_d69.Run(cursor,cursor.generation,enabled,std::clamp(controls,.25f,1.5f));
+    // R160 UI: the item cursor sits in cccursor (outside the readable parents), so the one icon size is applied here
+    const bool cursorOk=g_action_cursor_d69.Run(cursor,cursor.generation,enabled,ui_hud_r160::OwnScale(std::clamp(controls,.25f,1.5f),ui_hud_r160::Unified(),.25f,1.5f));
     if(!g_prompt162r1.Active()&&!g_action_cursor_d69.Active())
         prompt_policy_d80::movieLease.NativeRelinquished(leaseEpoch);
     ReleaseHudHolder(holder);return ok&&cursorOk;
@@ -1263,7 +1265,7 @@ void UpdateReadablePromptsD74(bool enabled,bool station,float hints,float contro
         for(auto value:{HudGeneration(),g_canvas_lifetime.load(),g_prompt_children_d74.Epoch(),g_action_cursor_children_d69.Epoch()})
             ui_hud_work59c7::Mix(key,value);
         ui_hud_work59c7::Mix(key,enabled);ui_hud_work59c7::Mix(key,station);
-        for(float value:{scales.hints,scales.controls}){std::uint32_t bits=0;std::memcpy(&bits,&value,4);ui_hud_work59c7::Mix(key,bits);}
+        for(float value:{scales.hints,scales.controls,ui_hud_r160::Unified()}){std::uint32_t bits=0;std::memcpy(&bits,&value,4);ui_hud_work59c7::Mix(key,bits);} // R160 UI: + one icon size (item cursor)
         return key;
     };
     static ui_hud_work59c7::Retry retry;
@@ -1289,7 +1291,7 @@ void UpdateReadablePromptsD74(bool enabled,bool station,float hints,float contro
 // tried again every 5 s and on the next event, never latched.
 ui_hud_r112::CombatCrosshair g_combat_crosshair_r112;
 void UpdateCombatCrosshairR112(bool enabled,std::uint64_t now) noexcept {
-    const float scale=ui_hud_r112::CombatCrosshairScale();
+    const float scale=ui_hud_r160::OwnScale(ui_hud_r112::CombatCrosshairScale(),ui_hud_r160::Unified(),ui_hud_r112::kCombatCrosshairMin,ui_hud_r112::kCombatCrosshairMax); // R160 UI: x one icon size (cccursor clip)
     std::lock_guard<std::recursive_mutex> drawLock(g_hud_draw_mutex162r1);
     if(!enabled&&!g_combat_crosshair_r112.Active())return;
     static bool lastComplete=true;
@@ -1454,11 +1456,13 @@ void UpdateQuickSlotFadeR112(bool enabled,bool reveal,std::uint64_t now) noexcep
         diagnostic_trace::Write(m);}
 }
 
-bool ApplyWholeReadableHud44c2(bool enabled,const ui_surface_geometry::Hud& geometry,float size,float width,float upper,float lower,float height ,float iconScale) noexcept {
+bool ApplyWholeReadableHud44c2(bool enabled,const ui_surface_geometry::Hud& geometry,float size,float width,float upper,float lower,float height ,float iconScale,float dialogueScale,float dialogueY,float tutorialY) noexcept {
     std::lock_guard<std::recursive_mutex> lock(g_hud_draw_mutex162r1);
-    const auto fit59c7=ui_native_canvas::ComputeAdjustableReadable49(geometry,size,width,height,upper,lower,iconScale);
+    auto fit59c7=ui_native_canvas::ComputeAdjustableReadable49(geometry,size,width,height,upper,lower,iconScale);
+    fit59c7.dialogue160=ui_native_canvas::DialogueFactorR160(dialogueScale);fit59c7.dialogueY160=ui_native_canvas::DialogueOffsetR160(dialogueY); // R160
+    fit59c7.tutorialY160=std::isfinite(tutorialY)?std::clamp(tutorialY,-540.f,540.f):0.f; // R160 UI: VrUiTutorialYR160 (tl + tutorialInDialog)
     std::uint64_t key59c7=1469598103934665603ull;
-    for(float v:{fit59c7.sx,fit59c7.sy,fit59c7.tx,fit59c7.ty,fit59c7.width49,fit59c7.height49,fit59c7.upper49,fit59c7.lower49,fit59c7.iconScale51c3}){
+    for(float v:{fit59c7.sx,fit59c7.sy,fit59c7.tx,fit59c7.ty,fit59c7.width49,fit59c7.height49,fit59c7.upper49,fit59c7.lower49,fit59c7.iconScale51c3,fit59c7.dialogue160,fit59c7.dialogueY160,fit59c7.tutorialY160}){
         std::uint32_t bits=0;std::memcpy(&bits,&v,4);ui_hud_work59c7::Mix(key59c7,bits);
     }
     ui_hud_work59c7::Mix(key59c7,HudGeneration());ui_hud_work59c7::Mix(key59c7,g_canvas_lifetime.load());
@@ -1474,7 +1478,7 @@ bool ApplyWholeReadableHud44c2(bool enabled,const ui_surface_geometry::Hud& geom
     const auto previous=g_canvas_live_hud.exchange(hud);
     if(previous!=hud)++g_canvas_lifetime;
     NativeCanvasBackend io{};io.hud=hud;io.generation=g_canvas_lifetime.load();
-    g_canvas_report=g_canvas.Run(io,io.generation,enabled,ui_native_canvas::ComputeAdjustableReadable49(geometry,size,width,height,upper,lower,iconScale));
+    g_canvas_report=g_canvas.Run(io,io.generation,enabled,fit59c7); // R160: same fit as the key (now with the dialogue values)
     const bool parentsComplete=g_canvas_report.complete;
     const bool notificationsOk=ApplyNotificationScaleR12();
     g_canvas_report.complete=g_canvas_report.complete&&notificationsOk;
@@ -2544,10 +2548,13 @@ void UpdateCombatCrossArtR125(bool hide,std::uint64_t now) noexcept {
 
 // R141 Minimal HUD: the status/popup clips (ui_minimal_hud_r141::kClips) and, in free gameplay, the whole action cursor
 // set invisible on every HUD generation and every 500 ms - the safety net for ActionScript re-shows inside hud.gfx;
-// the game's own wh_ui_Show<Element> cvars (mod.cpp) do the permanent part. zeroMask bit i = cvar i is 0 (the game
-// itself hides that element), so OFF writes visible back only for clips the cvar did not cover. the cursor, compass
-// and health go back to the existing visibility controller (epoch bump), never a blind show. nothing latches.
+// the game's own wh_ui_Show<Element> cvars (mod.cpp) do the permanent part. OFF writes visible back for EVERY clip
+// this function hid (R155: before, a clip whose cvar was still 0 was left invisible; mod.cpp now repairs those cvars
+// to 1 on the same OFF edge, and the game's next refresh re-decides the clip anyway - this is the pre-R141 state).
+// zeroMask is kept for the callers, no longer consulted. the cursor, compass and health go back to the existing
+// visibility controller (epoch bump), never a blind show. nothing latches.
 void UpdateMinimalHudR141(bool on,bool cursor,unsigned zeroMask,std::uint64_t now) noexcept {
+    (void)zeroMask;
     static ui_minimal_hud_r141::Rehide schedule;static unsigned hidden=0,loggedMask=~0u;static std::uint64_t generation=0;
     const auto& names=ui_minimal_hud_r141::kClips;constexpr unsigned cursorBit=1u<<ui_minimal_hud_r141::kClips.size();
     if(!on&&!hidden)return; // OFF and nothing of ours hidden: no lock, no Flash call (the normal HUD path is untouched)
@@ -2557,9 +2564,9 @@ void UpdateMinimalHudR141(bool on,bool cursor,unsigned zeroMask,std::uint64_t no
     if(!on){
         if(!hidden)return;
         if(hudReady&&current==generation)
-            for(unsigned i=0;i<names.size();++i)if((hidden&(1u<<i))&&!(zeroMask&(1u<<i)))(void)SetHudMovieClipVisible(names[i],true,current);
+            for(unsigned i=0;i<names.size();++i)if(hidden&(1u<<i))(void)SetHudMovieClipVisible(names[i],true,current);
         hidden=0;loggedMask=~0u;schedule.Reset();++g_hud_repair_epoch175;
-        diagnostic_trace::Write("R141 MINIMAL_HUD off: clips given back (cvar-covered ones by the game, cursor/compass/health by the HUD controller)");
+        diagnostic_trace::Write("R141 MINIMAL_HUD off: clips given back (all re-hidden clips visible again, cursor/compass/health by the HUD controller)");
         return;
     }
     if(!cursor&&(hidden&cursorBit)){hidden&=~cursorBit;++g_hud_repair_epoch175;} // alchemy gaze / station / dialogue: controller owns it again

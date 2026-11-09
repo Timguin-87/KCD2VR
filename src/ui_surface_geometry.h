@@ -18,12 +18,12 @@ struct Hud {Surface surface{};Rect safe{};};
 // R110 (Miki: "eye strain, i must refocus on the HUD all the time - far away but the same size"): the readable HUD
 // plane distance in metres (was a fixed 1.55). The surface is computed AT this distance to cover the same eye frusta,
 // so width/height grow with the distance = the same angular size, only the focus/vergence depth changes.
-// Slider: VR HUD > INTERACTION / PROMPTS page "HUD convergence", INI VrHudDistanceR110 (0.75..10.0, default 3.0).
+// Slider: VR HUD > INTERACTION / PROMPTS page "HUD convergence", INI VrHudDistanceR110 (0.75..10.0, default 1.2 since R160 UI = his INI; was 3.0).
 // R127 (Miki: "is it then like convergence? a slider for HUD convergence"): yes - the size is angular, so this value only
 // sets where both eyes meet on the HUD (vergence). range widened from 1..5 to 0.75..10 m, log scale on the slider.
 inline constexpr float kHudConvergenceMinR127=0.75f,kHudConvergenceMaxR127=10.0f;
-inline std::atomic<float> hudDistanceR110{3.0f};
-inline float HudDistanceR110() noexcept {const float d=hudDistanceR110.load(std::memory_order_relaxed);return std::isfinite(d)?std::clamp(d,kHudConvergenceMinR127,kHudConvergenceMaxR127):3.0f;}
+inline std::atomic<float> hudDistanceR110{1.2f}; // R160 UI: was 3.0
+inline float HudDistanceR110() noexcept {const float d=hudDistanceR110.load(std::memory_order_relaxed);return std::isfinite(d)?std::clamp(d,kHudConvergenceMinR127,kHudConvergenceMaxR127):1.2f;}
 // R125 (Miki 6 Nov: "the HUD is still slightly double, i need to look closer to see it ... it should look like in
 // infinity, flat"). one quad seen by both eyes at D metres has a disparity of IPD/D (69 mm / 5 m = 0.8 deg): while you
 // look at the world further away the HUD is out of fusion = double, you must converge on it to read it. ON = xr_manager

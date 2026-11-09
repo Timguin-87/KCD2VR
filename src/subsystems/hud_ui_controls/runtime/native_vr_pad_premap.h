@@ -29,6 +29,12 @@ struct Context {
     // (1 listed, 0 not listed, -1 unknown; want=false only retires the query). ride_follow_r147.h
     bool mounted_r147{false};
     int (*follow_query_r147)(bool want) noexcept {nullptr};
+    // R153: is an infinite_hold_interaction_* prompt (hold to look / watch) listed now? same answer codes as R147.
+    // lb_prompt_x_r153.h
+    int (*lb_prompt_query_r153)(bool want) noexcept {nullptr};
+    // R156: the game's close_tutorial action map is enabled now (a full-screen tutorial is open; close_tutorial_r156.h):
+    // the right B / PS Circle is sent as a held xi_back (its only pad input) so the screen can be closed in VR.
+    bool close_tutorial_r156{false};
 };
 
 struct State {
@@ -53,6 +59,8 @@ struct State {
     // R147: this frame's LB comes from a mounted X tap (ride_follow_r147.h): 0 no, 1 follow prompt listed, 2 list unreadable.
     unsigned char rideFollowLbR147{0};
     bool rideFollowTalkR147{false}; // R147: release frame of a mounted tap that stayed Quick Speak (no follow prompt listed)
+    bool lbPromptXR153{false}; // R153: this frame's X is a held pass-through for a listed infinite hold prompt (lb_prompt_x_r153.h)
+    bool closeTutorialBackR156{false}; // R156: this frame's xi_back is the right B held for the open tutorial screen (close_tutorial_r156.h)
 };
 
 void Reset() noexcept;

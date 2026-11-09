@@ -32,6 +32,9 @@ static const char* CounterPlain40(cs::Why w) noexcept {
 }
 static Eval Decide(const Pending& p,const void* henryActor,const void* ts,int origin,float power,std::uint64_t now) noexcept {
     namespace dc=kcd2vr::direct_counter39;Eval e{};e.before=e.after=power;
+    // R163: training fight (practice weapon) = no counter-stab strength and no requested native major stab reaction on the NPC
+    // (why stays Disabled; an R120 instant grant is not taken and runs out by itself)
+    if(kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::CounterStab,ts?reinterpret_cast<std::uintptr_t>(Rd<const void*>(ts,0xCE0,nullptr)):0))return e;
     // R120 INSTANT master strike (VrMasterStrikeModeR120=3): the gate hook saw the game's open master-strike window for his VR
     // press and skipped the paired clip; this blade contact on the SAME enemy is that master strike. full strike power (power
     // rule ceiling), and a stab gets the native MAJOR stab reaction through the existing counter path (majorReaction, thrust only).

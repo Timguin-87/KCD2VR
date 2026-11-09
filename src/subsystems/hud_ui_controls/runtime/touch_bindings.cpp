@@ -6,6 +6,7 @@
 #include "debug_trace.h"
 #include "diagnostic_trace.h" // V66.178R21: R3_EDGE goes to the diagnostics log
 #include "native_input_look_lab.h"
+#include "subsystems/experimental/free_targeting_plus_r133.h" // R153: snap turn in a locked fight (free targeting 1/2)
 
 #include <windows.h>
 #include <algorithm>
@@ -685,9 +686,16 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
             // deliberately fixed for A/B comfort testing; native gamepad/camera action is next.
             if(snap_gameplay_d37 && std::fabs(ax)>=0.72f && !snap_turn_latched_){
                 snap_turn_latched_=true;
+                if(kcd2vr::free_targeting_r133::ownsTurn(now)){
+                    // R153: free targeting 1/2 with a locked opponent: the game does not turn Henry for this pulse, the
+                    // camera hook turns the view + body by 30 deg instead (free_targeting_plus_r133.h own turn)
+                    kcd2vr::free_targeting_r133::addYaw(kcd2vr::free_targeting_r133::snapYaw(ax));
+                    debug_trace::Write(ax>0.0f?"R153 SNAP-TURN right -> own view turn (locked fight)":"R153 SNAP-TURN left -> own view turn (locked fight)");
+                } else {
                 const long pulse=ax>0.0f?360:-360;
                 MouseMoveRelative(pulse,0);
                 char m[192]{}; std::snprintf(m,sizeof(m),"V64.17-SNAP-TURN side=%s mousePulse=%ld provisional",ax>0.0f?"right":"left",pulse); debug_trace::Write(m);
+                }
             } else if(snap_gameplay_d37 && std::fabs(ax)<=0.35f) snap_turn_latched_=false;
             turn_fraction_=0.0f; target_switch_latched_=false;
         } else {
@@ -696,7 +704,7 @@ TouchBindings::Events TouchBindings::Update(const ControllerState& left,const Co
             // part of the axis and made turn speed non-monotonic.
             target_switch_latched_=false;
             const float turn_axis=LinearAxis(ax,turn_dead);
-            if(turn_axis!=0.0f && elapsed_ms>0) {
+            if(turn_axis!=0.0f && elapsed_ms>0 && !kcd2vr::free_targeting_r133::ownsTurn(now)) { // R154: locked fight in free targeting 1/2 - the pad already turned the view (own turn), no second mouse turn on this fallback
                 constexpr float vr_turn_rate=full_turn_counts_per_sec*0.55f;
                 turn_fraction_ += turn_axis * vr_turn_rate * (static_cast<float>(elapsed_ms)/1000.0f);
                 const long dx=static_cast<long>(std::trunc(turn_fraction_));

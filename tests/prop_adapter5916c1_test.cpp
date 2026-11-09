@@ -33,6 +33,11 @@ static void PropNote596(const char*,const StagedProp596&,bool,const char* = "NON
 static bool PropPlace596(const StagedProp596&,ph::Pose) noexcept;
 static bool PropObjectPose5916C1(const StagedProp596&,ph::Pose&) noexcept;
 static void PropPublish5916C1(const StagedProp596&,const CommittedFrame6695&,ph::Pose,std::uint64_t) noexcept;
+static void PropSelfCollisionR155(const StagedProp596&,std::uint64_t) noexcept; // R155: R103 lease request per held tick (spy below)
+static unsigned selfCollisionCallsR155=0,selfCollisionLegacyCallsR155=0;
+#include "../src/vrik/instant_drop_r158.h" // R158: g_instant_drop_r158 lives in the extracted preamble
+static void PropDropR158(const StagedProp596&,pm::Vec3,bool,std::uint64_t) noexcept; // R158: drop request (spy below)
+static unsigned dropCallsR158=0,dropHandVelocityR158=0;
 static std::uint64_t now=1000;static CommittedFrame6695 frame;static TrackingSnapshot tracking;
 static std::atomic<int> g_cal_state{2};
 static std::atomic<bool> g_gameplay_allowed{true},g_ctx_menu{false},g_ctx_dialogue{false},g_ctx_cutscene{false},g_ctx_reading{false},g_ctx_scripted{false};
@@ -68,6 +73,9 @@ static bool PropVelocity596(void*p){return PropSetVelocity5916C1(p);}
 static bool PropDynamics5916C1(void*,prop5916::Dynamics&d){++statusCalls;d=dynamics;return statusOK;}
 #ifndef PROP_ADAPTER_D78_INC
 #define PROP_ADAPTER_D78_INC "prop_adapter5916c1.inc"
+// the checked-in copy predates R96 (tools/extract_prop5916c1.py was not re-run since; tools/check_interactions_d84.py
+// says so). the R155 lease-call checks below need the current consumer, which tools/check_interactions_r96.py extracts.
+#define PROP_ADAPTER_CHECKED_IN_PRE_R96 1
 #endif
 #include PROP_ADAPTER_D78_INC
 static bool PropCommitInstantD72(const StagedProp596&) noexcept{++stowCalls;return stowResultD84;}
@@ -77,6 +85,14 @@ static void PropRetireInstantD72(const StagedProp596& p) noexcept {
 static bool PropIdentity596(const StagedProp596&) noexcept{return identity;}
 static void PropNote596(const char*s,const StagedProp596&,bool,const char* reason) noexcept{notes.emplace_back(s);notes.emplace_back(reason);}
 static bool PropPlace596(const StagedProp596&,ph::Pose) noexcept{++placeCalls;return true;}
+// R155: the production helper only asks the lease for an instant hold with a body; the legacy F5 hold is unchanged.
+// The spy keeps the same guard so the tick's call pattern is what is checked here (lease table: instant_pickup_d72_test).
+static void PropSelfCollisionR155(const StagedProp596& p,std::uint64_t) noexcept{
+ if(!p.instantD72){++selfCollisionLegacyCallsR155;return;}
+ if(!p.id||!p.entity||!p.body||p.side<0||p.side>1)return;++selfCollisionCallsR155;}
+// R158: same guard as production (only an instant hold with an entity posts a drop)
+static void PropDropR158(const StagedProp596& p,pm::Vec3,bool hand,std::uint64_t) noexcept{
+ if(!p.instantD72||!p.id||!p.entity)return;++dropCallsR158;if(hand)++dropHandVelocityR158;}
 static bool PropObjectPose5916C1(const StagedProp596&,ph::Pose&p) noexcept{p=object;return true;}
 static void PropPublish5916C1(const StagedProp596&,const CommittedFrame6695& f,ph::Pose p,std::uint64_t at) noexcept{
  assert(p.p.x==object.p.x);++publishCalls;publishedSourceTick=f.stamp.tick;publishedSample=f.stamp.sample;publishedAt=at;
@@ -90,6 +106,7 @@ static void setup(){
     nativeReference=false;contextAllowed=true;animation_filter::nativeBodyOwned112=false;animation_filter::kick=false;
     kcd2vr::instant_pickup_d72::stopping=false;for(auto& x:kcd2vr::mutual_admission_t25::pickupClaimsD72)x=0;
     notes.clear();identity=handFree=actionOK=statusOK=stowResultD84=true;velocityCalls=placeCalls=stowCalls=statusCalls=0;
+    selfCollisionCallsR155=selfCollisionLegacyCallsR155=0;dropCallsR158=dropHandVelocityR158=0;
     kcd2vr::combat_rules178r10::f5Rung=2;kcd2vr::combat_rules178r10::workstationEnabled=true;
     kcd2vr::workstation178r20c1::experimentArmed36=true;kcd2vr::workstation178r20c1::experimentEpoch36=5;
     prop5916::enabled=true;g_prop596={};g_prop596.id=10;g_prop596.actor=11;g_prop596.key=12;
@@ -120,6 +137,19 @@ int main(){
    g_prop596.hold.begin(g_prop596.bodyEpoch,now);kcd2vr::mutual_admission_t25::pickupClaimsD72[0]=101;};
  instant();frame.propRequested5916c1[0].p.x=.1;step();assert(g_prop596.id&&velocityCalls==1);
  kcd2vr::workstation178r20c1::experimentEpoch36=77;step();assert(g_prop596.id&&velocityCalls==2);
+#ifndef PROP_ADAPTER_CHECKED_IN_PRE_R96
+ // R155: every held tick of an instant hold asks the R103 lease (the fixture's instant hold has no entity pointer, the
+ // guard refuses it like production would; with one it is asked once per tick); a hold that ended (instant grip source
+ // = the committed frame's mapGripM39, open hand) asks nothing more
+ assert(selfCollisionCallsR155==0&&selfCollisionLegacyCallsR155==0);
+ g_prop596.entity=reinterpret_cast<void*>(0x1234);step();assert(g_prop596.id&&selfCollisionCallsR155==1);step();assert(selfCollisionCallsR155==2);
+ assert(dropCallsR158==0);
+ frame.mapGripM39[0]=0;step();assert(!g_prop596.id&&selfCollisionCallsR155==2);step();assert(selfCollisionCallsR155==2);
+ // R158: the open hand (not stowed) posts exactly one drop request; the servo hold carries no trail velocity
+ assert(dropCallsR158==1&&dropHandVelocityR158==0);step();assert(dropCallsR158==1);
+ // the legacy F5 hold (not instant) reaches the helper too but it is a no-op there (same guard in production)
+ setup();frame.propRequested5916c1[0].p.x=.1;step();assert(g_prop596.id&&selfCollisionCallsR155==0&&selfCollisionLegacyCallsR155==1);
+#endif
  for(int fault=0;fault<9;++fault){instant();switch(fault){
   case 0:g_ctx_menu=true;break;case 1:animation_filter::nativeBodyOwned112=true;break;case 2:animation_filter::kick=true;break;
   case 3:g_cal_state=0;break;case 4:nativeReference=true;break;case 5:contextAllowed=false;break;
@@ -131,6 +161,12 @@ int main(){
  frame.pickupTriggerD80[0]=1;step();assert(!g_prop596.id&&stowCalls==0); // exact held hand can become a real fist
  instant();frame.allowed[0].p=frame.propRequested5916c1[0].p={.34,0,0};step();frame.allowed[0].p=frame.propRequested5916c1[0].p={0,0,0};
  for(unsigned n=0;n<16;++n)step();assert(!g_prop596.id&&stowCalls==1);step();assert(stowCalls==1);
+#ifndef PROP_ADAPTER_CHECKED_IN_PRE_R96
+ // R158: a chest stow never posts a drop (the item is in the inventory)
+ instant();g_prop596.entity=reinterpret_cast<void*>(0x1234);frame.allowed[0].p=frame.propRequested5916c1[0].p={.34,0,0};step();
+ frame.allowed[0].p=frame.propRequested5916c1[0].p={0,0,0};
+ for(unsigned n=0;n<16;++n)step();assert(!g_prop596.id&&stowCalls==1&&dropCallsR158==0);
+#endif
  std::puts("PASS verbatim staged consumer: native drive, one-shot stow, loss, legacy F5, instant F5 OFF, independent epoch, exact claim and current context");
  return 0; // Also included as a named fixture function by pickup admission.
 }

@@ -1,6 +1,7 @@
 // xr_manager.h
 #pragma once
 #include "xr_layer_guard_r104.h"
+#include "xr_local_roll_r152.h" // R152: upside-down SteamVR LOCAL at start
 #include "xr_eye_hold_r141.h" // R141: re-show the last written eye images instead of a black frame
 #include "tracking_sample59c6.h"
 #include "vrik/hand_present_d61.h"
@@ -362,7 +363,10 @@ private:
     XrInstance instance_ = XR_NULL_HANDLE;
     XrSystemId system_id_ = XR_NULL_SYSTEM_ID;
     XrSession session_ = XR_NULL_HANDLE;
-    XrSpace local_space_ = XR_NULL_HANDLE;
+    XrSpace local_space_ = XR_NULL_HANDLE; // R152: = plain or rolled below, swapped only at RunFrame start
+    XrSpace local_space_plain_r152_ = XR_NULL_HANDLE;  // R152: the runtime LOCAL as it is
+    XrSpace local_space_rolled_r152_ = XR_NULL_HANDLE; // R152: LOCAL turned 180 deg about forward (SteamVR start)
+    bool local_rolled_r152_ = false; bool roll_swap_due_r152_ = false; kcd2vr::local_roll_r152::Watch roll_watch_r152_{};
     XrSpace view_space_ = XR_NULL_HANDLE;
     XrSpace stage_space_ = XR_NULL_HANDLE; // V66.107: floor reference for head height (optional)
     std::atomic<float> eye_height_floor_{0.0f};std::atomic<bool> eye_height_floor_valid_{false};
@@ -452,6 +456,7 @@ private:
     bool head_receipt_pending_r105_=true;
     void PollSessionEventsR105();
     void ResetUiAnchorsR105() noexcept;
+    bool SwapLocalRollR152(bool rolled,const char* why) noexcept; // R152 (R154: returns false when no space to switch to)
     std::atomic<bool> diagnostic_rendering_{false};
     std::atomic<bool> active_vr_bridge_{true};
     std::atomic<float> render_scale_{1.0f};

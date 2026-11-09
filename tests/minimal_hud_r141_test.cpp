@@ -1,5 +1,6 @@
-// R141 host test: Minimal HUD (VrMinimalHudR141). the cvar lease (hold 0, retry, give back), the hide masks with the
-// palm glance, the native visible decision the SetDisplayInfo filter uses, the settings rows and the HUD.xml names.
+// R141 host test: Minimal HUD (VrMinimalHudR141). the cvar lease (hold 0, retry, give back), the R155 OFF repair (every
+// cvar ever written back to 1), the hide masks with the palm glance, the native visible decision the SetDisplayInfo
+// filter uses, the settings rows and the HUD.xml names.
 // g++ -std=c++20 -I src -I tests -I tests/syntax_shims -I tests/openxr_sdk tests/minimal_hud_r141_test.cpp
 #include "ui_minimal_hud_r141.h"
 #include "ui_hud_experiment36c5.h"
@@ -43,29 +44,70 @@ int main(){
         const char* game[]{"Compass","Stats","QAMWeapon","QAMFood","Subtitles","InfoText","GameLog","Hints","DialogLeft","DialogRight",
             "Cursor","Crime","Wanted","PopUpBackground","TutorialMessage","FancyEvent","SkillCheck","ItemTransfer","Buffs","CommonEvent",
             "DiceCursor","Trespassing","RatioStrips","ShootingContest","Bubbles","TutorialInDialog","DiceContainer","Vignette"};
-        const char* kept[]{"Compass","Stats","QAMWeapon","QAMFood","Subtitles","InfoText","Hints","DialogLeft","DialogRight","TutorialMessage","TutorialInDialog","Bubbles"};
+        // R153: FancyEvent (quest / objective text) and SkillCheck (dialogue skill check text) are kept too
+        const char* kept[]{"Compass","Stats","QAMWeapon","QAMFood","Subtitles","InfoText","Hints","DialogLeft","DialogRight","TutorialMessage","TutorialInDialog","Bubbles",
+            "FancyEvent","SkillCheck"};
         for(unsigned i=0;i<mh::kCvars.size();++i){
             ck(std::strncmp(mh::kCvars[i],"wh_ui_Show",10)==0&&std::strcmp(mh::kCvars[i]+10,mh::kClips[i])==0,"cvar = wh_ui_Show + clip name");
             bool known=false;for(const char* g:game)known=known||std::strcmp(g,mh::kClips[i])==0;ck(known,"element is in the game's enum");
             for(const char* k:kept)ck(std::strcmp(k,mh::kClips[i])!=0,"prompts/dialogue/subtitles/palm elements are never in the hide list");
         }
         ck(std::strcmp(mh::kCursorClip,"Cursor")==0,"cursor clip = actioncursor");
+        // R153: the status icons and the frequent popups stay in the list (the "UI does not constantly turn on" part)
+        const char* hidden[]{"Buffs","Crime","Wanted","Trespassing","CommonEvent","GameLog","ItemTransfer"};
+        ck(mh::kCvars.size()==7&&mh::kClips.size()==7,"7 held cvars / re-hidden clips");
+        for(unsigned i=0;i<mh::kClips.size();++i)ck(std::strcmp(mh::kClips[i],hidden[i])==0,"status + popup list, same order");
+        for(const char* cv:mh::kCvars)ck(std::strcmp(cv,"wh_ui_ShowFancyEvent")!=0&&std::strcmp(cv,"wh_ui_ShowSkillCheck")!=0,"quest / skill check cvar never written");
+        // R155: the repair list = every cvar ever held (the 7 of today + the R141-R152 FancyEvent and SkillCheck)
+        ck(mh::kRepairCvars.size()==9,"9 repaired cvars");
+        for(const char* cv:mh::kCvars){bool in=false;for(const char* rc:mh::kRepairCvars)in=in||std::strcmp(cv,rc)==0;ck(in,"held cvar is repaired too");}
+        bool fancy=false,skill=false;for(const char* rc:mh::kRepairCvars){fancy=fancy||std::strcmp(rc,"wh_ui_ShowFancyEvent")==0;skill=skill||std::strcmp(rc,"wh_ui_ShowSkillCheck")==0;}
+        ck(fancy&&skill,"quest text + skill check cvars are repaired (R152 held them)");
+    }
+    {   // 2a. R155 repair: OFF puts a 0 back to 1 (persisted by the game), at start / OFF edge / lifetime change; never while ON
+        struct Nine {std::array<int,9> v{};std::array<bool,9> unreadable{},refuse{};unsigned writes=0;Nine(){v.fill(1);}
+            bool Read(unsigned i,int& o){if(unreadable[i])return false;o=v[i];return true;}
+            bool Write(unsigned i,int x){++writes;if(refuse[i])return true;v[i]=x;return true;}} io;
+        mh::CvarRepair rep;io.v[7]=0;io.v[8]=0; // FancyEvent + SkillCheck left at 0 by the R152 build, saved by the game
+        auto r=rep.Update(io,false,1,1000);
+        ck(r.ran&&r.zero==2&&r.repaired==2&&r.failed==0&&io.writes==2,"start: the two persisted zeros back to 1");
+        for(int x:io.v)ck(x==1,"all 1");
+        r=rep.Update(io,false,1,1500);ck(!r.ran&&io.writes==2,"same lifetime, nothing failed: no more cvar calls");
+        r=rep.Update(io,false,1,5000);ck(!r.ran,"no timer while everything is fine");
+        io.v[0]=0;r=rep.Update(io,false,2,5100);ck(r.ran&&r.repaired==1&&io.v[0]==1,"lifetime change (save load / new HUD): repaired again");
+        io.v[3]=0;r=rep.Update(io,true,2,6000);ck(!r.ran&&io.v[3]==0,"ON: the repair never runs (the lease owns the zeros)");
+        r=rep.Update(io,true,3,7000);ck(!r.ran,"still ON");
+        r=rep.Update(io,false,3,8000);ck(r.ran&&r.repaired==1&&io.v[3]==1,"ON->OFF edge: a zero the lease did not give back is repaired");
+        // the lease's own notOurs case end to end: the player's / persisted 0 at ON time, OFF leaves it, the repair fixes it
+        mh::CvarLease lease;FakeCvars lio;lio.v[4]=0;
+        auto lr=lease.Update(lio,true,4,9000);ck(lr.notOurs==(1u<<4),"lease: CommonEvent already 0 = notOurs");
+        lr=lease.Update(lio,false,4,10000);ck(lr.restored==6&&lio.v[4]==0,"lease OFF: notOurs left at 0 (as before)");
+        struct Bridge {FakeCvars& f;bool Read(unsigned i,int& o){return i<7?f.Read(i,o):(o=1,true);}bool Write(unsigned i,int x){return i<7?f.Write(i,x):true;}} bridge{lio};
+        mh::CvarRepair rep2;rep2.Update(bridge,true,4,9000);auto r2=rep2.Update(bridge,false,4,10000);
+        ck(r2.ran&&r2.zero==1&&r2.repaired==1&&lio.v[4]==1,"repair on the same OFF edge: CommonEvent back to 1");
+        // failures: unreadable (console not ready) / refused write = retried after 1 s, not before; no latch
+        Nine fio;fio.unreadable[1]=true;fio.v[2]=0;fio.refuse[2]=true;mh::CvarRepair rep3;
+        r=rep3.Update(fio,false,1,0);ck(r.ran&&r.failed==2&&r.zero==1&&r.repaired==0,"unreadable + refused = 2 failed");
+        r=rep3.Update(fio,false,1,500);ck(!r.ran,"not before 1 s");
+        fio.unreadable[1]=false;fio.refuse[2]=false;r=rep3.Update(fio,false,1,1000);ck(r.ran&&r.failed==0&&r.repaired==1&&fio.v[2]==1,"1 s later: repaired");
+        r=rep3.Update(fio,false,1,2000);ck(!r.ran,"fixed: quiet again");
     }
     {   // 2. lease: ON holds 0, original back on OFF; nothing owned = nothing touched
         mh::CvarLease lease;FakeCvars io;
         auto r=lease.Update(io,false,1,1000);ck(!r.ran&&io.writes==0,"OFF and nothing owned: no cvar call");
         io.v[2]=0; // the player's own wh_ui_ShowWanted 0
         r=lease.Update(io,true,1,1000);
-        ck(r.ran&&r.held==9&&r.writes==8&&r.failed==0,"ON: 8 written, the player's own 0 counted as held");
+        ck(r.ran&&r.held==7&&r.writes==6&&r.failed==0,"ON: 6 written, the player's own 0 counted as held");
+        ck(r.notOurs==(1u<<2),"notOurs names the player's own 0");
         for(int x:io.v)ck(x==0,"every cvar 0");
-        ck(lease.ZeroMask()==0x1FFu&&!lease.Owned(2)&&lease.Owned(0),"zero mask all, the player's 0 is not ours");
+        ck(lease.ZeroMask()==0x7Fu&&!lease.Owned(2)&&lease.Owned(0),"zero mask all, the player's 0 is not ours");
         r=lease.Update(io,true,1,1500);ck(!r.ran,"no recheck before 1 s");
         io.v[0]=1; // the game (profile/options load) set Buffs back to 1
         r=lease.Update(io,true,2,1600);ck(r.ran&&r.writes==1&&io.v[0]==0,"lifetime change: re-held at once");
         io.v[1]=1;r=lease.Update(io,true,2,2601);ck(r.ran&&io.v[1]==0,"1 s recheck re-holds too (no latch)");
         io.v[3]=5; // somebody else changed one after our write, while ON: we hold again and keep the first original
         r=lease.Update(io,true,2,3700);ck(io.v[3]==0,"re-held");
-        r=lease.Update(io,false,2,3800);ck(r.ran&&r.restored==8,"OFF: 8 given back");
+        r=lease.Update(io,false,2,3800);ck(r.ran&&r.restored==6&&r.notOurs==0,"OFF: 6 given back");
         ck(io.v[2]==0,"the player's own 0 stays");
         ck(io.v[3]==1,"first original (1) written back, not the later 5");
         for(unsigned i=0;i<io.v.size();++i)if(i!=2)ck(io.v[i]==1,"old value back");
@@ -73,10 +115,10 @@ int main(){
     }
     {   // 3. refused write: retried on the next check, no latch; OFF leaves a value we never owned alone
         mh::CvarLease lease;FakeCvars io;io.refuse[4]=true;io.unreadable[5]=true;
-        auto r=lease.Update(io,true,1,0);ck(r.held==7&&r.failed==2&&!lease.Owned(4)&&!(lease.ZeroMask()&(1u<<4)),"refused + unreadable = failed, not zero");
-        io.refuse[4]=false;io.unreadable[5]=false;r=lease.Update(io,true,1,1000);ck(r.held==9&&r.failed==0&&lease.Owned(4)&&lease.Owned(5),"next check holds them");
+        auto r=lease.Update(io,true,1,0);ck(r.held==5&&r.failed==2&&!lease.Owned(4)&&!(lease.ZeroMask()&(1u<<4)),"refused + unreadable = failed, not zero");
+        io.refuse[4]=false;io.unreadable[5]=false;r=lease.Update(io,true,1,1000);ck(r.held==7&&r.failed==0&&lease.Owned(4)&&lease.Owned(5),"next check holds them");
         io.v[6]=1; // changed by someone else while ON and then we switch OFF before the recheck
-        r=lease.Update(io,false,1,1100);ck(io.v[6]==1&&!lease.Owned(6),"OFF: a value somebody else set is theirs");
+        r=lease.Update(io,false,1,1100);ck(io.v[6]==1&&!lease.Owned(6)&&(r.notOurs&(1u<<6)),"OFF: a value somebody else set is theirs (notOurs bit)");
     }
     {   // 4. hide masks: minimal adds centre point, compass, vitals, status; the palm reveal still shows compass/vitals
         const unsigned saved=0; // the player's own choices: everything visible
@@ -121,7 +163,12 @@ int main(){
         r=lease.Update(io,mh::TutorialHold(true,true),2,10);ck(r.restored==1&&io.v==1,"pause menu: the player's 1 back (options screen saves 1)");
         r=lease.Update(io,mh::TutorialHold(true,false),3,20);ck(io.v==0,"back in game: held again (no latch)");
         r=lease.Update(io,false,3,30);ck(io.v==1&&!lease.AnyOwned(),"switched to SHOWN: 1 back");
-        io.v=0;r=lease.Update(io,true,4,40);r=lease.Update(io,false,4,50);ck(io.v==0,"the player's own Tutorials OFF stays OFF");
+        io.v=0;r=lease.Update(io,true,4,40);r=lease.Update(io,false,4,50);ck(io.v==0,"lease alone: a 0 it never owned stays (as before)");
+        // R155: the repair puts it back to 1 while SHOWN (hidden=false), never while hidden (held or given back in a menu)
+        mh::TutorialRepair rep;auto rr=rep.Update(io,mh::TutorialsHidden(false,false),4,60);ck(rr.ran&&rr.repaired==1&&io.v==1,"SHOWN: persisted 0 back to 1");
+        io.v=0;rr=rep.Update(io,mh::TutorialsHidden(true,false),5,70);ck(!rr.ran&&io.v==0,"HIDDEN (held 0 / menu): repair idle");
+        rr=rep.Update(io,mh::TutorialsHidden(false,true),5,80);ck(!rr.ran&&io.v==0,"Minimal HUD hides them: repair idle");
+        rr=rep.Update(io,mh::TutorialsHidden(false,false),5,90);ck(rr.ran&&io.v==1,"hidden->shown edge: 1 back");
     }
     {   // 6. re-hide schedule: new HUD at once, else every 500 ms
         mh::Rehide s;ck(s.Due(1,0),"first");s.Done(1,0);ck(!s.Due(1,499)&&s.Due(1,500)&&s.Due(2,10),"500 ms or new HUD");
