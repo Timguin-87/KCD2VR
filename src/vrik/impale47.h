@@ -42,6 +42,7 @@ inline const char* gaveUpText(const char* reason) noexcept {
     if(is("WEAPON_RELEASED_OR_TRACKING_LOST"))return "impale: weapon let go before he fell";
     if(is("ORIGINAL_VICTIM_WAIT_EXPIRED"))return "impale: his body never turned to a ragdoll in time";
     if(is("SUPERSEDED_BY_NEW_THRUST"))return "";
+    if(is("BLADE_NOT_IN_HIM_AT_PIN"))return "impale: your blade was not in him when he went limp - keep it in him";
     return "impale: gave up";}
 // R128: the 6 Nov 19:20:24 line said "see log C47 GAVE_UP" but that row is written only while F3 records, so the
 // quiet log never said why. The status line (log only - the headset shows it only while F2 records) now carries the
@@ -51,6 +52,18 @@ inline const char* gaveUpLine(const char* reason,char* buf,std::size_t n) noexce
     const char* g="impale: gave up";const char* a=t;const char* b=g;while(*a&&*b&&*a==*b){++a;++b;}
     if(*a||*b){std::snprintf(buf,n,"%s",t);return buf;} // a specific text (or empty)
     std::snprintf(buf,n,"impale: gave up (%s)",reason);return buf;}
+// R153 (Miki 8 Nov: "my blade was outside for the kill... not impaled at the moment of the impalement"): the first pin
+// of the killing-hit body (EXACT path) used the wound point and blade point of the HIT, up to 4.5 s old (death clip,
+// R106), so a body that had left the blade (or a blade pulled out) was pinned anyway and pulled back onto it. with
+// VrImpaleFullDepthR128 ON the pin now needs the blade's CURRENT contact on that same body, and the wound is that
+// contact. no contact this poll = keep waiting inside the same original window (no latch, next stab starts fresh).
+inline bool pinContactSameBodyR153(std::uintptr_t owner,std::uint32_t entityId,std::uintptr_t collider,
+    std::uintptr_t wantEntity,std::uint32_t wantTarget,std::uintptr_t wantBody) noexcept {
+    return owner!=0&&collider!=0&&entityId!=0&&owner==wantEntity&&entityId==wantTarget&&collider==wantBody;}
+// the wound moves to the current contact; the blade point he sits on keeps at least the old depth behind the tip
+// (plate armour keeps its shallow point, full depth then goes to the guard as before). returns metres to move back.
+inline double keepDepthR153(double oldDepth,double newDepth) noexcept {
+    if(!std::isfinite(oldDepth)||!std::isfinite(newDepth))return 0;return std::clamp(oldDepth-newDepth,0.0,1.0);}
 // ---------------------------------------------------------------- weapon side: where the body sits on the blade
 enum class Pick : int {Contact=0,BladeLine=1,TipFar=2,OffBlade=3,Invalid=4};
 inline const char* name(Pick p) noexcept {

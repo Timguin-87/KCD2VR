@@ -24,6 +24,7 @@ DOCS.update({'D85R5R3_FRESH_POSE_UNCAPPED.md','D85R5R2_CORRECTIVE_REVIEW.md','D8
 DOCS.update({'CHANGES_D84.md','VALIDATION_D84.md','REGRESSION_LEDGER_D84.md',
              'INTERACTIONS_D84_REVIEW.md','COMBAT_SMITH_KICKS_D84_REVIEW.md',
              'MOTION_PHYSICS_D84_REVIEW.md'})
+DOCS.add('KCD2VR_HISTORY_AND_RESEARCH.md') # history + research, kept in the clean source
 OMIT_FILES = {'deps/DetourModKit/lib/libDetourModKit.lib',
               'tests/build_dependency_selection.ps1', 'tests/test_source_archive63.py',
               'src/ACTIVE_OWNERSHIP_MAP.md', 'tools/prepare_gore_d56.py',

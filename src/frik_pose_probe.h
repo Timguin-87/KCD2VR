@@ -69,6 +69,10 @@ void ServiceInteractionExperiment36() noexcept;
 unsigned InteractionCoverage175() noexcept;
 bool ApplyUserMode175(kcd2vr::user175::Mode mode) noexcept;
 bool CombatExperiment175Enabled() noexcept;
+// R160 VrCombatNoStep counter-step (native_motion_owner.inl): pad worker publishes the final left stick; the game thread
+// runs the step after Henry's native combat update (ActorUpdateDetour). no-ops while "Attack step veto" is OFF.
+void PublishMoveStick160(float lx,float ly) noexcept;
+void CounterStepAfterUpdate160(void* combatActor) noexcept;
 void SetClinchDistanceMeters32(float meters) noexcept; // F4 initiation-only radius; zero=retail, default0.55m
 void SetClinchModeD40(int mode) noexcept; // 0=distance/legacy, 1=current contact + fresh grip, 2=automatic off
 int ClinchModeD40() noexcept;
@@ -350,6 +354,8 @@ void SetViewPositionProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) no
 void SetViewForwardProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept;
 // A stored calibration exists (arm profile from INI or this session's F8) and can be applied without a new T-pose.
 bool CalibrationStored43() noexcept;
+bool CalibrationDefaultR149() noexcept;   // R149: VRIK runs on the in-memory default arm profile (no saved F8)
+bool InstallDefaultCalibrationR149() noexcept; // R149: no saved F8 -> default profile from the eye height (never saved)
 void BeginFingerCapture() noexcept;
 bool FingerCaptureActive() noexcept;
 int FingerCaptureStatus() noexcept;

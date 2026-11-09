@@ -12,7 +12,28 @@ bool CalibrationAutoRestore43() noexcept {return g_cal_auto_restore43.load(std::
 void ForceCalibrationRestore43() noexcept {g_cal_restore_force43.store(true,std::memory_order_release);}
 void SetViewPositionProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept {g_view_position_probe43.store(probe,std::memory_order_release);}
 void SetViewForwardProbe43(bool(*probe)(float&,float&,float&,std::uint64_t)) noexcept {g_view_forward_probe43.store(probe,std::memory_order_release);}
-bool CalibrationStored43() noexcept {return !g_arm_capture_active66100.load()&&g_saved_arm_ready66100.load(std::memory_order_acquire);}
+// R149: true while the arms come from the in-memory DEFAULT profile (no saved F8 T-pose). never saved; F8 clears it.
+static std::atomic<bool> g_arm_default_r149{false};
+// R149: a default profile does not count as a saved calibration here, so the menu VRIK button still guides a T-pose
+// and RESTORE still says "do a T-pose once" (old behaviour for players without a saved F8). saved players: unchanged.
+bool CalibrationStored43() noexcept {return !g_arm_capture_active66100.load()&&g_saved_arm_ready66100.load(std::memory_order_acquire)&&!g_arm_default_r149.load(std::memory_order_acquire);}
+bool CalibrationDefaultR149() noexcept {return g_arm_default_r149.load(std::memory_order_acquire);}
+// R149 (default_profile_r149.h): no saved F8 profile -> publish a default one built from the eye height, in memory only
+// (g_arm_save_generation66100 is NOT bumped, so ServiceCalibrationIo66100 never writes it). the session re-anchor then
+// runs like after an INI load (body under the headset, Henry's live head as anchor). a saved profile is never touched.
+bool InstallDefaultCalibrationR149() noexcept {
+    namespace dp=kcd2vr::default_profile_r149;
+    if(g_arm_capture_active66100.load())return false;            // F8 running: its result decides
+    if(g_saved_arm_ready66100.load(std::memory_order_acquire))return true; // saved F8 profile or the default already in place
+    const bool valid=g_eye_floor_valid107.load(std::memory_order_acquire);const float live=g_eye_floor_m107.load(std::memory_order_acquire);
+    const float eye=dp::eyeHeight(valid,live);const auto profile=dp::build(eye);
+    if(!kcd2vr::calibration_profile::valid(profile)||!g_arm_profile66100.publish(profile))return false; // retried by the caller (R111 every 2 s)
+    g_arm_default_r149.store(true,std::memory_order_release);g_saved_arm_ready66100.store(true,std::memory_order_release);g_cal_reanchor66100.store(true,std::memory_order_release);
+    char m[320]{};std::snprintf(m,sizeof(m),"R149 VRIK_DEFAULT_PROFILE eyeHeight=%.3fm source=%s span=%.3fm reach=%.3fm handsBelowEyes=%.3fm notSaved=1 (press F8 for exact arms)",
+        double(eye),dp::measured(valid,live)?"HEADSET_STANDING":"DEFAULT_1.65",profile.span,profile.leftReach,profile.headToHandPlane);
+    diagnostic_trace::WriteStatus(m); // KCD2VR.log only
+    return true;
+}
 float StandingEyeShift43() noexcept {
     // R111: VrStartAtHenryEyesR111 ON = every recenter takes the headset where it is now as Henry's eyes (no standing
     // correction; seated start = Henry's eye height, head moves relative from there). OFF = the C43 standing correction.
@@ -96,6 +117,7 @@ bool CompleteArmLengthCalibration() noexcept {
     const V3 nativeHead{g_latest_native_head_x.load(),g_latest_native_head_y.load(),g_latest_native_head_z.load()};
     if(!CommitGuidedCalibrationV6562(a,nativeHead)||!g_arm_profile66100.publish(profile)){diagnostic_trace::WriteStatus("R132 F8_CALIBRATION failed: T-pose measured but Henry's pose could not be matched (commit refused); old calibration kept, press F8 again");CancelArmLengthCalibration();return false;}
     g_cal_native_anchor_pending=!g_latest_native_head_valid.load();g_saved_arm_ready66100=true;g_arm_capture_active66100=false;g_cal_reanchor66100=false;
+    if(g_arm_default_r149.exchange(false,std::memory_order_acq_rel))diagnostic_trace::WriteStatus("R149 VRIK_DEFAULT_PROFILE replaced by your F8 T-pose (saved to KCD2VR.ini)"); // R149
     g_arm_save_generation66100.fetch_add(1,std::memory_order_release);
     // C43: Henry's head at the T-pose is part of the calibration (persisted; re-seats keep it instead of the live stance head).
     {const float a43[3]{nativeHead.x,nativeHead.y,nativeHead.z};

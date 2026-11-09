@@ -1,4 +1,5 @@
 #include "npc_tuning.h"
+#include "training_vanilla_r163.h" // R163: native AI inputs / spacing in training fights (practice weapon)
 #include "retail_build112.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -59,6 +60,8 @@ bool CopyCurrent(void* current,std::uintptr_t base,Shadow& shadow) noexcept {
 void* ForReader(void* current,std::uintptr_t returnAddress) noexcept {
     const auto amount=difficulty.load(std::memory_order_relaxed);
     if(!(amount>0.f)||!ready.load(std::memory_order_acquire))return current;
+    {static std::atomic<std::uintptr_t> onceR163{0}; // R163: training fight = the native constants object (global, counted once per period)
+     if(kcd2vr::training_vanilla_r163::skipOnce(kcd2vr::training_vanilla_r163::NpcDifficulty,onceR163,0))return current;}
     const auto base=module.load(std::memory_order_acquire);
     if(!base||returnAddress<base)return current;
     const auto rva=returnAddress-base;
@@ -186,6 +189,8 @@ Address ReadView(Address move,Address capture,Address nativeNpc) noexcept {
        !Read(actor+0x3E8,equipment)||!equipment||!Equal(equipment+8,actor))return move;
     row=WeaponClass(equipment,base);std::uint32_t id=0;
     if(!row||!Read(row+8,id)||id!=12)return move;
+    {static std::atomic<std::uintptr_t> npcR163{0}; // R163: training fight = native preferred distance (counted once per NPC)
+     if(kcd2vr::training_vanilla_r163::skipOnce(kcd2vr::training_vanilla_r163::UnarmedSpacing,npcR163,actor,actor))return move;}
     // One fresh copy. In particular, never scale the stored native profile:
     // native731F48 can leave its old fields intact on an early return.
     if(!Copy(move+0x28,&view.activity,3*sizeof(float))||

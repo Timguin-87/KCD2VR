@@ -479,6 +479,9 @@ static gp50::Cut LimbCutReceipt60(void* ci,int part) noexcept {return LimbCut50(
 #include "native_material_d54.inl" // event-only, exact original-to-own-helper material transfer
 static kcd2vr::gore32::LimbCutLedger60 g_limb_cut_ledger60; // DS-F10: per-target 2 s dedupe, same cut kind cannot refire
 static void StartLimb50(const g::CutCandidate& c,void* ci,const ModelWorld6692& w,const g::V3& hit,gp50::Cut cut,int part,std::uint64_t now) noexcept {
+    if(!gp50::severableR153(cut)){ // R153: legs never sever (refused per hit, nothing hidden/bound, no ledger entry = no latch)
+        char m[160]{};std::snprintf(m,sizeof(m),"R153 LIMB_CUT refused target=%u cut=%s reason=LEGS_OFF (arms only; normal native kill)",c.target,gp50::luaName(cut));
+        diagnostic_trace::Write(m);return;}
     if(EligibilityD56(c.target,c.identity,ci,now)!=eligibilityD56::Result::MaleHuman)return;
     if(!g_limb_cut_ledger60.available(c.target,c.identity,now,int(cut)))return; // inspect only; commit after queue success
     if(!BowAttachPins59c15()||!Pins())return;
@@ -693,6 +696,7 @@ static std::uint64_t g_decap_seen59=0;
 static bool ServiceVisualLeases59(std::uint64_t now) noexcept {
     const bool restore59=g_restore_head_visibility59.exchange(false,std::memory_order_acq_rel);
     if(restore59){
+        g::ForgetDead(); // R155: a save load / shutdown edge: nobody of the new world is 'dead by the game' until it says so again
         g_corpse_cut_acked_entity61.store(0,std::memory_order_release);
         g_corpse_cut_acked_identity61.store(0,std::memory_order_release);
         g_decap={}; // stop our keep-hidden loops BEFORE restoring their leases

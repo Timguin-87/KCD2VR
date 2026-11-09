@@ -165,6 +165,7 @@ bool SuppressNativeFollowup18(const void* rpg,std::uintptr_t callerRva,const voi
     // Retain the exact ownership barrier only for an application request.
     if(callerRva!=0x173BF58ull||!applyNative||(attackType!=0&&attackType!=1)||
        !g_own_hits18.load(std::memory_order_relaxed)||!kcd2vr::motion59c4::selected.load(std::memory_order_acquire)||
+       !kcd2vr::tutorial_native_r159::directRouteAllowedNow(std::uint64_t(GetTickCount64()))|| // R159: in a tutorial the native application is never refused
        !g_consequence.load()||g_fault.load()||g_reset.load())return false;
     const void* attacker=Rd<const void*>(rpg,8,nullptr);const void *entity=nullptr,*state=nullptr;
     if(!attacker||attacker!=g_henry_actor.load(std::memory_order_relaxed)||
@@ -269,7 +270,9 @@ static int OpponentSkill39(const void* target) noexcept {
 static float DefenseTimingSeed39(float seed,std::uint64_t now) noexcept {
     const void* hs=g_owner_state;const void* ostate=nullptr;bool reciprocal=false;
     const void* target=ReciprocalOpponent39(hs,ostate,reciprocal);
-    const bool enabled=g_block_timing39.load(std::memory_order_relaxed);
+    // R163: training fight = the announced ETA is not shortened by the NPC's skill (decide() with enabled=false keeps the seed)
+    const bool enabled=g_block_timing39.load(std::memory_order_relaxed)&&
+        !(target&&kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::DefenseTiming,reinterpret_cast<std::uintptr_t>(target)));
     const int phase=ostate?I(ostate,kActionPhaseProp39):-99;
     const int skill=enabled&&target&&reciprocal&&dt39::waitingPhase(phase)?OpponentSkill39(target):-1;
     const auto d=dt39::decide(enabled,seed,target!=nullptr,reciprocal,phase,skill,
@@ -361,6 +364,7 @@ static bool ResolveDefenseNR1(const void* actor,const void* hs,int zone,int& val
 bool ReactionZoneBeginNR1(const void* attacker,int zone,const void*& hsOut,int& restore,int& written,const void* victim) noexcept {
     hsOut=nullptr;restore=written=-1;
     if(zone<0||zone>5||!kcd2vr::bodycombo59c7g::npcReactsToBlade.load(std::memory_order_relaxed))return false;
+    if(kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::BladeReaction,reinterpret_cast<std::uintptr_t>(victim)))return false; // R163: native reaction zone
     const void *entity=nullptr,*hs=nullptr;
     if(!attacker||!CombatActor(attacker,entity,hs,false)||!IsPlayer(entity)||!retail_build112::Ready(g_base)||!Verified()||
        g_setter_exception.load()||Rd<std::uintptr_t>(hs,kDefenseZone,0)!=g_base+kDefenseVft)return false;
@@ -940,6 +944,8 @@ static int DirBlockRequestZone39(const void* hs,const kcd2vr::motion59c4::Key& k
     if(!db39::enabled.load(std::memory_order_relaxed))return zone; // the only cost while switched off
     const void* ostate=nullptr;bool reciprocal=false,henry=false;
     const void* target=ReciprocalOpponent39(hs,ostate,reciprocal);
+    // R163: training fight = no plan (Keep / Update / feint refine are no-ops without one): the announced zone stays the swing's own
+    if(target&&kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::DirectionalBlock,reinterpret_cast<std::uintptr_t>(target)))return zone;
     const bool waiting=target&&reciprocal&&NpcDefense39(target,d.npcPhase,d.npc5D0,henry)&&henry&&dt39::waitingPhase(d.npcPhase);
     d.key=key;d.target=target;
     d.sample=db39::unpack(db39::mailbox.load(std::memory_order_acquire),key.gesture,now,db39::kFreshMs);

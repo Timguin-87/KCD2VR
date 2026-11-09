@@ -7,6 +7,8 @@
 #include "../core/haptics.h"
 #include "../subsystems/physics/load_fault_recovery_r96.h"
 #include "../core/load_rearm_r96.h" // R97: UpdateSmallPickupReaderR24 load re-arm (was only reached through mod.cpp)
+#include "prop_parent_r153.h" // R153: SetPosRotScale is LOCAL, the instant-held item hangs on a parent
+#include "instant_drop_r158.h" // R158: a dropped (not stowed) instant item falls like a scenery prop
 namespace stage596 = kcd2vr::staged596c2;
 namespace prop5916 = kcd2vr::prop5916c1;
 struct StagedProp596 {
@@ -24,6 +26,8 @@ struct StagedProp596 {
     // If the body does not follow for 100 ms, this hold carries the item with
     // the entity transform instead (same SetPosRotScale as the kinematic mode).
     bool kinematicR96=false,stuckRefValidR96=false;pm::Vec3 stuckRefR96{};std::uint64_t stuckSinceR96=0;
+    // R153: the parent the entity hangs on, learned from a placement readback (prop_parent_r153.h). per hold.
+    ph::Pose parentR153{};bool parentKnownR153=false;
     // Only populated by the exact native immediate transfer boundary. The
     // accepted request is retained once; no animation/action pointer is held.
     bool instantD72=false,noticeD72=false;
@@ -35,6 +39,9 @@ struct StagedProp596 {
     kcd2vr::instant_pickup_d72::Transfer transferD72=nullptr;
 };
 static StagedProp596 g_prop596;
+// R158 (instant_drop_r158.h): the drop waiting for static_grab_r89n::Tick (detach if parented, wake, hand velocity).
+// only touched under PropLock596.
+static kcd2vr::instant_drop_r158::Slot g_instant_drop_r158;
 static bool PropCommitInstantD72(const StagedProp596&) noexcept;
 static void PropRetireInstantD72(const StagedProp596&) noexcept;
 static kcd2vr::load_fault_recovery_r96::Fault g_prop_fault5916c1;
@@ -283,14 +290,63 @@ static bool BuildStagedPickup596(void* controller,std::uint32_t actor,bool prepa
 static bool TryStagedPickup596(void* controller,std::uint32_t actor) noexcept {
     return BuildStagedPickup596(controller,actor,false);
 }
-static bool PropPlace596(const StagedProp596& p,ph::Pose pose) noexcept {
+static bool PropSetLocal596(std::uintptr_t fn,void* entity,const ph::Pose& local,const float* scale) noexcept {
+    const auto q=PhysQuat6698(local);
+    __try {reinterpret_cast<EntitySetPosRotScaleFn>(fn)(entity,q.t,q.q,scale,0x10u);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+    return true;
+}
+static bool PropPlace596(StagedProp596& p,ph::Pose pose) noexcept {
     if(!ph::finite(pose))return false;
     std::uintptr_t vf=0,fn=0;if(!Read(p.entity,vf)||vf!=WhBase()+kCEntityVftRva||
         !Read(reinterpret_cast<void*>(vf+0x168),fn)||fn!=WhBase()+0x509810)return false;
-    const auto q=PhysQuat6698(pose);
-    __try {reinterpret_cast<EntitySetPosRotScaleFn>(fn)(p.entity,q.t,q.q,p.scale,0x10u);}
-    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+    // R153 (prop_parent_r153.h): the setter is LOCAL. an entity without a parent reads back where we asked and
+    // nothing else happens (the old behaviour). one that hangs on a parent (the instant-held pickup item, R152 run
+    // 11:18:47: placed at 2x its world position, 3 km away = "the item disappears") gets the parent learned from
+    // this readback and is placed again in the parent's space. no readback (scale/identity) = old behaviour.
+    namespace pp=kcd2vr::prop_parent_r153;
+    ph::Pose before{};const bool beforeKnown=PropObjectPose5916C1(p,before);
+    const ph::Pose local=p.parentKnownR153?pp::LocalFor(p.parentR153,pose):pose;
+    if(!ph::finite(local)||!PropSetLocal596(fn,p.entity,local,p.scale))return false;
+    ph::Pose world{};
+    if(PropObjectPose5916C1(p,world)&&!pp::Matches(world,pose)){
+        const auto parent=pp::Parent(world,local);const auto again=pp::LocalFor(parent,pose);
+        ph::Pose check{};
+        const bool placed=ph::finite(parent)&&ph::finite(again)&&PropSetLocal596(fn,p.entity,again,p.scale)&&
+            PropObjectPose5916C1(p,check)&&pp::Matches(check,pose);
+        if(!placed){
+            // put it back where it was (under the parent we just saw), never leave it at the doubled position
+            if(beforeKnown&&ph::finite(parent)){const auto back=pp::LocalFor(parent,before);if(ph::finite(back))(void)PropSetLocal596(fn,p.entity,back,p.scale);}
+            char line[220]{};std::snprintf(line,sizeof(line),"R153 PICKUP_PLACE_REFUSED entity=%u key=%016llX reason=PARENT_SPACE_READBACK_WRONG -> hold ends, item stays",
+                p.id,(unsigned long long)p.key);diagnostic_trace::Write(line);
+            return false;
+        }
+        if(!p.parentKnownR153){
+            char line[260]{};std::snprintf(line,sizeof(line),"R153 PICKUP_PARENT_SPACE entity=%u key=%016llX parent=(%.2f,%.2f,%.2f) wanted=(%.2f,%.2f,%.2f) (item placed in its parent's space)",
+                p.id,(unsigned long long)p.key,parent.p.x,parent.p.y,parent.p.z,pose.p.x,pose.p.y,pose.p.z);diagnostic_trace::Write(line);
+        }
+        p.parentR153=parent;p.parentKnownR153=true;
+    }
     return PropVelocity596(p.entity);
+}
+// R155 (Miki 8 Nov, R153 run: "the objects are pushing me back like those small objects did before"): the instant-held
+// item is a real rigid body placed into the hand every frame (KINEMATIC_CARRY / R153 firm grip), and the hand is
+// often inside Henry's living capsule - the physics step then pushes HIM away, exactly the R101 scenery-prop problem
+// R103 fixed with the collision-class lease (self_collision_r103.h: ignore |= living, type |= living, restored after
+// the release once the item is clear of Henry or after 4 s). The scenery path (static_grab_r89.inl HELD/DRIVE) has had
+// it since R103; this hold never asked. Same lease, own owner bit per hand, re-applied every tick (250 ms rate).
+static void PropSelfCollisionR155(const StagedProp596& p,std::uint64_t now) noexcept {
+    if(!p.instantD72||!p.id||!p.entity||!p.body||p.side<0||p.side>1)return;
+    self_collision_r103n::Exclude(kcd2vr::self_collision_r103::instantOwner(p.side),kcd2vr::self_collision_r103::Kind::Prop,p.id,
+        reinterpret_cast<std::uintptr_t>(p.entity),reinterpret_cast<std::uintptr_t>(p.body),-1,now?now:1);
+}
+// R158: an instant item that leaves the hand WITHOUT the chest stow gets the scenery-prop gravity rules: one request,
+// serviced at the next native rhythm frame (static_grab_r89.inl InstantDropR158). caller holds PropLock596.
+static void PropDropR158(const StagedProp596& ended,pm::Vec3 v,bool handVelocity,std::uint64_t now) noexcept {
+    if(!ended.instantD72||!ended.id||!ended.entity)return;
+    kcd2vr::instant_drop_r158::Request r{};r.id=ended.id;r.entity=reinterpret_cast<std::uintptr_t>(ended.entity);
+    r.handVelocity=handVelocity&&pm::finite(v);if(r.handVelocity){r.v[0]=v.x;r.v[1]=v.y;r.v[2]=v.z;}
+    r.tick=now?now:1;g_instant_drop_r158.post(r);
 }
 static bool PropCommit596(void* controller,std::uint32_t actor) noexcept {
     bool ok=false;g_prop_replay596=true;
@@ -390,17 +446,19 @@ static void StagedPropTick596() noexcept {
                 confirmedD84,hapticD84);diagnostic_trace::Write(line);
         }
         PropRetireInstantD72(ended);
+        if(!stow)PropDropR158(ended,throwD85,kinematicThrowD85,now); // R158: not stowed -> it must fall (no-op for non-instant)
         PropNote596(stow?"NATIVE_STOW_RETURN":(intentionalRelease?"DROP_RETAIN_BODY_VELOCITY":"CANCEL_TO_NATIVE_PHYSICS"),ended,ok,
             endReason?endReason:stow?"CHEST_STOW":intentionalRelease?"GRIP_RELEASE":"EXPERIMENT_EPOCH_OR_HOLD_TIMEOUT");return;
     }
     p.sourceTickR96=f.stamp.tick;
+    PropSelfCollisionR155(p,now); // R155: the held item does not collide with Henry (idempotent, see above)
     if(p.sample==f.stamp.sample&&!p.physics)return;
     if(!p.physics){p.sample=f.stamp.sample;
         // R96: a hold that switched from the physics drive keeps its offset
         // from the requested wrist it was acquired with.
         const auto placedD85=ph::compose(p.kinematicR96&&f.propRequestedValid5916c1[p.side]?
             PropRequestedWorld5916C1(f,p.side):PropWorldHand596(f,p.side),p.offset);
-        if(!PropPlace596(p,placedD85)){PropNote596("PLACEMENT_STOPPED",p,false);PropRetireInstantD72(p);p={};return;}
+        if(!PropPlace596(p,placedD85)){PropNote596("PLACEMENT_STOPPED",p,false);PropRetireInstantD72(p);PropDropR158(p,{},false,now);p={};return;}
         p.kinematicD85.add(placedD85.p,f.stamp.tick);
         return;
     }
@@ -421,7 +479,7 @@ static void StagedPropTick596() noexcept {
                 p.physics=false;p.kinematicR96=true;p.sample=f.stamp.sample;
                 const bool placedR96=PropPlace596(p,target);
                 PropNote596("KINEMATIC_CARRY_R96",p,placedR96,"NATIVE_BODY_NOT_FOLLOWING_100MS");
-                if(!placedR96){PropRetireInstantD72(p);p={};return;}
+                if(!placedR96){PropRetireInstantD72(p);PropDropR158(p,{},false,now);p={};return;}
                 p.kinematicD85.add(target.p,f.stamp.tick);
                 return;
             }
@@ -466,6 +524,20 @@ static void StagedPropTick596() noexcept {
 }
 
 #include "instant_pickup_native_d72.inl"
+// R155 (Miki 8 Nov, R153 run: instant interactions work "except for the grab hand posture - they lose the 'grab look'
+// and play idle"): the hold retains pickupClaimsD72[side] (RetainPickupD72), and hand_claim_t24::observe turns any
+// pickup claim into SameActorBusy -> HandClaimBlockedT24 -> coherent_pose claimedFingerT24 keeps the NATIVE finger
+// locals. For a native pickup those are the game's grab animation; for an item the mod carries itself there is no
+// animation (forceImmediate), so the native locals are the idle hand. When the claim is THIS instant hold's token the
+// fingers follow Grip/Trigger like a free hand instead - the hold needs Grip >= .30 so they stay closed on the item.
+// Every other claim (throw, reload, ammo, native tool, and the scenery prop of static_grab_r89, which he called
+// working) keeps the native fingers exactly as before. Read from the pose thread: atomics only.
+static bool PropHoldOwnsHandR155(int side) noexcept {
+    if(side<0||side>1)return false;
+    const auto claim=kcd2vr::mutual_admission_t25::pickupClaimsD72[side].load(std::memory_order_acquire);
+    return claim&&kcd2vr::instant_pickup_d72::active.load(std::memory_order_acquire)!=0&&
+        claim==g_instant_pickup_hold_d72.load(std::memory_order_acquire);
+}
 
 // R24 read-only admission, entered synchronously by the exact registered Lua
 // GetCVar callback. Normal Use retains its native semantics; the separate contact

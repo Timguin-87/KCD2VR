@@ -125,6 +125,14 @@ inline void NoteDead(std::uint32_t id,std::uintptr_t identity,std::uint64_t now)
     auto& e=knownDead[knownDeadNext.fetch_add(1)%16];e.id.store(0);e.identity.store(identity);e.tick.store(now);e.id.store(id);}
 inline bool KnownDead(std::uint32_t id,std::uintptr_t identity,std::uint64_t now) noexcept {if(!id||!identity)return false;
     for(auto& e:knownDead){const auto t=e.tick.load();if(e.id.load()==id&&e.identity.load()==identity&&now>=t&&now-t<=3600000ull)return true;}return false;}
+// R155 (Miki 8 Nov 12:57 run: an arm cut off a man who was still fighting, 'corpse' stabs on living men): the table above
+// survived a save load. 12:44-12:47 he killed the bandits, 12:50:33 he loaded the save (PAUSE_SETTINGS -> LOADING_SCREEN),
+// 12:57 the same men (same entity ids, same entity addresses) fought again and were still 'known dead' - 955930 got
+// C43T DECAP_CORPSE rows at 12:57:11 and died only at 12:57:21, 955927 lost his right forearm at 12:57:38 while attacking
+// (FINISHER_RECEIPT death=0). the load edge (the same one that restores the gore visuals) now forgets every death: a
+// corpse of the loaded world is stabbed/cut again only after the game reports its death in THIS life. no latch the other
+// way either - the next native kill fills the table again.
+inline void ForgetDead() noexcept {for(auto& e:knownDead){e.id.store(0);e.identity.store(0);e.tick.store(0);}}
 // C44/C46 VrDecapitationStyle: 0 = HIDE HEAD: the head parts are hidden (C32), 1 = LOOSE NECK: the head stays, the death
 // ragdoll's head joint is opened (no limits, no spring) and the head gets a kick, so it flops on a stretched neck (C44),
 // 2 = STUMP + FLYING HEAD: the head parts are hidden, then a meat stump + blood on the Neck bone and the victim's own

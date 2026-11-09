@@ -24,6 +24,9 @@ static void* SafeGetCryConsole(){return consoleReady?&value:nullptr;}
 static void* SafeConsoleGetCVar(void*,const char* key){++lookups;keys.emplace_back(key);return cvarReady?&value:nullptr;}
 static int SafeCVarGetInt(void*,int fallback){++reads;return reads==failReadNumber?fallback:value;}
 static bool SafeCVarSetInt(void*,int v){++writes;if(setReady)value=v;return setReady;}
+// R142: the refused-Set route (VF_CHEAT cvar, no dev mode) writes the cvar int. intRoute=false = not the IntRef vtable.
+static bool intRoute=false;static int intWrites=0;
+static bool CombatCameraIntWrite142(void*,int v){if(!intRoute)return false;++intWrites;value=v;return true;}
 namespace diagnostic_trace {static void Write(const char* s){lines.emplace_back(s);}}
 struct Log {void warning(const char*,const char*){}};
 #ifndef KCD2VR_DIAG_LOG
@@ -92,5 +95,15 @@ int main(){
  for(int i=0;i<20;++i){tick+=100;bounded.Apply(false,msg,sizeof(msg));}
  ck(writes==w3+3&&bounded.pending&&bounded.retries==3,"failed restoration retries at most three times then reports pending");
  setReady=true;bounded.Restore();ck(value==0&&!bounded.restoreOwed,"explicit shutdown restoration gets a fresh bounded attempt");
+ // R142: Set() refused on the VF_CHEAT cvar (no dev mode): the cvar int is written, lease and give-back both;
+ // dev mode (Set works) never takes that route; a refusal with no IntRef cvar stays unleased as before.
+ ck(intWrites==0,"R142 Set() that works never writes the cvar int");
+ CombatCameraLease50 cheat;value=0;setReady=false;intRoute=true;cheat.Apply(true,msg,sizeof(msg));
+ ck(value==1&&cheat.applied&&cheat.restoreOwed&&cheat.direct&&intWrites==1&&std::strstr(msg,"write=CVAR_INT")!=nullptr,"R142 refused Set: cvar int written, lease owned and verified");
+ cheat.Apply(false,msg,sizeof(msg));ck(value==0&&!cheat.applied&&!cheat.restoreOwed&&intWrites==2,"R142 refused give-back: original written back through the int");
+ CombatCameraLease50 cheatForeign;value=0;cheatForeign.Apply(true,msg,sizeof(msg));value=7;tick+=100;cheatForeign.Apply(false,msg,sizeof(msg));
+ ck(value==7&&intWrites==3,"R142 a foreign value is never overwritten by the int route");
+ intRoute=false;CombatCameraLease50 noRoute;value=0;noRoute.Apply(true,msg,sizeof(msg));ck(value==0&&!noRoute.applied&&!noRoute.restoreOwed&&!noRoute.direct,"R142 refused Set without the IntRef route stays unleased");
+ setReady=true;intRoute=false;
  std::printf("D42 actual camera lease/service: %u checks, %u failures; host IO substitutes; native/headset NOT_RUN\n",checks,failures);return failures?1:0;
 }

@@ -273,6 +273,34 @@ void ObserveHenry178r31(const void* actor) noexcept {
     vrstate596::Tick(hs,std::uint64_t(GetTickCount64()));impulse596::Drain(std::uint64_t(GetTickCount64())); // R59.6: VR state driver + contact impulses (game thread)
 }
 #include "henry_combat_context_h20.inl"
+// R153 NPC DEFENCE BY SKILL (npc_force_block153.h): Henry's own update publishes his native attack phase and his exact
+// reciprocal opponent (Henry +CF8 -> opponent, opponent +CF8 -> Henry, the C39/H24 identities) with that opponent's best
+// melee skill (the C39 read, cached per opponent). Bounded SEH copies only, no native call, no write.
+void PublishNpcDefense153(const void* actor) noexcept {
+    namespace fb=kcd2vr::npc_force_block153;
+    static std::uintptr_t skillOf=0;static int cachedSkill=-1;
+    const void *entity=nullptr,*hs=nullptr;std::uintptr_t opponent=0,ostate=0,back=0,vft=0,human=0,link=0,soul=0,recip=0;int phase=-1;
+    const auto now=std::uint64_t(GetTickCount64());
+    if(!CombatActor(actor,entity,hs,false)||!hs||!IsPlayer(entity)){fb::opponent.store(0,std::memory_order_relaxed);fb::opponentPos.store(false,std::memory_order_relaxed);fb::publishedMs.store(now,std::memory_order_release);return;}
+    const auto at=[](std::uintptr_t a,std::size_t off,auto& v){return a&&SehCopy146(reinterpret_cast<const void*>(a+off),&v,sizeof(v));};
+    const auto self=reinterpret_cast<std::uintptr_t>(actor),hsa=reinterpret_cast<std::uintptr_t>(hs);
+    if(!at(hsa,kActionPhaseProp39+8,phase))phase=-1; // R154: the property VALUE is at prop+8 (I(hs,prop)); 0x30 was the header -> never 4/8, one roll per opponent instead of per swing
+    const bool ok=at(hsa,0xCF8,opponent)&&opponent&&opponent!=self&&at(opponent,0,vft)&&vft==g_base+kCombatActorVft&&
+        at(opponent,0x210,ostate)&&ostate&&at(ostate,0xCE0,back)&&back==opponent;
+    const bool reciprocal=ok&&at(ostate,0xCF8,recip)&&recip==self;
+    if(ok&&opponent!=skillOf){skillOf=opponent;cachedSkill=-1;
+        if(at(opponent,0x1F8,human)&&human&&at(human,0x278,link)&&link==opponent&&at(human,0x668,soul)&&soul){
+            int skills[5]{-1,-1,-1,-1,-1};ReadSkills26(reinterpret_cast<const void*>(soul),skills);cachedSkill=fb::bestSkill(skills);}}
+    fb::henryPhase.store(phase,std::memory_order_relaxed);fb::skill.store(ok?cachedSkill:-1,std::memory_order_relaxed);
+    fb::reciprocal.store(reciprocal,std::memory_order_relaxed);fb::opponent.store(ok?opponent:0,std::memory_order_relaxed);
+    {   // R164: opponent position for the counter-step stand-off (the same validated actor -> CEntity chain, SEH reads only)
+        const void *oentity=nullptr,*ostateR164=nullptr;bool pos=false;
+        if(ok&&CombatActor(reinterpret_cast<const void*>(opponent),oentity,ostateR164,false)&&oentity){
+            const float ox=Rd<float>(oentity,0x58+12,NAN),oy=Rd<float>(oentity,0x58+28,NAN);
+            if(std::isfinite(ox)&&std::isfinite(oy)){fb::opponentX.store(ox,std::memory_order_relaxed);fb::opponentY.store(oy,std::memory_order_relaxed);pos=true;}}
+        fb::opponentPos.store(pos,std::memory_order_relaxed);}
+    fb::publishedMs.store(now,std::memory_order_release);
+}
 
 int HenryInCombat178r31(std::uint64_t now) noexcept {
     const auto s=g_henry_seen178r31.load(std::memory_order_acquire);if(!s||now<s||now-s>1000)return -1;return g_henry_in_combat178r31.load(std::memory_order_relaxed);}
@@ -893,6 +921,15 @@ void Drain(void* henryActor) noexcept {
     vrstate596::ContactScope5912 contactContext5912;
     bool vrDirect596=false; // R59.6: VR-owned attempt delivered through the direct native route (no ordinary action)
     const void* directTarget19c3=nullptr;
+    // R159 "Tutorials: native hits only" (tutorial_native_r159.h): the ONE decision whether the mod's own direct hit may deliver
+    // this swing. decided at the swing's first contact and kept for every later contact / wait of the same gesture.
+    // false = the VR state driver route, the SYNC overdue route and the VR intent direct hit are all off: live native route only.
+    static kcd2vr::tutorial_native_r159::SwingRoute swingRouteR159;static kcd2vr::tutorial_native_r159::Edge edgeR159;
+    const bool directOkR159=swingRouteR159.decide(p.gesture59c3,kcd2vr::tutorial_native_r159::directRouteAllowedNow(now));
+    {const int edge=edgeR159.step(!directOkR159);
+     if(edge>=0){char m[200]{};std::snprintf(m,sizeof(m),"R159 TUTORIAL_NATIVE %s reason=%s gesture=%llu (%s)",edge?"on":"off",
+         edge?"practice_weapon":kcd2vr::tutorial_native_r159::clampMode(kcd2vr::tutorial_native_r159::mode.load(std::memory_order_acquire))!=1?"switch_off":"no_practice_weapon",(unsigned long long)p.gesture59c3,edge?"direct route off: hits only through the live native attack":"direct route as set again");
+         diagnostic_trace::WriteFor(diagnostics::capture168::Domain::Bug,m);}}
 #include "../subsystems/direct/drain_admission.inl" // M2_OWNED_SOURCE
 #include "../subsystems/hybrid/drain_rendezvous.inl" // M2_OWNED_SOURCE
     // R44C1: weapon/shield item contacts retain physical stop/haptics only.

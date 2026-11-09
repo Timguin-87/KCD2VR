@@ -10,6 +10,8 @@
 #include <string>
 #include <thread>
 #include "vrik/motion_owned59c4.h"
+#include "subsystems/direct/tutorial_native_r159.h" // R159: SuppressNativeFollowup18 in a regenerated state_driver5912.inc reads the tutorial gate
+#include "subsystems/direct/training_vanilla_r163.h" // R163: a regenerated state driver reads the training-fight gate (DIRBLOCK / defence timing / NR1)
 #include "vrik/contact_authority176.h"
 static std::uint64_t hostNow=1000;
 static bool hostVerified=true,hostOwner=true,hostEffortOK=true;

@@ -15,8 +15,9 @@ std::uintptr_t base=0;
 std::atomic<bool> enabled{false};
 std::atomic_flag installing=ATOMIC_FLAG_INIT;
 std::atomic_flag servicing=ATOMIC_FLAG_INIT;
-std::array<std::atomic<Client>,10> clients{}; // D73: eight retained clients + saved-corpse dragging + Lively NPC; bounded, wanted-only.
-std::array<std::atomic<Wanted>,10> wanted{}; // Identical bounded capacity; idle clients do no VM work.
+std::array<std::atomic<Client>,12> clients{}; // D73: eight retained clients + saved-corpse dragging + Lively NPC; bounded, wanted-only.
+// R158: 10 slots were all taken (10 Register sites); +1 Shift+F5 quest recorder, +1 spare so none is ever refused.
+std::array<std::atomic<Wanted>,12> wanted{}; // Identical bounded capacity; idle clients do no VM work.
 std::optional<DetourModKit::hook::Hook> hook;
 using Update=std::uintptr_t(__fastcall*)(void*);
 Update original=nullptr;

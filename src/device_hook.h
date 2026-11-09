@@ -74,6 +74,9 @@ public:
     static void SetInternalVrCommandList(ID3D12GraphicsCommandList* list);
     static void SetInternalMenuCommandList(ID3D12GraphicsCommandList* list);
     static void SetInternalHudCommandList(ID3D12GraphicsCommandList* list);
+    // R141: bind one RTV and draw a 3-vertex fullscreen triangle on the HUD layer's OWN XR-thread list through the
+    // original (unhooked) OMSetRenderTargets/DrawInstanced, so the late-window HUD redirect and draw tracing never see it.
+    static void DrawFullscreenBypassR141(ID3D12GraphicsCommandList* list, D3D12_CPU_DESCRIPTOR_HANDLE rtv);
     static std::uint64_t PresentCaptureCount();
     static bool CurrentExecuteSubmittedPresent();
     // R111: format changes of the "latest present resource" (count, current, previous) for the always-on UI row.

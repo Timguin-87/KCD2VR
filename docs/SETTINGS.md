@@ -1,17 +1,18 @@
 # Settings
 
-Most tuning belongs in the VR menu. The INI stores those choices; it should not
-be necessary to remember a release number to understand a switch.
+most tuning is in the VR menu (F7). the INI stores those choices. every key in KCD2VR.ini has a comment that says what
+it does now, grep the key name there. the Experiments pages need Developer mode (setup window).
 
-Keep your existing INI and calibration when updating. The launcher preserves
-them. An old key can have a number in its name because renaming it would discard
-a saved preference. The comments describe what it does now.
+keep your INI and calibration when you update. an old key can have a number in its name (VrMotionTrialD67,
+VrCrossbowReloadRouteR96 ...) because renaming it would throw away a saved choice. the number is the version that added
+it, not something you need to know.
 
-The INI is saved on exit. Its values describe that saved state, not a timeline
-of earlier attempts. Use timestamped runtime readbacks to establish which
-options were active during a particular action.
+the INI is saved on exit. its values are the state at exit, not a timeline of what was active earlier. a feature i
+tested and called working is ON when its key is missing, a saved OFF stays OFF. updating never replaces your INI.
 
-## View and rendering
+values below marked "shipped" are what the KCD2VR.ini in the source root has.
+
+## view and rendering
 
 **Home > Alternate Eye (DLSS)** is a third view-mode toggle alongside Mono and
 Stereo. It renders one camera eye each game frame and retains the previous
@@ -82,182 +83,151 @@ VR menu chord to the right stick; holding it with right A requests Wait and with
 right B opens Pause. The setting is saved as `VrQuickAccessLeftThumbrestR143`;
 the older `VrQuickAccessFaceTouchR112` key still selects face touch.
 
-## Hands and weapons
+## hands and weapons
 
-The accepted publication timing is part of ordinary VRIK and does not require
-recording. The new **Fresh Pose Uncapped** choice is also persistent and does
-not require recording. Shift+F7 (the VRIK recorder) cannot turn its XR-token wait back on. Extra hand
-lead, same-frame weapon placement, rigid-grip behavior and the additional elbow
-trial are separate experiments. Extra prediction does not remove a stale pose.
-No historical elbow preset is established as a natural-motion solution; the
-corrective review does not prescribe another settings sweep.
+**Motion timing** (`VrMotionTrialD67`, Home > VRIK EXPERIMENTS, or EXPERIMENTS / LIVE SETTINGS > VRIK > "Hand
+presentation timing"). applies and saves at once, no restart.
 
-Experiments > Elbow preference has three choices: D86 DEFAULT (the D86 elbow
-destination), R89 HAND-GUIDED (`VrElbowSolverR89=true`) and FRIK TRIAL
-(`VrFrikElbows`). hand-guided points the elbow from your hand: behind the wrist
-along the hand and on the little finger side, mixed with the body pole and
-pushed out of the chest. one solver for free arms and bow arms, it keeps its
-history when a comparison rung changes, so the elbow does not snap.
-
-Keep the wrist on the controller. Arm reach is handled through the body and
-shoulders within fixed arm lengths. Smoothing that makes the hands trail behind
-is not an acceptable substitute for correct timing.
-
-### Fresh Pose Uncapped
-
-Choose **Home > VRIK EXPERIMENTS > Fresh Pose Uncapped**, or use
-**Home > EXPERIMENTS / LIVE SETTINGS > VRIK+ > Motion timing**. Existing
-developer-mode page visibility remains in effect. The button applies and saves
-the choice immediately; it does not need a new game start.
-
-| Choice | `VrMotionTrialD67` | Behavior |
+| choice | value | what |
 | --- | ---: | --- |
-| BASELINE motion | 0 | Existing baseline timing. Separate explicit legacy gates retain their old behavior. |
-| FRESH POSE timing | 2 | Existing fresh-publication token pacing. Still the missing-key default. |
-| Fresh Pose Uncapped | 4 | No native-frame XR-token wait; extra pose-only refresh before the ordinary native update. |
-| ELBOW reach preference | 3 | Existing elbow comparison and timing behavior. |
+| BASELINE motion | 0 | the old baseline timing. |
+| FRESH POSE timing | 2 | fresh-publication token pacing. |
+| ELBOW reach preference | 3 | the elbow comparison timing. |
+| Fresh Pose Uncapped | 4 | no native-frame XR-token wait, one extra pose-only refresh before the native update. shipped, and the default when the key is missing (since R124). |
 
-With the ordinary NOW camera source, Uncapped samples the head and grips at the
-current converted OpenXR time. With the predicted camera source it uses the
-latest qualified runtime target. Existing optional extra hand lead is preserved;
-the new mode does not enable or increase it. Cached-head and offset camera
-sources retain their established semantics instead of combining an early head
-with independently advanced hands. No camera-source setting is changed.
+Uncapped samples head and grips at the current OpenXR time with the NOW camera source, with the predicted camera
+source it uses the latest runtime target. the head in that sample is only the hands' reference, it never replaces the
+camera head. a busy lock or a stale target falls back to the last completed sample with its real age. "uncapped" means
+no token pacing from the mod - it does not override an FPS limiter, the headset refresh or the real CPU/GPU cost.
+Shift+F7 records it without turning the token wait back on.
 
-A busy pose/action-space lock, unavailable clock, obsolete predicted target or
-rejected publication falls back to the completed snapshot with its original
-age. Partial tracking loss retains existing per-hand validity and grace rules.
-The mode does not generate extra action edges, run an extra native update, or
-change stereo eye order. The later head refresh is kept; it is not forced to
-reuse the earlier hand sample.
+**Elbow preference** (Experiments > VRIK, last row): D86 DEFAULT, R89 HAND-GUIDED (`VrElbowSolverR89`), FRIK TRIAL
+(`VrFrikElbows`, shipped ON) and ELBOW REACH PREFERENCE (`VrElbowPreferenceD67`, the old D67 bottom elbow). when the INI
+has more than one of them on, the solver takes them in this order: hand-guided, reach preference, FRIK. hand-guided points the elbow from your hand: behind the wrist along the hand and on the
+little finger side, mixed with the body pole and pushed out of the chest. one solver for free arms and bow arms, it
+keeps its history when a comparison changes so the elbow does not snap. none of them is "the natural one" yet.
 
-"Uncapped" means this mode removes the mod's native-frame token pacing. It does
-not override a separately enabled FPS limiter, headset refresh, runtime wait,
-driver policy or actual CPU/GPU cost. Final rendered hand continuity and the
-resulting FPS still need a game/headset run.
+keep the wrist on the controller. arm reach goes through the body and shoulders with fixed arm lengths. smoothing that
+makes the hands trail behind is not a fix for timing.
 
-Two-hand primary bias controls how strongly the main hand leads the supported
-weapon. The supplied current profile uses 0.40; this patch preserves it. Grip offsets are visual alignment settings,
-not a way to extend a weapon's native attack reach.
+two-hand primary bias (`VrTwoHandPrimaryBiasD65`) says how strongly the main hand leads a two-handed weapon (shipped 0.40). grip offsets are visual
+alignment, not a way to get more attack reach.
 
-## Contact
+**Two-hand weight feel** (`VrTwoHandWeightFeelR90`, Experiments > GEAR, OFF). ON lets the weapon weight slider
+(`VrWeaponWeightFeel`, lower = heavier) also slow down how fast a two-handed weapon turns. the two-hand stop without
+spring-back works either way.
 
-Experiments > Hands > Free-hand contact detail has three choices:
+## contact
 
-- NORMAL: the existing five-point palm contact.
-- PRECISE: the existing palm/finger contact and finger fitting.
-- BALANCED: five palm points plus stable thumb/index tips, 2 mm clearance,
-  without finger fitting. This replaces the old Performance choice, which
-  skipped world contact. It keeps the same 18-ray / 1 ms query ceiling.
+Experiments > VRIK > Free-hand contact detail:
+- NORMAL: five-point palm contact.
+- PRECISE: palm/finger contact with finger fitting.
+- BALANCED: five palm points plus thumb/index tips, 2 mm clearance, no finger fitting. same 18-ray / 1 ms query limit.
 
-Balanced contact is a new comparison, not a headset-proven default. Existing
-saved contact choices are kept. All modes use high-resolution timing when
-releasing a measured contact correction. Free controller motion is not filtered.
-The permissive five-point station path remains separate, as do hammer, tongs
-and held-workpiece contact. None of these options creates arbitrary rigid bodies.
+free controller motion is not filtered. station contact, hammer, tongs and the held workpiece have their own simpler
+contact. none of these create rigid bodies.
 
-F9 records physics independently of the gameplay choices. Native hand capsules,
-corpse dragging, existing small rigid objects and living-NPC experiments remain
-separate features. The corpse choice now persists and runs without physical
-combat or a recorder; it still requires a qualified native dead body and empty
-hand. An enabled preference does not prove that the body moved.
+## objects and corpses
 
-## Crafting and instant actions
+- **Small props in the hand** (`VrStaticPropGrabR89`, Experiments > Objects page 2, shipped ON): grab small scenery
+  props. two hands can't claim the same entity.
+- **Loose scenery props (swap)** (`VrSceneryPropSwapR100`, Objects page 3 since R159, shipped ON): Grip on a mug/plate/candle that is
+  level mesh makes it a loose prop you can hold. only where the mesh has a usable path.
+- **Scenery props: size** (`VrSceneryBigPropsR158`, Experiments > Objects page 3, shipped OFF): SMALL = up to 65 cm
+  across, same as before. UP TO 1 M also takes stools, baskets and small crates. mass stays capped (1.5 kg loose copy,
+  3 kg scenery) so a big one carries like a light box, one hand only. reach to the box centre grows to max 55 cm
+  so you can grab it at the edge
+- **Corpse dragging** (Experiments > NPCS "Physical corpse dragging"): needs a dead body from the game and an empty
+  hand, no recorder or physical combat needed.
+- **Corpse search** (`VrCorpseSearchSqueezeR89`, VRIK page 2, only used while corpse dragging is ON). ALWAYS (shipped):
+  every empty hand looks for a body 10 times a second, so a fast squeeze on a limb is caught. ONLY ON SQUEEZE: the
+  search runs only for 700 ms after the grip passes 0.15, no cost with open hands, but a squeeze that closes inside one
+  frame can miss (squeeze again).
+- dog petting (`VrPetGestureD59`) and riding hands are ON. petting is on Objects, riding hands on Body page 2. native
+  mounting finishes, then VRIK starts after one second.
 
-Native keeps the original interaction. Semi keeps selected authored tool phases.
-Free and 6DOF use tracked movement at their connected boundaries. Smithing's
-optional semi anchor is only for the left workpiece on the anvil; it should not
-lock the right wrist to the bellows.
+## crossbow reload
 
-Instant interactions, crafting, fast reload transitions and combat have separate
-controls. Physical crossbow reload is independent of fast reload transitions:
-your hand earns string/tool travel and bolt placement even when faster native
-trailing animation is OFF.
+**Crossbow reload route** (`VrCrossbowReloadRouteR96`, Experiments > INSTANT, last row, needs
+`VrCrossbowReloadD65C=true`). HAND ONLY (shipped, the bow pattern): the game's reload request waits while your hands do
+it.
+- light crossbow: hold it in the left hand, grip the string with the right hand and pull it back (about 9 cm of
+  string travel).
+- goat's foot / cranequin: grip at the chest takes the game's real spanner into the right hand (native cocking action,
+  driven by the hand). heavy and medium can also grip the string at the front and pull it back by hand (R111/R117
+  switches in the INI).
+- all of them: grip behind the right shoulder takes a bolt into the right hand (same native factory and same hand
+  writer as the bow arrow), open the hand on the rail to load.
+- if the hands stay idle for 1.5 s after the game asked for a reload, the game reloads by itself.
+- an incomplete pull, regripping, or a bolt released away from the rail pauses the same reload, it does not finish it.
 
-The saved alchemy 8x setting is a ceiling for Henry's qualified pickup/return
-and pre-work turning segments. It is not a multiplier for the whole station.
-Book and station changes, distillation, actual pouring, grinding, bellows and
-native work/effects retain their existing native or gesture-owned timing. The
-carafe turn may accelerate only with current positive gesture credit and before
-the earliest qualified work/effect boundary. Stopping or losing that gesture
-cannot authorize continued fast turning. No native work event is sought past or
-synthetically fired. A delayed or unqualified attachment is still a real limit;
-speed does not replace missing ownership or replay an inventory effect.
+NATIVE-DRIVEN (false) is the older route where the hands ride the game's reload animation. the old key
+`VrCrossbowHandOnlyR89` is not read anymore. Instant reloads changes only the speed of the native tail, not who does
+the reload.
 
-Head hover can show ingredient names while the hand targets something else.
-Looking is presentation; gripping is an action. The two must not fight each other.
-Station prompts use 90% of their native size by default, twice the tested 45% value. Experiments > Immersion
-has CRAFT HINTS size choices and TIMED HINTS. With timed hints on, they appear for
-ten seconds at station entry or a new native work step. Look at an open palm to
-show them again. The size change keeps their original positions and leaves
-full-screen effects alone. This source change still needs a game check.
+## crafting and instant actions
 
-Two-hand weight feel (R90, `VrTwoHandWeightFeelR90`, Experiments > GEAR, last row
-"Two-hand weight feel", OFF by default). OFF keeps the two-hand heft as it is. ON lets
-the weapon weight slider (`VrWeaponWeightFeel`, lower = heavier) also slow down how
-fast a weapon held with both hands turns. the two-hand stop without spring-back works
-with both settings.
+Native keeps the original interaction. Semi keeps selected tool phases. Free and 6DOF use tracked movement where they
+connect. instant interactions, crafting, fast reload transitions and combat have separate switches.
 
-Temporal stereo publishes only after the finished RIGHT image has been recorded
-and submitted on its matching queue. A timeout does not authorize an earlier
-main-target copy. Resource resize and per-eye reset recovery are automatic.
-Startup failures produce a bounded file receipt even with F2 off; detailed
-capture measurements still require F2. There is no startup-fallback switch.
+the alchemy 8x setting is a ceiling for Henry's pickup/return and pre-work turning, not a multiplier for the whole
+station. book and station changes, distillation, pouring, grinding, bellows and the native work/effects keep their own
+timing. speed does not replace a missing ownership or replay an inventory effect.
 
-Dice (D85 trial, `VrDiceHandsD85`, Experiments > Objects page 2 "Dice: point to
-choose", OFF by default). when ON and it is your turn to pick dice, point the right
-hand at a die and the game's own dice cursor jumps to it, then press A to keep or
-unkeep it like on the gamepad. X, Y, B and the stick work the same as before. the
-row shows why it falls back to the gamepad (no hand ray, other game version, game
-refused the cursor). taking, shaking and putting down the cup is still Henry's own
-animation: the throw is started by C_ThrowDiceAction and nothing proves yet which
-clock fires its throw event, so we dont pause it.
+head hover can show ingredient names while the hand targets something else. looking is presentation, gripping is the
+action.
 
-Small props in the hand (`VrStaticPropGrabR89`, Experiments > Objects page 2)
-is OFF by default. This is an unfinished scenery-prop experiment. It now prevents
-two hands claiming the same entity and retains failed physics restoration for
-retry. A script completing still cannot prove that a void physics call changed
-the native body. Ordinary native pickable items retain their existing route.
+crafting prompt size: **Crafting / minigame icon size** slider on the VR HUD page (`VrMinigamePromptScale`, shipped 0.4). at a
+station the size is sent again every second. Experiments > Immersion has CRAFT HINTS sizes and TIMED HINTS (hints
+show for ten seconds at station entry or a new work step, look at an open palm to see them again). Immersion > SHOW
+HINTS is the game's own wh_ui_ShowHints, hints off wins over the timer.
 
-Crossbow reload route (R96, `VrCrossbowReloadRouteR96`, Experiments > INSTANT page, last row;
-needs `VrCrossbowReloadD65C=true`). HAND ONLY is the default (bow pattern): the game's
-reload request is held back while your hands do the reload. Light crossbow: pull the
-string back with the right hand. Goat's foot / cranequin: grip at the chest takes the
-game's real spanner into the right hand (native cocking action, hand driven). All three:
-grip behind the right shoulder takes a bolt into the right hand (same native factory and
-same hand writer as the bow arrow), open the hand on the rail to load. Hands idle for
-1.5 s after the game asked for a reload: the game reloads natively. NATIVE-DRIVEN (false)
-is the older XR34 route where the hands ride the game's reload action. The old key
-`VrCrossbowHandOnlyR89` is no longer read (R92-R95 always wrote it as false).
+**Smith LT anvil assist** (`VrSmithSemiAnchorsD67`, shipped ON): hold the left Trigger at the anvil for the original
+anvil placement of the workpiece, release = the left hand is tracked again. only at the anvil in 6DOF. no effect on
+the right-hand hammer.
 
-Corpse search (R90, `VrCorpseSearchSqueezeR89`, Experiments > Hands page 2 last row,
-only used while corpse dragging is ON). ALWAYS (default): every empty hand looks for a
-dead body 10 times a second, so a fast squeeze on a limb is caught. ONLY ON SQUEEZE: the
-search runs only in the 700 ms after the grip passes 0.15, no cost while the hands are
-open, but a squeeze that goes from open to closed inside one frame can miss the body
-(squeeze again).
+**Dice: point to choose** (`VrDiceHandsD85`, Experiments > Objects page 2, OFF). when it is your turn to pick dice,
+point the right hand at a die and the game's dice cursor jumps to it, then A keeps/unkeeps it like on the gamepad. X, Y,
+B and the stick work as before. the row says why it falls back to the gamepad. taking, shaking and putting down the cup
+is still Henry's own animation.
 
-Immersion > SHOW HINTS controls the native wh_ui_ShowHints setting. It is separate
-from the timer. Turning native hints off wins over a timed reveal. The old global
-HUD sliders still control their original global layout; station-local prompt
-size is no longer forced to 60% by that older path.
+## combat
 
-## Combat
+stab follow-through, unarmed clinch and masterstrike reactions have their own switches on the second combat page in
+Experiments.
 
-Stab follow-through, unarmed clinch and masterstrike reactions have independent
-switches on the second combat page in Experiments. The old combined preference
-is only a fallback when those individual choices have not been saved.
+punch travel is in metres. more travel = fewer tiny false punches, but short real punches can be rejected. walking and
+pulling a fist back must not count as a strike. swing and thrust sensitivity fail in different ways, one energy setting
+does not explain every missed hit.
 
-Punch travel is measured in metres. Increasing it reduces tiny false gestures
-but can also reject short real punches. Walking and retracting a fist must not
-count as a new strike. Swing and thrust sensitivity have different failure modes;
-do not use a single energy setting to explain every missed hit.
+combo and defence options leave eligibility, perks, stamina, armor and results to the game. a visible reaction is not
+proof that a named combo was accepted.
 
-Combo and defensive-window options leave native eligibility, perks, stamina,
-armor and outcomes in the game. A visible reaction is not proof that a complete
-named combo was accepted.
+NPC defence by skill (`VrDirectNpcBlockBySkill`, shipped ON): block raise, parry raise and dodge clip speed come from the
+NPC's own melee skill. it also rolls once per swing if your opponent defends: 25 % at skill 0, 75 % at skill 30 and
+more (the game's wh_cs_ForceBlock, only in a real fight: Henry in combat, no dialogue / cutscene / menu; R155). `VrDirectNpcBlock` 1 = 65 %, 2 = always,
+3 = always perfect block. never with a practice / quest weapon in your hand (the wooden sword of the prologue sparring, R156): the sparring
+partner is scripted to let you hit him, he is not forced to block. note: `VrDirectNpcBlock` 0 does not switch the roll off while BY SKILL is on.
 
-## Walking direction
+**Tutorials (training fights)** (`VrTutorialNativeHitsR159`, Experiments > VRIK page 2 row 5, R161: 0 OFF / 1 NATIVE HITS / 2 GAME TIMING, shipped 0 since R162 (GAME TIMING gave 0 chained follow-ups in VR); old true = 1, false = 0, missing = 0). GAME TIMING: with the practice weapon the mod does not shorten the native time-to-hit (`VrNativeHitTime`) and the motion attack clock runs at the native rate, decided once per swing at its start, F2 row `R161 TUTORIAL_TIMING on/off mode=...`; the direct route stays as with OFF. NATIVE HITS (the old R159, with it 5 of 6 chained follow-ups got no hit in the sparring): while you hold a
+practice / quest weapon (the wooden sword of the prologue sparring with Capon) every swing hits only through the game's own
+attack in its strike window, the mod's direct hit (late contact, VR intent hit) is off for that swing. the game's tutorial
+then sees the hits the way it expects them. a contact the native strike window doesn't reach in time is not a hit there, so
+swing like the game wants it - wait until the sword is back in guard. decided once per swing, a change in the middle of a
+swing doesn't drop or double it. real weapon in hand = nothing changes. F2 log: `R159 TUTORIAL_NATIVE on/off reason=...`.
+only the weapon is used to see a training fight; the arranged fight flag of the quest recorder (Shift+F5) is not read for this
+
+**Training fights: vanilla NPCs** (`VrTrainingVanillaNpcR163`, Experiments > VRIK page 2 row 4, R163, default ON). while you hold
+a practice / quest weapon (the same detector as above, now also with native controls) no mod feature writes to any NPC: npc
+defence speed (R146), force block, flinch, blade reaction zone (NR1 / stamina hits), lively npc + listening gestures (D73/D76),
+npc look at the headset, unarmed spacing, npc difficulty, counter stab, stagger rule, directional block and defence timing
+(C39), and the global npc cvars (H3 router windows, D70 dodge window, R52 shared rules). what a feature still holds on an npc is
+given back at once (force block cvar, cvar leases, npc life cleanup, flinch pose). your own VR (swing, announced attack, body,
+camera, input, kicks) stays. when the practice weapon is gone everything runs again (no latch). F2 log: `R163 TRAINING_VANILLA
+on held=... restored=...` / `off heldMs=...`; always (few rows): `R163 TRAINING_VANILLA ... held-off writes (all/tutor): ...`.
+OFF = all NPC features as before (a bisect switch: if the sparring scene still stops with it ON, the mod's NPC writes are not it).
+
+## walking direction
 
 Immersive left-stick movement follows the recentered headset heading by default:
 turn your head toward a direction and push forward to walk that way. The VR
@@ -265,7 +235,7 @@ CONFIG > CONTROLS button cycles between `WALK: HMD` and `WALK: STICK`; the INI
 key is `VrHmdWalkingDirectionR134`. Menus, dialogue navigation, authored
 minigames and roomscale follow/dodge input keep their own directions.
 
-## Hand tracking
+## hand tracking
 
 Home > VRIK includes **HANDS 1:1 ON / HANDS LEGACY**. The default LEGACY mode
 keeps the existing F8-calibrated hand mapping. 1:1 mode maps each free hand's
@@ -289,109 +259,50 @@ LEFT** zero one hand. The offsets apply in both the 1:1 and the legacy hand
 modes. INI keys are `VrHandOffsetR150_<R|L>_<PosX|PosY|PosZ|Pitch|Yaw|Roll>`,
 all defaulting to 0.
 
-## Room movement and dodge
+## room movement and dodge
 
-The physical roomscale experiment uses measured horizontal HMD displacement
-alongside ordinary joystick input. The older offset-follow option is a different
-method and should not be called one-to-one room movement. D84 connects explicit
-physical-walking controls to the finite D76 path and keeps their selections in
-sync. An unrelated menu apply preserves a prior explicit choice. F1 changes
-BODY only. Select physical walking ON once to replace a preserved legacy follow
-choice; saved OFF stays OFF.
+physical walking uses the measured horizontal HMD movement together with the stick. the older offset-follow option is
+a different thing and not one-to-one room movement. F1 changes body follow only.
 
-The fresh-install lean threshold is 10 cm; saved values are retained. Lowering the head beyond it reserves the movement
-for leaning rather than walking. A level-height lean and a step cannot be
-distinguished perfectly with only a headset. Native collision may shorten a step
-at a wall. Recenter must not replay old room movement.
+lean height (`VrRoomscaleLeanHeightD70`, metres below the recentered height, 0..0.12, shipped 0.12). lowering the
+head past it means leaning, not walking. a level lean and a step
+can't be told apart perfectly with only a headset. native collision can shorten a step at a wall. recenter does not
+replay old movement.
 
-Headset dodge only requests side or backward dodges, with a speed threshold,
-quiet rearm and cooldown. It should not dodge forward when leaning into a punch.
-The game still decides whether the dodge is legal or perfect. Physical walking
-and headset dodge now have separate buttons. Enabling BODY preserves both
-choices: the dodge request path is independent of full 6DOF or physical walking.
-R2 removes the one-time movement-option override from R1. It preserves current
-movement choices, calibration, lean threshold and accepted hand timing. The
-exit-saved profile cannot identify which transport was active during the failed
-test, and changing a default is not a repair of directional movement or dodges.
+headset dodge only asks for side or backward dodges, with a speed threshold, quiet rearm and cooldown. it should not
+dodge forward when you lean into a punch. the game decides if the dodge is legal. physical walking and headset dodge
+are separate buttons.
 
 ## HUD, map and glyphs
 
-The immersive open-palm HUD uses the **left hand for compass** and the **right
-hand for health/vitals/buffs**. A current open hand must face the HMD and be
-looked at. Known trigger contact, grip, buttons or a held physical item refuse
-the open-hand condition. The original one-second deliberate-look dwell remains;
-the reveal then lasts at most three seconds. Closing the hand, turning it away,
-losing tracking or looking away hides it immediately. A continuous stare cannot
-restart the timer; disengage before a new reveal. The check uses head direction,
-not an eye-tracking sensor.
+palm HUD: look at your open **left** hand for the compass, open **right** hand for health/vitals/buffs. the hand has to
+face the headset and be looked at. trigger, grip, buttons or a held item cancel it. one second of looking, then it
+shows max three seconds. closing or turning the hand, losing tracking or looking away hides it. it uses head
+direction, not eye tracking.
 
-The uploaded profile retains the ordinary held-paper backend. D81 restores
-simple dark POI marks and removes repeated lookup/memory-query work. The D80 run
-was slow while the map was open; recovered performance is not yet measured.
-D84 map profiling requires F2 or Shift+F2; map opening alone does not start it.
-The alternate renderer remains experimental. Current quest markers come from
-the native compass subset, not every objective in the world.
+more HUD switches are on the VR HUD page and in the INI: Minimal HUD (`VrMinimalHudR141`), HUD at infinity, combat
+crosshair size, weapon/potion slots hidden until thumbrest + stick. each has its INI comment.
 
-Xbox and PlayStation glyph choices change the pictures, not the button layout.
-Empty symbols are a font/movie problem, not a reason to remap controls.
-Full-field fades, blood and cinematic masks must stay full-field.
+R160: without developer mode the VR HUD page is one simple page: **Icon size** (`VrUiUnifiedScaleR160`, 100% = every
+HUD element as big as its own size setting, the crafting icons are not touched), **Crafting / minigame icon size**
+(`VrMinigamePromptScale`), HUD mode IMMERSIVE (palm glance, `VrContextualHud`) / MINIMAL IMMERSIVE (`VrMinimalHudR141`) /
+NORMAL (both off), eleven [X]/[ ] ticks (block message, tutorials, compass, status icons, lower icons, quick slots
+fade, combat crosshair, dot crosshair, cinematic bars, lockpick solid, slow HUD follow) and the HUD distance. developer mode keeps the
+old pages, INTERACTION / PROMPTS has the tutorial box position too (`VrUiTutorialYR160`, + = down, 0 = game place).
 
-## Optional gore and backups
+the map uses the held paper. quest markers come from the native compass subset, not every objective in the world.
+map profiling needs F2 or Shift+F2.
 
-Gore requires its own optional package. Main gameplay works without it. Cosmetic
-cutting does not replace native death or damage checks, and reliable limb removal
-is still unfinished.
+Xbox and PlayStation glyphs change the pictures, not the button layout.
 
-The old stowed-bow and obsolete migration backups are no longer created. One
-last-good INI checkpoint remains to protect settings writes and calibration.
-It is not read as a gameplay preference and does not enable an old bow behavior.
-Do not replace the active profile with an old backup to fix a current feature.
+## optional gore
 
-## Accepted defaults and readable controls
+the gore button cycles OFF, HEADS ONLY, HEADS + LIMBS. it needs the separate gore pak, which is never merged into the
+main one. main gameplay works without it. cosmetic cutting doesn't replace the game's death or damage checks.
+LIMBS means arms only (forearm at the elbow), legs are never cut (R153). the extra wound cap meshes from the gore pak are
+off by default, `KCD2VR_Gore.limbCaps=true` in the console turns them on again.
 
-Dog petting and riding hands default ON when the key is absent. A saved OFF
-still means OFF; updating does not replace your INI. Petting is on Objects;
-riding hands are on Body, page 2. Native mounting completes, then normal VRIK
-starts after one second without requiring a weapon draw. Dismounting and
-protected native actions use the existing action rules. Washing is separate.
+## FPS
 
-The experiment rows use larger, high-contrast bold explanations. The layout and
-saved key names are unchanged. The legacy bow arm-line switch is described as
-inactive; the separate physical shot-direction option is the active aim path.
-
-## Optional gore
-
-The existing gore button cycles OFF, HEADS ONLY, HEADS + LIMBS. It preserves the
-saved head style. Limbs stay off unless selected; an existing explicit saved
-choice is retained. These modes require the separate optional gore package,
-which is never merged into the main companion.
-
-## Smithing anvil assistance
-
-In Experiments, the crafting group has **Smith LT anvil assist**. Enable it to
-hold the left Trigger for the original anvil placement; releasing immediately
-returns the left hand to tracked control. It applies only at the anvil in 6DOF,
-not while heating or moving between stations. It uses the existing
-`VrSmithSemiAnchorsD67` setting and is ON in this repair baseline. It does not add
-a smoothing delay or affect the right-hand hammer.
-
-## Historical migrations and the current profile
-
-D81 originally migrated prompts, smithing assistance and selected NPC/knife
-preferences. Its marker prevents repeated application. Those historical defaults
-must not be read as the user's current live choices. The current starter INI
-preserves the latest uploaded exit profile and calibration; only the requested
-station prompt scale of 0.90 and the R1 migration marker differ in value. The
-retained R1 marker now controls only that prompt migration; it makes no movement
-write and respects later prompt changes.
-
-D85R5 restored the throwing-knife service at the left hip despite the legacy
-VrLeftChestKnives key name. Earlier notes saying acquisition is always retired
-are historical. Native eligible stock and a complete throw remain separate
-requirements; the current review does not grant inventory or certify them.
-
-The bundled profile has VrFpsCapEnabled=false and VrFpsCap=90. The latter is a
-stored target while the cap is disabled. These saved values cannot establish
-whether a cap was active during an earlier run. R2 added no new FPS limit or
-stereo-pacing change. R3 adds the separate opt-in uncapped route described above;
-it preserves the existing limiter settings and the mode-2 default.
+`VrFpsCapEnabled=false`, `VrFpsCap=90` shipped. the cap value is only stored while the cap is off. for the smoothest
+head motion cap the game at the headset refresh in the GPU driver (NVIDIA / AMD frame limiter).

@@ -1320,7 +1320,9 @@ static bool BeginCoherent6689(CoherentTransaction6689& tx,void* pose,void* owner
         // The native book/parchment grip already exists in this transaction's
         // untouched parent-local finger pose. Keep it; only the wrist/arms are
         // controller-owned. Do not turn menu Grip/Trigger into an empty fist.
-        const bool claimedFingerT24=HandClaimBlockedT24(side,reinterpret_cast<std::uintptr_t>(s.character),tx.epoch,g_weapon_request_epoch6694.load());
+        // R155: a hand carrying the instant-pickup item (the mod's own world hold) curls on Grip below instead of
+        // keeping the native idle locals (staged_pickup596c2.inl PropHoldOwnsHandR155).
+        const bool claimedFingerT24=HandClaimBlockedT24(side,reinterpret_cast<std::uintptr_t>(s.character),tx.epoch,g_weapon_request_epoch6694.load())&&!PropHoldOwnsHandR155(side);
         bool objectFingers=(tx.reloadWorkingHandXR34&&(reloadHandPolicyR95.nativeFingers[side]||contactItemState164R1[side]!=0))||claimedFingerT24||(!nativeFingerCapture&&(readingVisual32||nativePassengerHand46[side]));
         bool combatFistH34=false;
         const bool stringFingers169r2=side==0&&tx.physicalActive&&tx.physicalOutput.bowHand169r2;

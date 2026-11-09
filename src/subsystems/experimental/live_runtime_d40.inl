@@ -29,6 +29,8 @@
         d40.quickSlotFadeR112=kcd2vr::ui_hud_r112::quickSlotFade.load(std::memory_order_acquire); // R112
         d40.hudInfinityR125=kcd2vr::ui_surface_geometry::hudInfinityR125.load(std::memory_order_acquire); // R125
         d40.combatCrossR125=kcd2vr::ui_hud_r112::combatCrossR125.load(std::memory_order_acquire); // R125
+        d40.minimalHudR141=kcd2vr::ui_minimal_hud_r141::enabled.load(std::memory_order_acquire); // R141
+        d40.hideTutorialsR141=kcd2vr::ui_minimal_hud_r141::hideTutorials.load(std::memory_order_acquire); // R141
         d40.alchemyViewSelectR116=kcd2vr::subsystems::alchemy::head_select_r116::enabled.load(std::memory_order_acquire); // R116
         d40.swingWhooshR116=kcd2vr::swing_whoosh_r116::enabled.load(std::memory_order_acquire); // R116
         d40.corpseSqueezeSearchR90=lab58::corpseSqueezeSearchR90.load(std::memory_order_acquire); // R90
@@ -42,8 +44,14 @@
         d40.eyeRayR121=kcd2vr::eye_ray_r121::enabled.load(std::memory_order_acquire); // R121
         d40.meleeGripR123=kcd2vr::melee_grip_r123::enabled.load(std::memory_order_acquire); // R123
         d40.propImpactSoundR124=kcd2vr::prop_impact_sound_r124::enabled.load(std::memory_order_acquire); // R124
+        d40.sceneryBigPropsR158=kcd2vr::brush_swap_r100::bigPropsR158.load(std::memory_order_acquire); // R158
         d40.impaleFastDeathR106=kcd2vr::impale_death_speed_r106::enabled.load(std::memory_order_acquire); // R106
         d40.impaleFullDepthR128=kcd2vr::gore32::impaleFullDepthR128.load(std::memory_order_acquire); // R128
+        d40.lockpickOpaqueR141=kcd2vr::hud_lock_alpha_r141::enabled.load(std::memory_order_acquire); // R141
+        d40.eyeHoldR141=kcd2vr::xr_eye_hold_r141::enabled.load(std::memory_order_acquire); // R141
+        d40.rideFollowXR147=kcd2vr::ride_follow_r147::enabled.load(std::memory_order_acquire); // R147
+        d40.tutorialNativeHitsR159=kcd2vr::tutorial_native_r159::mode.load(std::memory_order_acquire); // R159 / R161 mode 0..2 (every reader clamps)
+        d40.trainingVanillaNpcR163=kcd2vr::training_vanilla_r163::enabled.load(std::memory_order_acquire); // R163
         d40.cinematicBarsR107=kcd2vr::cinematic_bars_r107::enabled.load(std::memory_order_acquire); // R107
         d40.dodgeWindowD70=dodge_window_d70::Factor();
         d40.hudWalkoffD70=claude_d70::HudWalkoff();
@@ -146,6 +154,8 @@
         kcd2vr::ui_hud_r112::quickSlotFade.store(d40.quickSlotFadeR112,std::memory_order_release); // R112
         kcd2vr::ui_surface_geometry::hudInfinityR125.store(d40.hudInfinityR125,std::memory_order_release); // R125: live, next XR frame
         kcd2vr::ui_hud_r112::combatCrossR125.store(d40.combatCrossR125,std::memory_order_release); // R125: live, next HUD update
+        kcd2vr::ui_minimal_hud_r141::enabled.store(d40.minimalHudR141,std::memory_order_release); // R141: live, next HUD frame
+        kcd2vr::ui_minimal_hud_r141::hideTutorials.store(d40.hideTutorialsR141,std::memory_order_release); // R141: live, next frame
         kcd2vr::subsystems::alchemy::head_select_r116::enabled.store(d40.alchemyViewSelectR116,std::memory_order_release); // R116: live
         kcd2vr::swing_whoosh_r116::enabled.store(d40.swingWhooshR116,std::memory_order_release); // R116: live, next swing
         lab58::corpseSqueezeSearchR90.store(d40.corpseSqueezeSearchR90,std::memory_order_release); // R90
@@ -159,8 +169,14 @@
         kcd2vr::eye_ray_r121::enabled.store(d40.eyeRayR121,std::memory_order_release); // R121: live, next look ray
         kcd2vr::melee_grip_r123::enabled.store(d40.meleeGripR123,std::memory_order_release); // R123: live, next grip sample
         kcd2vr::prop_impact_sound_r124::enabled.store(d40.propImpactSoundR124,std::memory_order_release); // R124: live, next impact
+        kcd2vr::brush_swap_r100::bigPropsR158.store(d40.sceneryBigPropsR158,std::memory_order_release); // R158: live, next Grip
         kcd2vr::impale_death_speed_r106::enabled.store(d40.impaleFastDeathR106,std::memory_order_release); // R106
         kcd2vr::gore32::impaleFullDepthR128.store(d40.impaleFullDepthR128,std::memory_order_release); // R128: live, next killing stab
+        kcd2vr::hud_lock_alpha_r141::enabled.store(d40.lockpickOpaqueR141,std::memory_order_release); // R141: live, next XR frame
+        kcd2vr::xr_eye_hold_r141::enabled.store(d40.eyeHoldR141,std::memory_order_release); // R141: live, next XR frame
+        kcd2vr::ride_follow_r147::enabled.store(d40.rideFollowXR147,std::memory_order_release); // R147: live, next X press
+        kcd2vr::tutorial_native_r159::mode.store(d40.tutorialNativeHitsR159,std::memory_order_release); // R159 / R161: live, next swing (every reader clamps)
+        kcd2vr::training_vanilla_r163::enabled.store(d40.trainingVanillaNpcR163,std::memory_order_release); // R163: live, next control tick
         kcd2vr::cinematic_bars_r107::enabled.store(d40.cinematicBarsR107,std::memory_order_release); // R107
         dodge_window_d70::SetFactor(d40.dodgeWindowD70);
         claude_d70::SetHudWalkoff(d40.hudWalkoffD70);
@@ -251,6 +267,8 @@
     ok=wb("VrHudQuickSlotFadeR112",kcd2vr::ui_hud_r112::quickSlotFade.load(std::memory_order_acquire))&&ok; // R112
     ok=wb("VrHudInfinityR125",kcd2vr::ui_surface_geometry::hudInfinityR125.load(std::memory_order_acquire))&&ok; // R125
     ok=wb("VrCombatCrossR125",kcd2vr::ui_hud_r112::combatCrossR125.load(std::memory_order_acquire))&&ok; // R125
+    ok=wb("VrMinimalHudR141",kcd2vr::ui_minimal_hud_r141::enabled.load(std::memory_order_acquire))&&ok; // R141
+    ok=wb("VrHideTutorialsR141",kcd2vr::ui_minimal_hud_r141::hideTutorials.load(std::memory_order_acquire))&&ok; // R141
     ok=wb("VrAlchemyViewSelectR116",kcd2vr::subsystems::alchemy::head_select_r116::enabled.load(std::memory_order_acquire))&&ok; // R116
     ok=wb("VrSwingWhooshR116",kcd2vr::swing_whoosh_r116::enabled.load(std::memory_order_acquire))&&ok; // R116
     ok=wb("VrCorpseSearchSqueezeR89",lab58::corpseSqueezeSearchR90.load(std::memory_order_acquire))&&ok; // R90
@@ -264,8 +282,14 @@
     ok=wb("VrInteractionEyeRayR121",kcd2vr::eye_ray_r121::enabled.load(std::memory_order_acquire))&&ok; // R121
     ok=wb(kcd2vr::melee_grip_r123::kKey,kcd2vr::melee_grip_r123::enabled.load(std::memory_order_acquire))&&ok; // R123
     ok=wb(kcd2vr::prop_impact_sound_r124::kKey,kcd2vr::prop_impact_sound_r124::enabled.load(std::memory_order_acquire))&&ok; // R124
+    ok=wb("VrSceneryBigPropsR158",kcd2vr::brush_swap_r100::bigPropsR158.load(std::memory_order_acquire))&&ok; // R158
     ok=wb("VrImpaleFastDeathR106",kcd2vr::impale_death_speed_r106::enabled.load(std::memory_order_acquire))&&ok; // R106
     ok=wb("VrImpaleFullDepthR128",kcd2vr::gore32::impaleFullDepthR128.load(std::memory_order_acquire))&&ok; // R128
+    ok=wb("VrLockpickOpaqueR141",kcd2vr::hud_lock_alpha_r141::enabled.load(std::memory_order_acquire))&&ok; // R141
+    ok=wb("VrEyeHoldR141",kcd2vr::xr_eye_hold_r141::enabled.load(std::memory_order_acquire))&&ok; // R141
+    ok=wb(kcd2vr::ride_follow_r147::kKey,kcd2vr::ride_follow_r147::enabled.load(std::memory_order_acquire))&&ok; // R147
+    ok=wb(kcd2vr::training_vanilla_r163::kKey,kcd2vr::training_vanilla_r163::enabled.load(std::memory_order_acquire))&&ok; // R163
+    ok=wi("VrTutorialNativeHitsR159",kcd2vr::tutorial_native_r159::clampMode(kcd2vr::tutorial_native_r159::mode.load(std::memory_order_acquire)))&&ok; // R159 / R161: 0 OFF, 1 NATIVE HITS, 2 GAME TIMING
     ok=wb("VrCinematicBarsR107",kcd2vr::cinematic_bars_r107::enabled.load(std::memory_order_acquire))&&ok; // R107
     ok=wb("VrHudWalkoffD70",claude_d70::HudWalkoff())&&ok;
     ok=wb("VrNativeRoomscale1to1D76",roomscale_d76::Enabled())&&ok;
@@ -363,10 +387,14 @@
     kcd2vr::controller_layout_r118::Set(ReadIniIntExplicit(explicit_ini,"Settings","VrControllerLayoutR118",0));
     // R112: quick weapon/potion selectors fade 3 s after the last quick-access input (true, default) or stay shown (false).
     kcd2vr::ui_hud_r112::quickSlotFade.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHudQuickSlotFadeR112",true),std::memory_order_release);
-    // R125: HUD at optical infinity, one quad per eye (true, default); false = one quad at VrHudDistanceR110.
+    // R125: HUD at optical infinity, one quad per eye (true); false (default since R126, INF = more eye strain) = one quad at VrHudDistanceR110.
     kcd2vr::ui_surface_geometry::hudInfinityR125.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHudInfinityR125",false),std::memory_order_release);
     // R125: combat direction cross art shown (true) or hidden with lock/perfect-block/master-strike icons kept (false, default).
-    kcd2vr::ui_hud_r112::combatCrossR125.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatCrossR125",false),std::memory_order_release);
+    kcd2vr::ui_hud_r112::combatCrossR125.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCombatCrossR125",true) /*R160 UI default = his INI*/,std::memory_order_release);
+    // R141: Minimal HUD (true) = only prompts, dialogue, subtitles and the palm compass/health; false (default) = normal HUD.
+    kcd2vr::ui_minimal_hud_r141::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrMinimalHudR141",false),std::memory_order_release);
+    // R141: true = tutorial popups hidden (the game's own wh_ui_TutorialsEnabled held at 0 in the game); false (default) = shown.
+    kcd2vr::ui_minimal_hud_r141::hideTutorials.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrHideTutorialsR141",false),std::memory_order_release);
     // R116: alchemy selection follows the headset view (idle hands) and the reaching hand (true, default); false = R115 selection.
     kcd2vr::subsystems::alchemy::head_select_r116::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrAlchemyViewSelectR116",true),std::memory_order_release);
     // R116: weapon whoosh at the physical release, the native clip's later whoosh skipped (true, default); false = clip whoosh only.
@@ -398,12 +426,31 @@
     // R124: ON (default) = a released/knocked loose prop of ours plays the game's authored put-down sound (clay, wood,
     // metal, glass ...) when its velocity changes >= 1.2 m/s in one frame; OFF = silent props (R123). GEAR page 2.
     kcd2vr::prop_impact_sound_r124::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings",kcd2vr::prop_impact_sound_r124::kKey,true),std::memory_order_release);
+    // R158: false (default) = scenery props up to 65 cm across (R89/R100); true = up to 1 m (stools, baskets, small crates). OBJECTS page 3.
+    kcd2vr::brush_swap_r100::bigPropsR158.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrSceneryBigPropsR158",false),std::memory_order_release);
     kcd2vr::impale_death_speed_r106::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrImpaleFastDeathR106",true),std::memory_order_release); // R106
     // R128: ON (default) = a killing-stab hang slides onto the blade to the guard; plate on the struck zone keeps it shallow. GEAR page 3.
     kcd2vr::gore32::impaleFullDepthR128.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrImpaleFullDepthR128",true),std::memory_order_release); // R128
+    // R141: ON (default) = while the LockPicking movie is open the HUD layer gets its alpha back (hud_lock_alpha_r141.h). GEAR page 3.
+    kcd2vr::hud_lock_alpha_r141::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrLockpickOpaqueR141",true),std::memory_order_release); // R141
+    // R141: ON (default) = an XR frame whose eye copy did not happen re-shows the last eye picture (pose it was drawn with,
+    // max 2 s) instead of a frame with no projection = black. GEAR page 3.
+    kcd2vr::xr_eye_hold_r141::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrEyeHoldR141",true),std::memory_order_release); // R141
+    // R147: ON (default) = a short left X tap (PS VR2 Square) sends LB when the game lists the follow
+    // prompt (ride_follow_r147.h), on the horse and (R155) on foot. no prompt = Quick Speak as before. GEAR page 3 row 8.
+    kcd2vr::ride_follow_r147::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings",kcd2vr::ride_follow_r147::kKey,true),std::memory_order_release); // R147
+    // R159 / R161 (tutorial_native_r159.h), only while Henry holds a practice / quest weapon: 0 OFF, 1 NATIVE HITS (old R159 ON:
+    // no mod direct hit), 2 GAME TIMING (the game's own attack speed, no VrNativeHitTime / clock catch-up, direct route as OFF).
+    // R162: default 0 OFF (REVIEW162_tut). old INIs: true = 1, false = 0, missing = 0. VRIK page 2 row 5.
+    kcd2vr::tutorial_native_r159::mode.store(ReadIniIntExplicit(explicit_ini,"Settings","VrTutorialNativeHitsR159",0),std::memory_order_release); // R161 number 0..2 (R162: missing = 0)
+    {char rawR161[32]{};GetPrivateProfileStringA("Settings","VrTutorialNativeHitsR159","",rawR161,DWORD(sizeof(rawR161)),explicit_ini); // the old bool spelling
+     kcd2vr::tutorial_native_r159::mode.store(kcd2vr::tutorial_native_r159::modeFromIniText(rawR161,
+         kcd2vr::tutorial_native_r159::mode.load(std::memory_order_acquire)),std::memory_order_release);} // R161: true = 1, false = 0
+    // R163: ON (default) = while Henry holds a practice / quest weapon (training fight) no mod feature writes to any NPC (AI,
+    // animation, action timing, look, global NPC cvars), what one still holds is given back (training_vanilla_r163.h).
+    // OFF = every NPC feature runs as before. VRIK page 2 row 4.
+    kcd2vr::training_vanilla_r163::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings",kcd2vr::training_vanilla_r163::kKey,true),std::memory_order_release); // R163
     kcd2vr::cinematic_bars_r107::enabled.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrCinematicBarsR107",true),std::memory_order_release); // R107
-    // R91 dlss: ON (default) = DLSS/FSR stereo start fallback to the D85 eye boundary when R4's
-    // final-main transaction gives no pair for 1 s (D85R5: the only path that ever gave DLSS stereo).
     claude_d70::SetHudWalkoff(ReadIniBoolExplicit(explicit_ini,"Settings","VrHudWalkoffD70",false));
     roomscale_d76::SetEnabled(ReadIniBoolExplicit(explicit_ini,"Settings","VrNativeRoomscale1to1D76",false));
     riding_vrik_d76::Set(ReadIniBoolExplicit(explicit_ini,"Settings","VrRidingVrikD76",true));
@@ -427,7 +474,7 @@
     knife_pouch_d66::setRightHip(ReadIniBoolExplicit(explicit_ini,"Settings","VrKnifeRightHipD66",false));
     knife_pouch_d66::setChestZone(ReadIniBoolExplicit(explicit_ini,"Settings","VrKnifeChestZoneR109",false)); // R109
     kcd2vr::xr_eye_srgb_r114::eyeSrgb.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrEyeSrgbR114",true),std::memory_order_release); // R114
-    start_r111::vrikOnStart.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrVrikOnStartR111",true),std::memory_order_release); // R111: calibrated = VRIK at start/load
+    start_r111::vrikOnStart.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrVrikOnStartR111",true),std::memory_order_release); // R111: VRIK at start/load (R149: also without a saved T-pose, default arm profile)
     start_r111::henryEyes.store(ReadIniBoolExplicit(explicit_ini,"Settings","VrStartAtHenryEyesR111",true),std::memory_order_release); // R111: recenter = Henry's eyes
     smooth_lab::SetTimingLocationD64(unsigned(std::clamp(ReadIniIntExplicit(explicit_ini,"Settings","VrTimingLocationD64",1),0,1)));
     held_map_m1::paperSizeD64.store(std::clamp(ReadIniFloatExplicit(explicit_ini,"Settings","VrMapPaperSizeD64",.80f),.40f,1.5f));

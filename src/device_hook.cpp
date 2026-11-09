@@ -1065,6 +1065,13 @@ void DeviceHook::SetInternalMenuCommandList(ID3D12GraphicsCommandList* list)
     s_internal_menu_command_list.store(list, std::memory_order_release);
 }
 void DeviceHook::SetInternalHudCommandList(ID3D12GraphicsCommandList* list) { s_internal_hud_command_list.store(list, std::memory_order_release); }
+void DeviceHook::DrawFullscreenBypassR141(ID3D12GraphicsCommandList* list, D3D12_CPU_DESCRIPTOR_HANDLE rtv)
+{
+    if(!list||!rtv.ptr)return;
+    // a null original = that hook is not installed, so the plain method is not intercepted either
+    if(s_original_om_set_render_targets)s_original_om_set_render_targets(list,1,&rtv,FALSE,nullptr);else list->OMSetRenderTargets(1,&rtv,FALSE,nullptr);
+    if(s_original_draw_instanced)s_original_draw_instanced(list,3,1,0,0);else list->DrawInstanced(3,1,0,0);
+}
 
 
 std::uint64_t DeviceHook::PresentCaptureCount()

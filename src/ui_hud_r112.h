@@ -2,7 +2,7 @@
 // R112 HUD (Miki R111 report, 5 Nov):
 //  1. the big directional combat crosshair (Scaleform clip CombatCursorCross, child of cccursor.actioncursor) was
 //     drawn at native size on the full-FOV HUD quad = "so big it is not funny". It gets its own size slider
-//     (VR HUD > ELEMENT CONTROLS "Combat crosshair size", INI VrCombatCrosshairScaleR112, default 50%).
+//     (VR HUD > ELEMENT CONTROLS "Combat crosshair size", INI VrCombatCrosshairScaleR112, default 25% since R160 UI = his INI, was 50%).
 //     Only the clip's own x/y scale is written (flags 0x18); the game keeps moving it (position, rotation, alpha,
 //     visibility, the lock/perfect-block children), so the attack directions still point where the game says.
 //  2. the quick weapon/potion selectors (QAMWeapon/QAMFood) never faded: the mod holds wh_ui_EnableAdaptiveHud=0
@@ -20,8 +20,8 @@
 namespace kcd2vr::ui_hud_r112 {
 
 // ---- 1. combat crosshair size ----
-inline std::atomic<float> combatCrosshairScale{0.50f};
-inline constexpr float kCombatCrosshairMin=0.25f,kCombatCrosshairMax=1.50f,kCombatCrosshairDefault=0.50f;
+inline std::atomic<float> combatCrosshairScale{0.25f};
+inline constexpr float kCombatCrosshairMin=0.25f,kCombatCrosshairMax=1.50f,kCombatCrosshairDefault=0.25f; // R160 UI: default = his INI (was 0.50)
 inline float CombatCrosshairScale() noexcept {
     const float s=combatCrosshairScale.load(std::memory_order_relaxed);
     return std::isfinite(s)?std::clamp(s,kCombatCrosshairMin,kCombatCrosshairMax):kCombatCrosshairDefault;
@@ -44,7 +44,7 @@ public:
 // arms, each with its red 'failed' overlay) and state7 (centre art). false (default) = the five direction art clips
 // are set invisible, lock + pbslot stay native. true = the native cross. The names are our HUD.xml entries
 // (companion HUD.xml + hud_xml_base.inc). INI VrCombatCrossR125, VR HUD > ELEMENT CONTROLS, release page 3, GEAR 3.
-inline std::atomic<bool> combatCrossR125{false};
+inline std::atomic<bool> combatCrossR125{true}; // R160 UI: default shown = his INI (was false)
 inline constexpr std::array<const char*,5> kCombatCrossArtR125{{"CombatCrossState1","CombatCrossState2","CombatCrossState3","CombatCrossState6","CombatCrossState7"}};
 
 // ---- 2. quick weapon/potion selector fade ----

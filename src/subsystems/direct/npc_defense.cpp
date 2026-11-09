@@ -5,6 +5,8 @@
 #include <mutex>
 #include <optional>
 #include <utility>
+#include "vrik/motion_owned59c4.h"
+#include "training_vanilla_r163.h" // R163: no NPC defence speed change in training fights (practice weapon)
 #if !defined(KCD2VR_NPC_DEFENSE_HOST_TEST)
 #include <Windows.h>
 #include <intrin.h>
@@ -36,7 +38,31 @@ bool Copy(Address at,void* value,std::size_t size) noexcept {
 }
 template<class T> bool Read(Address at,T& value) noexcept {return at&&Copy(at,&value,sizeof(value));}
 bool Equal(Address at,Address value) noexcept {Address actual=0;return Read(at,actual)&&actual==value;}
-float Factor() noexcept {return DodgeFactor();}
+// R146: the defender's own best melee skill (sword/heavy/large/dagger/unarmed), the exact read C39
+// OpponentSkill39 uses: combat actor +1F8 -> C_Human (+278 links back) -> +668 C_Soul (vft 3F44F28),
+// base skill id i at soul+5E8+8*i, as the pinned native getter 1123C34 reads it. -1 = unread (-> Low).
+int ActorSkill(Address actor) noexcept {
+    static constexpr unsigned char getter[]{0x83,0xFA,0x23,0x73,0x0B,0x8B,0xC2,0x8B,0x84,0xC1,0xE8,0x05,0x00,0x00};
+    static constexpr int ids[5]{16,17,23,22,24};
+    const auto b=image.load(std::memory_order_acquire);
+    std::array<unsigned char,sizeof(getter)> code{};Address human=0,soul=0;
+    if(!b||!actor||!Copy(b+0x1123C4B,code.data(),code.size())||std::memcmp(code.data(),getter,sizeof(getter)))return -1;
+    if(!Read(actor+0x1F8,human)||!human||!Equal(human+0x278,actor)||!Read(human+0x668,soul)||!soul||!Equal(soul,b+0x3F44F28))return -1;
+    int best=-1;
+    for(const int id:ids){int v=-1;if(Read(soul+0x5E8+8*Address(id),v)&&v>=0&&v<=40&&v>best)best=v;}
+    return best;
+}
+// Per-defender factors. BY SKILL OFF: exactly the old global factors.
+float DodgeFor(Address actor) noexcept {
+    return bySkill.load(std::memory_order_acquire)?SkillFactor(ActorSkill(actor)):DodgeFactor();
+}
+float RaiseFor(Address actor,bool parry) noexcept {
+    if(!bySkill.load(std::memory_order_acquire))return RaiseFactor(parry);
+    // VR DIRECT route (F4 press 3 / motion preview): C39 already shortened Henry's announced +450 by this
+    // same skill factor before the NPC reads it. Do not apply it a second time here.
+    if(kcd2vr::motion59c4::selected.load(std::memory_order_acquire))return 1.f;
+    return SkillFactor(ActorSkill(actor));
+}
 
 struct Owner {Address actor=0,state=0,action=0,manager=0,timing=0;};
 // Fresh identity of a native NPC at the callback. No cross-frame borrowed
@@ -80,8 +106,10 @@ Address EtaView(Address timing,Address opponent,Address property,Address vft,Pro
     if(!ready.load(std::memory_order_acquire)||vft!=b+0x3B0A790)return property;
     Owner owner{};float original=0;Address actionVft=0;
     if(!RaiseOwner(timing,opponent,property,owner)||!Read(owner.action,actionVft))return property;
-    const float factor=RaiseFactor(actionVft==b+0x3BE12C0);
-    if(factor==1.f||!Copy(property,view.bytes.data(),view.bytes.size()))return property;
+    const float factor=RaiseFor(owner.actor,actionVft==b+0x3BE12C0);
+    if(factor==1.f)return property;
+    if(kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor))return property; // R163: native ETA
+    if(!Copy(property,view.bytes.data(),view.bytes.size()))return property;
     std::memcpy(&original,view.bytes.data()+8,sizeof(original));
     if(!std::isfinite(original)||original<=0)return property;
     const float shortened=original/factor;
@@ -131,14 +159,15 @@ struct ScopeGuard {EnterScope* old;explicit ScopeGuard(EnterScope& next):old(ent
 // restore and all unrelated rate writers must remain exactly native.
 void ApplyRate(void* animation,float requested,Address returnPc) {
     float applied=requested;Owner owner{};const auto b=image.load(std::memory_order_acquire);
-    const float factor=Factor();const auto at=reinterpret_cast<Address>(animation);
-    if(ready.load(std::memory_order_acquire)&&factor>1.f&&std::isfinite(requested)&&requested>0){
+    const auto at=reinterpret_cast<Address>(animation);float factor=1.f;
+    if(ready.load(std::memory_order_acquire)&&Wanted()&&std::isfinite(requested)&&requested>0){
+        // R163: a training fight (practice weapon) keeps the native dodge rate (training_vanilla_r163.h)
         if(returnPc==b+0x1648C08&&entering&&DodgeBoundary(entering->action,owner)&&
            owner.actor==entering->actor&&Equal(owner.actor+0x3A0,at)){
-            applied=requested*factor;entering->rateApplied=true;
+            if((factor=DodgeFor(owner.actor))>1.f&&!kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor)){applied=requested*factor;entering->rateApplied=true;}
         }else if(returnPc==b+0x9E3D38&&CurrentDodge(at,owner)){
-            applied=requested*factor;
-            if(entering&&entering->action==owner.action&&entering->actor==owner.actor)entering->rateApplied=true;
+            if((factor=DodgeFor(owner.actor))>1.f&&!kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor)){applied=requested*factor;
+            if(entering&&entering->action==owner.action&&entering->actor==owner.actor)entering->rateApplied=true;}
         }
     }
     // Native follower supplies a new RAW working rate, not the last controller
@@ -163,9 +192,10 @@ bool __fastcall DodgeEnter(void* action) {
     // This is the native acceptance boundary. It is never vetoed or retried by
     // this feature, including Henry, unknown owners, false results or throws.
     const bool accepted=original?original(action):false;
-    const float factor=Factor();Owner owner{};float nativeRate=0;Address animation=0;
-    if(accepted&&ready.load(std::memory_order_acquire)&&factor>1.f&&!scope.rateApplied&&
-       DodgeBoundary(self,owner)&&CurrentRate(owner.actor,nativeRate)&&Read(owner.actor+0x3A0,animation)&&animation){
+    float factor=1.f;Owner owner{};float nativeRate=0;Address animation=0;
+    if(accepted&&ready.load(std::memory_order_acquire)&&Wanted()&&!scope.rateApplied&&
+       DodgeBoundary(self,owner)&&(factor=DodgeFor(owner.actor))>1.f&&CurrentRate(owner.actor,nativeRate)&&Read(owner.actor+0x3A0,animation)&&animation&&
+       !kcd2vr::training_vanilla_r163::skip(kcd2vr::training_vanilla_r163::NpcDefenseSpeed,owner.actor)){ // R163
         // Enter is native ownership even before channel installation. If a
         // synchronous callback already installed a DIFFERENT action, however,
         // this old entry must not change that replacement's animation rate.

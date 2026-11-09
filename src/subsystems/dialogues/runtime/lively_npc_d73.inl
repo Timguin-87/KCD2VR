@@ -116,6 +116,10 @@ void Publish(std::uintptr_t actor,std::uintptr_t scene,bool gameplay,bool dialog
     Frame f{};f.tick=now;f.actor=actor;f.scene=scene;f.generation=mode.load(std::memory_order_acquire);
     (void)gameplay; // call-site compatibility; this feature has no outdoor mode
     f.dialogue=dialogue&&state&&DialogueScene(*state,now)&&state->entity==actor&&state->membership.sceneD52==scene;
+    // R163: training fight (practice weapon) = no NPC life / listening animations; a scene that had them gets dialogue=0 below
+    // (dialogueInterest drops -> cleanup -> the Lua side gets "dialogue 0" and gives the NPCs back), counted once per scene.
+    {static std::atomic<std::uintptr_t> sceneR163{0};
+     if(f.dialogue&&kcd2vr::training_vanilla_r163::skipOnce(kcd2vr::training_vanilla_r163::LivelyNpc,sceneR163,scene))f.dialogue=false;}
     if(f.dialogue){
         f.dialogueInstance=state->instance;f.dialogueManager=state->membership.managerD52;f.playerSoul=state->membership.playerSoulD52;
         f.hmd=CameraHook::GetLatestVisualPositionWorld(f.x,f.y,f.z,60)&&CameraHook::GetLatestVisualForwardWorld(f.fx,f.fy,f.fz,60);

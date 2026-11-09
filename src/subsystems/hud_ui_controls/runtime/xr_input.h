@@ -59,6 +59,8 @@ public:
     const ControllerState& Left() const { return left_; }
     const ControllerState& Right() const { return right_; }
     bool RecenterRequested() const { return recenter_requested_; }
+    // R152: XrManager switched to the turned LOCAL space (upside-down SteamVR start) or back; hands follow the head space
+    void SetReferenceSpaceR152(XrSpace space);
     void ClearRecenterRequest() { recenter_requested_ = false; }
 
 private:

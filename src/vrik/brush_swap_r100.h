@@ -1,5 +1,5 @@
 #pragma once
-// R100 loose scenery props (swap), INI VrSceneryPropSwapR100, Experiments > Hands page 2.
+// R100 loose scenery props (swap), INI VrSceneryPropSwapR100, Experiments > Objects page 3 (R159; was Hands page 2).
 // Most small table props (tankards, plates, cups, spoons, candles, bowls) are plain level
 // BRUSHES, not entities (Data/IPL_GameData.pak prefabs: 923 Type="Brush" vs 47 GeomEntity).
 // A brush has a static physical entity whose foreign data is the CBrush render node
@@ -23,6 +23,17 @@ inline constexpr double kMaxDiameter=.65;   // world AABB diagonal of the brush 
 inline constexpr double kInflate=.04;       // palm may be 4 cm outside the box
 inline constexpr double kDensity=350,kMinMass=.2,kMaxMass=1.5;
 inline constexpr unsigned kTableMax=256;
+// R158 (Miki 8 Nov: "can you make the 'non pickable' objects filter bigger (like up to 1 m of size) as an option in
+// 'items' - bigger items?"): VrSceneryBigPropsR158, Experiments > OBJECTS page 3 "Scenery props: size". false
+// (default) = the 65 cm above; true = up to 1 m. one owner for both scenery routes: this brush swap (choose/brushRule)
+// and the entity scenery grab (static_grab_r89.inl Inspect). live, the next Grip uses it. masses stay capped
+// (loose copy 1.5 kg, scenery 3 kg), so a 1 m crate is carried like a light box, one hand.
+inline std::atomic<bool> bigPropsR158{false};
+inline constexpr double kMaxDiameterBigR158=1.0;
+inline double maxDiameter() noexcept {return bigPropsR158.load(std::memory_order_acquire)?kMaxDiameterBigR158:kMaxDiameter;}
+inline const char* tooBig() noexcept {
+    return bigPropsR158.load(std::memory_order_acquire)?"MESH_BIGGER_THAN_1M_OR_FURNITURE":"MESH_BIGGER_THAN_65CM_OR_FURNITURE";
+}
 // CBrush::Physicalize: CreatePhysicalEntity(PE_STATIC, 0, this, iForeignData=1, -1, host)
 inline constexpr short kForeignStatic=1,kForeignEntity=2;
 
@@ -72,7 +83,7 @@ inline Choice choose(const double (&palm)[3],const Candidate* c,unsigned n,bool 
         if(!contains(x.bb,palm)){if(!found&&!sawInside)best.why=kind==Pick::Brush?"MESH_NEAR_BUT_PALM_NOT_ON_IT":"ENTITY_NEAR_BUT_PALM_NOT_ON_IT";continue;}
         sawInside=true;
         const double diameter=diameterOf(x.bb),volume=volumeOf(x.bb);
-        if(kind==Pick::Brush&&!(diameter<=kMaxDiameter)){if(!found)best.why="MESH_BIGGER_THAN_65CM_OR_FURNITURE";continue;}
+        if(kind==Pick::Brush&&!(diameter<=maxDiameter())){if(!found)best.why=tooBig();continue;} // R158: 65 cm or 1 m
         if(volume>=best.volume)continue;
         if(!valid(i,kind)){if(!found)best.why=kind==Pick::Brush?"MESH_NOT_A_SINGLE_BRUSH":"ENTITY_CLASS_SIZE_OR_BODY_NOT_GRABBABLE";continue;}
         best.kind=kind;best.index=i;best.volume=volume;best.diameter=diameter;best.why="FOUND";found=true;
@@ -121,7 +132,7 @@ struct Brush {
 inline const char* brushRule(const Brush& b) noexcept {
     if(b.isSub||b.parent)return "PART_OF_ANOTHER_MESH_FILE";
     if(!boxOk(b.bb))return "BAD_BOX";
-    if(!(diameterOf(b.bb)<=kMaxDiameter))return "MESH_BIGGER_THAN_65CM_OR_FURNITURE";
+    if(!(diameterOf(b.bb)<=maxDiameter()))return tooBig(); // R158: 65 cm or 1 m
     for(float v:b.tm)if(!std::isfinite(v))return "BAD_TRANSFORM";
     return nullptr;
 }

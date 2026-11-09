@@ -6,6 +6,7 @@
 #include "prompt_refresh_d56.h"
 #include "glyph_apply_r129.h"
 #include "../prompt_policy_d80.h"
+#include "ui_hud_r160.h" // R160 UI
 #include "flashui_probe.h"
 #include "native_script_t2.h"
 #include "interaction_alignment.h"
@@ -146,7 +147,10 @@ void StationPromptServiceD80(const native_script_t2::Context& context) noexcept 
     // existed. Four bounded event retries cover delayed creation, without an
     // always-on Flash poll. HUD recreation publishes a new request separately.
     if(g_station_dispatch_d80.attempts>=4)g_station_done_d80.store(ticket,std::memory_order_release);
-    if(PromptCaptureActiveD50()&&(g_station_dispatch_d80.attempts==1||g_station_dispatch_d80.attempts==4)){
+    // R145: the request is re-sent every second at a station; log a row only when what we sent or its result changed.
+    static unsigned loggedR145=~0u;const unsigned signatureR145=(percent<<4)|(active?1u:0u)|(visible?2u:0u)|(dispatched?4u:0u);
+    if(PromptCaptureActiveD50()&&(g_station_dispatch_d80.attempts==1||g_station_dispatch_d80.attempts==4)&&
+       signatureR145!=loggedR145){loggedR145=signatureR145;
         char line[256]{};std::snprintf(line,sizeof(line),
             "D80 STATION_PROMPT active=%d percent=%u visible=%d attempt=%u dispatched=%d delivery=MOVIE_CHILD_EVENT pixels=UNOBSERVED",
             active,percent,visible,g_station_dispatch_d80.attempts,dispatched);diagnostic_trace::Write(line);
@@ -483,12 +487,12 @@ void PublishMinigamePromptsD80(bool active,std::uint64_t lifetime,unsigned phase
     static prompt_policy_d80::State state;
     static prompt_policy_d80::Publication publication;
     const prompt_policy_d80::Frame frame{active,openPalm,prompt_policy_d80::timed.load(std::memory_order_acquire),
-        lifetime,now,phase,prompt_policy_d80::minigameScale.load(std::memory_order_acquire),alchemy};
+        lifetime,now,phase,ui_hud_r160::StationScale(prompt_policy_d80::minigameScale.load(std::memory_order_acquire),ui_hud_r160::Unified()),alchemy}; // R160 UI: the parents carry the one icon size, crafting keeps its own
     const auto next=state.update(frame);const auto generation=flashui_probe::HudGeneration();
     const auto revision=prompt_policy_d80::refreshRevision.load(std::memory_order_acquire);
-    if(!publication.Needed(next,generation,revision))return;
+    if(!publication.Needed(next,generation,revision)&&!publication.Reassert(next,now))return; // R145: + every 1 s at a station
     if(!g_flash_ready_d56.load(std::memory_order_acquire)&&!RequestFlashStyleD56(g_forced_device.load(std::memory_order_acquire)))return;
-    publication.Published(next,generation,revision);
+    publication.Published(next,generation,revision,now);
     auto before=g_station_request_d80.load(std::memory_order_acquire);
     for(;;){const auto ticket=((before&~std::uint64_t(65535))+65536)|
         (std::uint64_t(next.percent)<<8)|(next.active?1:0)|(next.visible?2:0);

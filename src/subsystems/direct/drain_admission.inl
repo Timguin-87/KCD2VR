@@ -1,4 +1,4 @@
-    if(kcd2vr::motion59c4::selected.load(std::memory_order_acquire)){
+    if(kcd2vr::motion59c4::selected.load(std::memory_order_acquire)&&directOkR159){ // R159: no VR-state-driver direct hit in a tutorial
         namespace mo=kcd2vr::motion59c4;
         const mo::Key key{p.gesture59c3,p.key,p.generation,p.epoch,p.request,p.recovery55c1,
             reinterpret_cast<std::uintptr_t>(Rd<const void*>(henryActor,0x1F8,nullptr))};

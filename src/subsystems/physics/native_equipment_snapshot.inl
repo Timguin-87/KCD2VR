@@ -227,5 +227,11 @@ static bool PhysRefreshEquipment103(PhysEquipment6698& out,std::uint64_t now) no
                 Read(static_cast<unsigned char*>(item.item)+0x60,flags)&&!(flags&2u)&&((flags&1u)||supply);
         }
     }
+    {// R156: a practice / quest alias weapon (R136 default weight) in a hand = no NPC force-block roll (npc_force_block153.h)
+     bool practice=false;
+     for(int side=0;side<2;++side){const int i=out.heldIndex[side];
+         if(i>=0&&i<out.count&&kcd2vr::npc_force_block153::practiceWeaponHeld(out.items[i].held,out.items[i].profile.melee(),out.items[i].weightDefaultR136,out.items[i].defSourceR135))practice=true;}
+     kcd2vr::npc_force_block153::practiceWeapon.store(practice,std::memory_order_relaxed);
+     kcd2vr::npc_force_block153::practiceWeaponMs.store(now,std::memory_order_relaxed);} // R159: freshness for tutorial_native_r159.h
     return true;
 }

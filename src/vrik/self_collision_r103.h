@@ -17,12 +17,16 @@
 // latest after kMaxMs. Never a latch: no lease outlives kMaxMs after release.
 #include <cstdint>
 #include <cmath>
+#include "brush_swap_r100.h" // R158: VrSceneryBigPropsR158 (bigger props need a bigger clear radius)
 namespace kcd2vr::self_collision_r103 {
 inline constexpr std::uint32_t kLiving=4u;
 enum class Kind : unsigned char {None,Prop,Corpse};
 // one owner bit per hand and route; two hands can share one body
-enum Owner : unsigned {PropR=1u<<0,PropL=1u<<1,CorpseLabR=1u<<2,CorpseLabL=1u<<3,CorpseSavedR=1u<<4,CorpseSavedL=1u<<5};
+// R155: the instant-held pickup item (staged_pickup596c2 / instant_pickup_native_d72) is its own route: it was the
+// one carried rigid body WITHOUT this exclusion, so it pushed Henry around ("the objects are pushing me back").
+enum Owner : unsigned {PropR=1u<<0,PropL=1u<<1,CorpseLabR=1u<<2,CorpseLabL=1u<<3,CorpseSavedR=1u<<4,CorpseSavedL=1u<<5,InstantR=1u<<6,InstantL=1u<<7};
 inline unsigned propOwner(int side) noexcept {return side?PropL:PropR;}
+inline unsigned instantOwner(int side) noexcept {return side?InstantL:InstantR;}
 inline unsigned corpseLabOwner(int side) noexcept {return side?CorpseLabL:CorpseLabR;}
 inline unsigned corpseSavedOwner(int side) noexcept {return side?CorpseSavedL:CorpseSavedR;}
 struct Bits {std::uint32_t type=0,ignore=0;bool any() const noexcept {return type||ignore;}};
@@ -41,7 +45,11 @@ inline constexpr unsigned kMax=8;
 inline constexpr std::uint64_t kMinMs=400;   // a dropped prop first falls away from the hand
 inline constexpr std::uint64_t kMaxMs=4000;  // hard end: the body collides with Henry again
 inline constexpr std::uint64_t kReapplyMs=250; // a queued/refused native write is retried at this rate while held
-inline double clearRadius(Kind k) noexcept {return k==Kind::Corpse?1.0:.6;} // horizontal metres from Henry's root
+// horizontal metres from Henry's root. R158: with "Scenery props: size" UP TO 1 M a dropped prop may be 1 m across, so
+// its centre at 0.6 m can still overlap Henry's capsule: props then wait for 1.0 m like a corpse (or the 4 s end).
+inline double clearRadius(Kind k) noexcept {
+    return k==Kind::Corpse||(k==Kind::Prop&&brush_swap_r100::bigPropsR158.load(std::memory_order_acquire))?1.0:.6;
+}
 enum class Due {Wait,Restore};
 inline Due due(const Lease& l,std::uint64_t now,bool haveDistance,double horizontal) noexcept {
     if(!l.used||l.owners)return Due::Wait;

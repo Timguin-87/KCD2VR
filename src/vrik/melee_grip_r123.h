@@ -20,4 +20,16 @@ inline constexpr unsigned kRestSkipCap=45;                 // ~0.5 s at 90 Hz, t
 constexpr bool restFrame(double posM,double angleRad,unsigned skipped) noexcept {
     return posM<kRestPosM&&angleRad<kRestAngleRad&&skipped<kRestSkipCap;
 }
+// R140 (Miki 7 Nov: "bow or crossbow come out in wrong orientation ... it works all the time by the first pull").
+// the bow draw starts on the same bind/rest relation as the crossbow (physical_native.inl, the D72 note at the
+// one-sample shortcut: "Bow draw can initially match the authored wrist while the attachment is still moving"), so
+// the rest skip covers the bow (class 9) too. a learn that still lands on the rest relation (the 45-sample cap ran
+// out, e.g. a slow first draw after a load) is provisional: for kRestWindow more samples a settled hold that is NOT
+// on the rest relation replaces it. per draw, cleared on stow / new item generation, no latch.
+constexpr bool rangedRest(int classId) noexcept {return classId==9||classId==10||classId==14||classId==15;}
+constexpr bool restRelation(double posM,double angleRad) noexcept {return posM<kRestPosM&&angleRad<kRestAngleRad;}
+inline constexpr unsigned kRestWindow=45; // ~0.5 s at 90 Hz after a rest-relation learn
+constexpr bool skipRest(double posM,double angleRad,unsigned skipped,bool provisional) noexcept {
+    return restRelation(posM,angleRad)&&(provisional||skipped<kRestSkipCap);
+}
 }

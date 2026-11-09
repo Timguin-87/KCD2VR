@@ -76,7 +76,7 @@ void CaptureHealth(bool ending) noexcept {
     if(!mask&&!g_lastMask&&!changed)return;
     if(!ending&&!changed&&(!mask||(now>=g_lastHealth&&now-g_lastHealth<5000)))return;
     char line[896]{};
-    const int n=std::snprintf(line,sizeof(line),"C54R3 CAPTURE_HEALTH tick=%llu state=%s activeMask=%u sessions{F2:%llu F3:%llu F5:%llu F7:%llu HUD:%llu F11:%llu F10:%llu HAND_REFERENCE:%llu F9:%llu} queue{queued:%llu dropped:%llu truncated:%llu forwarded:%llu sinkRejectedBatches:%llu filteredBatches:%llu sharedLoggerDropped:%llu} scope=SHARED_PROCESS_TOTALS snapshot=NONATOMIC writes=KCD2VR_LOG forwarded=LOGGER_ADMISSION_NOT_DURABILITY completeness=CHECK_QUEUE_AND_LOGGER_DELTA\r\n",
+    const int n=std::snprintf(line,sizeof(line),"C54R3 CAPTURE_HEALTH tick=%llu state=%s activeMask=%u sessions{F2:%llu F3:%llu F5:%llu F7:%llu HUD:%llu F11:%llu F10:%llu HAND_REFERENCE:%llu F9:%llu SF5:%llu} queue{queued:%llu dropped:%llu truncated:%llu forwarded:%llu sinkRejectedBatches:%llu filteredBatches:%llu sharedLoggerDropped:%llu} scope=SHARED_PROCESS_TOTALS snapshot=NONATOMIC writes=KCD2VR_LOG forwarded=LOGGER_ADMISSION_NOT_DURABILITY completeness=CHECK_QUEUE_AND_LOGGER_DELTA\r\n",
         (unsigned long long)now,ending?"LOGGER_END":changed?"CAPTURE_CHANGE":"PERIODIC",mask,
         (unsigned long long)sessions[unsigned(diagnostics::capture168::Domain::Bug)],
         (unsigned long long)sessions[unsigned(diagnostics::capture168::Domain::Combat)],
@@ -87,6 +87,7 @@ void CaptureHealth(bool ending) noexcept {
         (unsigned long long)sessions[unsigned(diagnostics::capture168::Domain::Hands)],
         (unsigned long long)sessions[unsigned(diagnostics::capture168::Domain::HandReference)],
         (unsigned long long)sessions[unsigned(diagnostics::capture168::Domain::Physics)],
+        (unsigned long long)sessions[unsigned(diagnostics::capture168::Domain::Quest)], // R158 Shift+F5 quest recorder
         (unsigned long long)g_records.Queued(),(unsigned long long)g_records.Dropped(),(unsigned long long)g_records.Truncated(),
         (unsigned long long)g_forwarded,(unsigned long long)g_sinkRejected,(unsigned long long)g_filtered,(unsigned long long)DetourModKit::log().dropped_count());
     if(n>0)Output(line,std::min<std::size_t>(std::size_t(n),sizeof(line)-1));
@@ -121,14 +122,23 @@ void WriteReceiptFor(diagnostics::capture168::Domain d,std::uint64_t session,con
 void Write(const char* message) noexcept {
     if(!Enabled()||!message)return;
     using namespace diagnostics::capture168;
+    const auto now=std::uint64_t(GetTickCount64());
+    // R146: no recorder and no 5 s end-receipt grace = accept() refuses everything;
+    // skip its prefix/strstr scan of the text (the common public-player case).
+    if(gate.quiet(now))return;
     // End receipts are explicitly session-bound; FAULT/mode/startup text has no
     // exemption. Previously the essential() whitelist bypassed every F key.
     if(!gate.mask.load(std::memory_order_relaxed)&&receiptDomain(message)<0)return;
-    if(!accept(message,GetTickCount64()))return;
+    if(!accept(message,now))return;
     Enqueue(message);
 }
 void WriteStatus(const char* message) noexcept {
-    if(Enabled()&&message)Enqueue(message);
+    if(!Enabled()||!message)return;
+    // R154: a status row is rare and the only trace of a decision in KCD2VR.log; it waits out a held queue flag
+    // (bounded spin, see RecordQueue::PushSpin) instead of counting as a one-shot drop like per-frame producers.
+    FILETIME ft{};GetSystemTimeAsFileTime(&ft);
+    if(g_records.PushSpin(message,(std::uint64_t(ft.dwHighDateTime)<<32)|ft.dwLowDateTime))
+        g_accepted_d30.fetch_add(1,std::memory_order_relaxed);
 }
 void WritePerformanceD61(const char* message) noexcept {
     if(!Enabled()||!diagnostics::perf_d61::family(message))return;

@@ -1,92 +1,84 @@
 # Building on Windows
 
-Use Visual Studio 2022 with the C++ desktop workload, CMake and Python 3. A normal
-x64 Windows build is the release check. Portable tests alone are not a DLL build.
+you need Visual Studio 2022 with the C++ desktop workload (x64 tools), CMake and Python 3. CMake from the Visual
+Studio install is fine. the scripts don't install compilers or python packages for you.
 
-Run from the extracted source root:
+from the source root:
 
 ```bat
 build_release.bat
 ```
 
-It writes the DLL and main companion into `dist/prerelease`. Nothing is copied
-into the game. Build logs and intermediate files stay outside the release ZIP.
+the output goes to `dist/prerelease`: the DLL (dinput8.dll), `Start KCD2VR.cmd`, `VERIFY_BUILD.cmd`,
+`Mods/KCD2VR/Data/KCD2VR.pak` and BUILD_MANIFEST.json (hashes). nothing is copied into the game, you install it
+yourself. build logs and intermediate files stay in the build folder, not in dist.
+if the build fails it says so and the details are in `build_release.log`.
 
-For a short explicit build path:
+the GitHub "Download ZIP" of the repo works, extract it and run build_release.bat. no git needed.
+
+## build folder
+
+by default it builds in `build-prerelease` next to the source. if the source path is very deep the script picks a
+short build path on the same drive by itself (the MSVC tools have path length limits). you can also give one:
 
 ```bat
 build_release.bat -BuildDirectory E:\kcd2vr-build\local
 ```
 
-The script also chooses a shorter path automatically when a deeply nested source
-directory would exceed the native build tools' path limits.
+an existing build cache is reused, delete the folder if you want a clean build.
 
-## Dependencies
+## dependencies
 
-The bundled hook dependency is pinned. Its static library is stored as a ZIP so
-the source tree does not contain a single oversized library file. The build
-restores the exact original bytes under its dependency directory and checks the
-hash. A direct CMake dependency override uses `DetourModKit_DIR`; a generic
-`CMAKE_PREFIX_PATH` alone does not override the pinned package. Do not replace it with a similarly named library from an older build.
-
-OpenXR retains its pinned source dependency. To use an existing SDK source tree:
+everything needed is in the tree:
+ - DetourModKit (hook library) is bundled under `deps/DetourModKit`. the static lib is stored as a zip
+   (`lib/libDetourModKit.lib.zip`) so there is no single huge file in the repo. the build unpacks it into the build
+   folder and checks the hash. don't replace it with a similarly named lib from an older build. a direct CMake override
+   uses `DetourModKit_DIR`, a generic `CMAKE_PREFIX_PATH` does not override the pinned one.
+ - the FidelityFX API headers are in `deps/FidelityFX_API_1_1_3`.
+ - OpenXR: CMake downloads the pinned OpenXR-SDK-Source release on the first configure (needs internet once). if you
+   already have a checkout:
 
 ```bat
 build_release.bat -OpenXrSdkSource E:\deps\OpenXR-SDK-Source
 ```
 
-Otherwise CMake can fetch the pinned revision during its first configure. Python
-can be selected explicitly with the `KCD2VR_PYTHON` environment variable. These
-scripts do not install compilers or Python packages automatically.
+python is found on PATH (not the WindowsApps stub). to pick one: set `KCD2VR_PYTHON` to a real python.exe.
 
-## Companion and optional gore
+vcpkg is not used anymore.
 
-The main companion is built from its gameplay-only base plus the checked-in
-overlays. The optional gore PAK is not an input to a normal DLL/main build.
+## companion and optional gore
 
-If a separate optional gore distribution is available, it can be staged alongside
-the normal output explicitly:
+the main companion (KCD2VR.pak) is built from the gameplay base pak in the tree plus the current source overlays
+(`companion/source`). the base pak has older scripts inside, that is normal, the overlays replace them.
+
+the gore pak is optional and separate, it is never merged into the main pak. if you have the gore zip:
 
 ```bat
 build_release.bat -OptionalGoreSource E:\downloads\KCD2VR_OPTIONAL_GORE.zip
 ```
 
-Direct CMake uses `KCD2VR_OPTIONAL_GORE_SOURCE` for the same optional input. Do not
-merge that PAK into the main one. Use a clean output directory when switching
-between package layouts; an unexpected old optional directory is reported rather
-than silently included or deleted.
+direct CMake uses `KCD2VR_OPTIONAL_GORE_SOURCE` for the same thing. use a clean output folder when you switch between
+with and without gore, an unexpected old gore folder is reported and not silently included or deleted.
 
-## Checks
+## install
 
-The `tests` directory contains portable policies and fixtures that exercise the
-actual adapters with controlled engine calls. Several tools extract the current
-production functions before compiling their fixtures. Keep generated output in
-a separate build directory.
+copy dinput8.dll and `Start KCD2VR.cmd` to `Bin\Win64MasterMasterSteamPGO\` of the game and the `Mods\KCD2VR`
+folder into the game's `Mods\`. always install the DLL and the pak from the same build. on a new install there is no
+KCD2VR.ini yet, the mod writes the default one at the first start and the setup window opens (LAUNCHER_OPTIONS.md).
+the KCD2VR.ini in the source root is my profile with every key commented, you can copy it next to the dll instead.
+on an update keep your KCD2VR.ini, it has your settings and calibration.
+the first lines of KCD2VR.log print the build marker, check it if you are not sure which build runs.
 
-Useful focused runners live in `tools`. Read their `--help` for prerequisites.
-Some require GCC/Clang; Windows-native checks use MSVC, and real SEH tests must use
-the Windows SDK rather than a lightweight Windows shim. A C++ exception substitute
-does not verify Windows structured-exception cleanup.
+`VERIFY_BUILD.cmd` (in dist) checks the built payload against BUILD_MANIFEST.json.
 
-The release validation report separates:
+## tests
 
-- Source inspection and exact native-byte checks.
-- Host tests, including which engine calls were replaced.
-- A completed Windows DLL link.
-- Actual headset observations.
+see TESTING.md. host tests are not a DLL build, and a DLL build is not a headset test.
 
-Keep failures and unavailable checks visible. Changing an old fixture until it
-passes is not useful if it no longer exercises the current code.
+## source archive
 
-## Source archive and Git
+to make a clean source zip (no .git, no build folders, no object files, no optional gore):
 
-The clean archive includes source, tests, required assets, dependency notices and
-build inputs. It excludes `.git`, build caches, object files, symbols, generated
-DLLs, old deliveries and private research/log collections. The large hook library
-is compressed; the optional gore package is separate. To make another clean
-archive, run `python tools/export_source.py --zip KCD2VR_SOURCE.zip`.
-
-If uploading the source to a new repository, start from the clean archive rather
-than importing the old private repository history. Old combined PAKs still exist
-in that history even after they are removed from the current tree. That preserves
-the investigation locally without making every checkout download it.
+```bat
+python tools/export_source.py --zip KCD2VR_SOURCE.zip
+```

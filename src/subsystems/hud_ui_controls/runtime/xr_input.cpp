@@ -339,6 +339,12 @@ bool XrInput::TryLocateGripPair(XrTime time, XrPosef (&poses)[2], XrSpaceLocatio
     return true;
 }
 
+void XrInput::SetReferenceSpaceR152(XrSpace space)
+{
+    std::lock_guard<std::mutex> lock(action_space_mutex_);
+    reference_space_ = space;
+}
+
 bool XrInput::Sync(XrTime display_time)
 {
     std::lock_guard<std::mutex> lock(action_space_mutex_);

@@ -4,6 +4,9 @@
 #include "controller_layout_r118.h" // R118: X hold = torch (OPENXR) or inventory (STEAMVR / PS VR2)
 #include "quick_access_r112.h" // R143: selectable modifier side
 #include "subsystems/experimental/free_targeting_plus_r133.h" // R133: the player's own turn input
+#include "ride_follow_r147.h" // R147: mounted X tap = LB (follow) when the follow prompt is listed
+#include "lb_prompt_x_r153.h" // R153: X press held through for a listed infinite hold (look / watch) prompt
+#include "close_tutorial_r156.h" // R156: right B = held xi_back while the game's close_tutorial action map is enabled (tutorial screen open)
 #include <windows.h>
 #include <algorithm>
 #include <atomic>
@@ -30,6 +33,8 @@ std::uint32_t g_carry_press_r25=0;
 int g_carry_route_r25=-2; // -2 none, -1 awaiting context, 0 utility, 1 carry, 2 retired carry
 bool g_carry_down_r25=false;
 bool g_b_prev59c10=false,g_b_consumed_prev59c10=false,g_menu_prev59c10=false,g_b_rearm_prev59c10=false; // R59.16C10 B transaction edges
+int g_follow_hint147=-1,g_follow_sent147=-1; std::uint64_t g_follow_lb_until147=0; // R147: per press only, cleared on every new press
+kcd2vr::lb_prompt_x_r153::Route g_lbx_route153=kcd2vr::lb_prompt_x_r153::Route::Idle; // R153: per press only
 
 float Trigger168(float v) noexcept {return std::isfinite(v)?std::clamp(v,0.0f,1.0f):0.0f;}
 float Axis(float v,float dead) noexcept {
@@ -38,6 +43,32 @@ float Axis(float v,float dead) noexcept {
     if(std::fabs(v)<dead) return 0.0f;
     const float n=(std::fabs(v)-dead)/(1.0f-dead);
     return std::copysign(n*n*(3.0f-2.0f*n),v);
+}
+bool g_lbx_passed153=false; // R153: the current physical press was passed through (its release sends no Quick Speak pulse)
+// R153: a listed infinite hold prompt (hold to look / watch, X first in the companion profile) takes this press as a
+// real held X. asked only during the first 150 ms of a new gameplay press; nothing is sent while asking (the old path
+// sends nothing while X is held either), so a "not listed" / unreadable press continues exactly as before.
+// returns true when this frame belongs to a passed-through press (X state already written into p).
+bool LbPromptPassR153(bool gameplayX,std::uint64_t now,const Context& c,State& p) noexcept {
+    namespace lx=kcd2vr::lb_prompt_x_r153;
+    if(g_lbx_passed153){
+        if(gameplayX){p.x=true;p.lbPromptXR153=true;g_x_prev=true;return true;}
+        g_lbx_passed153=false;g_x_prev=false;g_x_down_since=0;g_x_long=g_x_torch58=g_x_visor59c1=false;g_talk_until58=0;
+        g_lbx_route153=lx::Route::Idle;return true; // release: X goes up with the button, nothing else
+    }
+    const bool newPress=gameplayX&&!g_x_prev;
+    const std::uint64_t heldMs=newPress||!g_x_down_since?0:now-g_x_down_since;
+    const bool ask=gameplayX&&(newPress||g_lbx_route153==lx::Route::Asking)&&heldMs<lx::kDecideMs;
+    const int rows=c.lb_prompt_query_r153?c.lb_prompt_query_r153(ask):-1;
+    // R155: second source - the game dispatched an infinite_hold_interaction_* action a moment ago (the hold map is
+    // enabled = the prompt is offered, seen by the mod's own OnAction detour), even when the hint rows do not list it.
+    // R156: third source - the hold-init action map is enabled right now (view lens), so the FIRST press already holds.
+    const int answer=c.lb_prompt_query_r153?lx::Listed(rows,now,lx::holdMapSeenMs.load(std::memory_order_acquire),lx::holdMapEnabledMs.load(std::memory_order_acquire)):-1;
+    g_lbx_route153=lx::Next(g_lbx_route153,gameplayX,newPress,heldMs,ask?answer:-1);
+    if(g_lbx_route153!=lx::Route::Pass)return false;
+    if(c.follow_query_r147)(void)c.follow_query_r147(false); // retire the R147 ask of this press
+    g_lbx_passed153=true;g_x_prev=true;g_x_down_since=0;g_x_long=g_x_torch58=g_x_visor59c1=false;g_talk_until58=0;g_follow_hint147=-1;
+    p.x=true;p.lbPromptXR153=true;return true;
 }
 }
 
@@ -49,6 +80,8 @@ void Reset() noexcept {
     g_x_down_since=0; g_x_prev=g_x_long=g_x_torch58=g_x_visor59c1=g_x_inventory118=g_x_inventory_held118=false;g_talk_until58=0;g_back_hold.Reset();g_menu_close_hold178r6.Reset();
     g_b_prev59c10=g_b_consumed_prev59c10=g_menu_prev59c10=g_b_rearm_prev59c10=false;
     g_visor_until=0;g_x_physical_prev62=g_x_active_known62=g_x_active62=false;g_non_gameplay168=g_x_quarantine168=g_modifier168=false;g_talk_weapon_quarantineH4=false;
+    g_follow_hint147=g_follow_sent147=-1;g_follow_lb_until147=0; // R147
+    g_lbx_route153=kcd2vr::lb_prompt_x_r153::Route::Idle;g_lbx_passed153=false; // R153
 }
 
 State Build(const ControllerState& l,const ControllerState& r,const Context& c) noexcept {
@@ -127,6 +160,10 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
         g_b_rearm_prev59c10=rearm;
     }
     if(c.vr_menu) return p;
+    // R156: a full-screen tutorial is open (its close_tutorial map is enabled; the only pad input of that action is
+    // xi_back, which no VR button sends): the right B (PS Circle) is a real held xi_back - press, hold (the game's own
+    // 0.25 s hold-to-close bar) and release follow the physical button. the map not enabled = p.back stays as before.
+    p.back=p.closeTutorialBackR156=close_tutorial_r156::Back(c.close_tutorial_r156,r.b_down);
 
     // V66.109: authored KCD2 minigames own the controller semantics.  The
     // capacitive RIGHT thumbrest is only a physical VR modifier that exposes
@@ -146,7 +183,7 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
         }
         // Quest left Menu is the Xbox View/Back-equivalent while an authored
         // minigame exposes Help.  The keyboard fallback mirrors this with T.
-        p.back=l.menu_down;
+        p.back=l.menu_down||p.closeTutorialBackR156; // R156: B of an open tutorial screen stays xi_back here too
         if(modifier&&(p.dpad_left||p.dpad_right||p.dpad_up||p.dpad_down)){
             if(leftModifierLayerR143){p.rx=0;p.ry=0;}else{p.lx=0;p.ly=0;}}
         return p;
@@ -227,12 +264,21 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
     if(carrySuppress25){
         g_x_down_since=0;g_x_prev=g_x_long=g_x_torch58=false;g_talk_until58=g_visor_until=0;
         p.x=carryEmit25;
+    }else if(g_x_quick_talk58.load(std::memory_order_relaxed)&&LbPromptPassR153(gameplayX168,now,c,p)){
+        // R153: this press belongs to a listed infinite hold prompt (held X above); Quick Speak / torch / inventory skipped.
     }else if(g_x_quick_talk58.load(std::memory_order_relaxed)){
         // V66.178R58 (companion pak: Quick Speak on xi_x, torch/visor plain D-pad presses): short press = Quick Speak,
         // held 0.5 s = torch immediately; LEFT thumbrest + X hold = visor. One pulse per press.
         // R118: on the STEAMVR / PS VR2 layout the 0.5 s hold opens the native Inventory instead of the torch
         // (SteamVR keeps the left Menu button; torch stays on the left-shoulder Trigger gesture). Read per press.
-        if(gameplayX168&&!g_x_prev){g_x_down_since=now;g_x_long=false;g_x_torch58=false;g_x_visor59c1=l.quick_access_touch;}
+        if(gameplayX168&&!g_x_prev){g_x_down_since=now;g_x_long=false;g_x_torch58=false;g_x_visor59c1=l.quick_access_touch;g_follow_hint147=-1;}
+        {   // R147: while an X is held, ask whether the game lists the follow prompt (answered on the dispatch thread).
+            // R155: on foot too (was mounted only) - the listed prompt turns the tap into LB there as well.
+            namespace rf=kcd2vr::ride_follow_r147;
+            const bool ask=gameplayX168&&rf::enabled.load(std::memory_order_relaxed)&&
+                g_x_down_since&&now-g_x_down_since<rf::kTapMs;
+            if(c.follow_query_r147){const int v=c.follow_query_r147(ask);if(ask)g_follow_hint147=rf::Merge(g_follow_hint147,v);}
+        }
         if(gameplayX168&&!g_x_torch58&&g_x_down_since&&now-g_x_down_since>=500ull){
             g_x_torch58=true;g_talk_until58=0;
             if(g_x_visor59c1){g_x_long=true;g_visor_until=now+120ull;}
@@ -240,11 +286,18 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
             else if(l.active)p.torchRequestTick62=now;
         }
         if(!gameplayX168&&g_x_prev){
-            if(!g_x_long&&!g_x_torch58&&!g_x_visor59c1)g_talk_until58=now+120ull;
+            if(!g_x_long&&!g_x_torch58&&!g_x_visor59c1){
+                // R147: tap + listed follow prompt (mounted: or unreadable list) = one LB tap; else Quick Speak as before (R155: on foot too)
+                namespace rf=kcd2vr::ride_follow_r147;
+                if(rf::SendLb(rf::enabled.load(std::memory_order_relaxed),c.mounted_r147,g_x_down_since?now-g_x_down_since:~0ull,g_follow_hint147))
+                    {g_follow_lb_until147=now+120ull;g_follow_sent147=g_follow_hint147;}
+                else {g_talk_until58=now+120ull;p.rideFollowTalkR147=c.mounted_r147&&rf::enabled.load(std::memory_order_relaxed)&&g_follow_hint147==0;}
+            }
             g_x_down_since=0;g_x_long=false;g_x_torch58=false;}
         g_x_prev=gameplayX168;
         if(!modifier){
             if(now<g_talk_until58)p.x=true;
+            if(now<g_follow_lb_until147){p.lb=true;p.rideFollowLbR147=g_follow_sent147==1?1:2;} // R147: unowned LB = the game's follow press
             // Torch is dispatched once on the native frame, not duplicated as XI.
             if(now<g_visor_until)p.dpad_up=true;
         }
@@ -266,7 +319,7 @@ State Build(const ControllerState& l,const ControllerState& r,const Context& c) 
     // X, whose glyph the companion profile now shows. Off by default; INI VrBQuickTalk=1 restores it.
     if(c.back_context)p.b=context_b;
     else if(leftModifierLayerR143)p.b=false;
-    else if(utilityRightT24&&!g_back_hold.Consumed()&&!modifier&&r.b_down&&g_b_quick_talk45.load(std::memory_order_relaxed))p.rb=true;
+    else if(utilityRightT24&&!g_back_hold.Consumed()&&!modifier&&r.b_down&&!p.closeTutorialBackR156&&g_b_quick_talk45.load(std::memory_order_relaxed))p.rb=true; // R156: not while B closes a tutorial screen
     return p;
 }
 

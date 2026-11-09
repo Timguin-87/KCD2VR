@@ -211,7 +211,7 @@ private:
 #include "subsystems/dialogues/host.inl" // M2_OWNED_SOURCE slot=242
 #undef KCD2VR_M2_HOST_SLOT // M2_SOURCE_SELECTOR
     std::atomic<float> vr_flat_screen_scale_{1.70f}; // F6 virtual-screen size, separate from HUD
-    std::atomic<float> vr_passive_full_frame_scale_{1.20f}; // V66.97 loading/cutscene-only Theater zoom
+    std::atomic<float> vr_passive_full_frame_scale_{1.56f}; // R160 UI default (was 1.20) // V66.97 loading/cutscene-only Theater zoom
     std::atomic<float> vr_pause_overlay_size_{1.00f}; // V66.97 readable Pause/Menu content fit; background/DoF excluded
     // V61.45 RETIRED: dialogue/inventory zoom is handled by the V60.1 fixed source-FOV guard.
     // Kept only so old config/menu-state serialization code remains source-compatible; it has no runtime effect.

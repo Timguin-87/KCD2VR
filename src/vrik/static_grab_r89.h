@@ -38,6 +38,12 @@ inline constexpr double kMaxReach=.30;               // hand to object bounds ce
 inline constexpr double kMaxDiameter=.65;            // same box limit as the small-pickup lab
 inline constexpr double kDensity=350;                // kg/m3 of the bounding box (hollow mugs, wood, clay)
 inline constexpr double kMinMass=.05,kMaxMass=3.0;
+// R158 (VrSceneryBigPropsR158, brush_swap_r100.h): a 1 m prop is often held at its edge, half a metre from its box
+// centre. reach = half the diameter + 5 cm, at least the 30 cm above, at most 55 cm. OFF: always the 30 cm of R94.
+inline double maxReachR158(double diameter) noexcept {
+    if(!brush_swap_r100::bigPropsR158.load(std::memory_order_acquire)||!std::isfinite(diameter))return kMaxReach;
+    return std::clamp(.5*diameter+.05,kMaxReach,.55);
+}
 
 enum class ClassKind {Grab,Native,Other};
 inline bool hasWord(const char* s,const char* w) noexcept {return s&&w&&std::strstr(s,w)!=nullptr;}

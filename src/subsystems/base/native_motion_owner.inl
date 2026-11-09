@@ -38,6 +38,12 @@ static std::atomic<std::uint64_t> g_root_motion_frames125{0};
 static std::atomic<std::uintptr_t> g_root_lease_animated139{0},g_root_lease_state139{0};
 static std::atomic<std::uint64_t> g_root_lease_tick139{0};
 inline constexpr std::uint64_t kRootLeaseMs139=60; // ~5 frames; the query runs every frame of an attack
+// R160: the counter-step (CounterStepAfterUpdate160, pure rules in counter_step_r160.h) follows the same decision of
+// this frame, but WITHOUT the R139 C_Player+268 read that no log has ever confirmed: tick of Henry's last vetoed query.
+static std::atomic<std::uint64_t> g_counter_lease_tick160{0};
+// R160: the player's own walking (final pad left stick, after roomscale follow / dodge injection), from the pad worker.
+static std::atomic<float> g_move_stick_lx160{0.f},g_move_stick_ly160{0.f};
+static std::atomic<std::uint64_t> g_move_stick_tick160{0};
 
 // D42 selection changes no native eligibility or target policy. Existing
 // ordinary-action and Henry ownership proofs still decide the actual veto.
@@ -516,6 +522,7 @@ static bool NativeAlignmentResult112(void* manager,std::uintptr_t caller,bool or
            PhysVft6698(player,0x3AA4B98)&&Read(static_cast<unsigned char*>(player)+0x38,entity)&&entity&&
            entity==g_last_player_entity.load()){
             g_root_lease_tick139.store(0,std::memory_order_release);
+            g_counter_lease_tick160.store(vetoed?std::uint64_t(GetTickCount64()):0,std::memory_order_release); // R160: refusal revokes at once
             if(vetoed&&Read(static_cast<unsigned char*>(player)+0x268,animated)&&animated&&
                NativeResolve104(player,owner)&&owner.actor==actor&&owner.state){
                 g_root_lease_animated139.store(animated,std::memory_order_relaxed);
@@ -655,6 +662,113 @@ static void ServiceRootMotionArm125() noexcept {
     static std::uint64_t retry=0;const auto now=std::uint64_t(GetTickCount64());
     if(now-retry<2000)return;
     retry=now;(void)NativeRootMotionArm125(WhBase());
+}
+// R160 (Miki R158, VrCombatNoStep=true: "henry is still dancing forward with the strikes"). R158 log 18:19-18:22 (F2+F3 on):
+// every chained follow-up (combat_*_fz*_az*_attackspecial_lngsw) and many natk moved Henry's ENTITY forward (C38 ATTACK_STEP
+// 18:19:45.843 phase 16 256.9 cm -> 46.699 357.3 -> special), while the R112 alignment veto vetoed every frame of the same
+// attacks (C24 key=53 vetoed=79/79 phaseSeen=0x1C) and the C36 position veto fired once per attack. the R125 exit at 83A1A0
+// never owned a frame (0 R125 rows although that row is Domain::Bug and F2 was on): it rests on four disassembly facts
+// (rdi = this at the exit, C_Player+268 = that this, +38 = entity, +708 = 0) that no log can confirm without the DLL.
+// so this does not depend on it: after Henry's native combat update (game thread, ActorUpdateDetour), while the R112 veto
+// owns his ordinary slash/thrust (phase 4/8/16) and through its phase 32, the forward entity travel beyond 5 cm from where
+// the sequence started is put back with the exact CEntity::SetPosRotScale (vft+168 = 509810, the same leaf the pickup /
+// brush / weapon placement use) - position x/y only, z / rotation / scale re-written as read. if R125 ever works there is
+// no excess and this writes nothing. kicks (NativeKickActive175 + kind 8 fails the ordinary-motion proof), punches,
+// clinch, masterstrike, paired bodies and hit reactions are never touched; the stick moves him and the anchor; the moment
+// the sequence ends nothing is written (no snap back). no latch: a failed write ends only this sequence.
+// (private here; the exported PublishMoveStick160 / CounterStepAfterUpdate160 wrappers sit after combat_mode_controls.inl)
+static void PublishMoveStickImpl160(float lx,float ly) noexcept {
+    g_move_stick_lx160.store(std::isfinite(lx)?lx:0.f,std::memory_order_relaxed);
+    g_move_stick_ly160.store(std::isfinite(ly)?ly:0.f,std::memory_order_relaxed);
+    g_move_stick_tick160.store(std::uint64_t(GetTickCount64()),std::memory_order_release);
+}
+static bool MoveStickActive160(std::uint64_t now) noexcept {
+    const auto t=g_move_stick_tick160.load(std::memory_order_acquire);
+    if(!t||now<t||now-t>250)return false; // no fresh pad frame = nothing pushed
+    return kcd2vr::counter_step160::stickActive(g_move_stick_lx160.load(std::memory_order_relaxed),
+        g_move_stick_ly160.load(std::memory_order_relaxed));
+}
+// SEH leaf only (no RAII object crosses it), same call shape as PropSetLocal596 / CallPlaceR100.
+static bool CallSetPosRotScale160(std::uintptr_t fn,void* entity,const float* t,const float* q,const float* s) noexcept {
+    __try {reinterpret_cast<EntitySetPosRotScaleFn>(fn)(entity,t,q,s,0u);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+    return true;
+}
+static void CounterStepAfterUpdateImpl160(void* combatActor) noexcept {
+    namespace cs=kcd2vr::counter_step160;
+    // game thread only (ActorUpdateDetour, Henry's C_CombatPlayer); no other caller touches these.
+    static cs::State state{};static bool faultWindow=false;
+    static std::uint64_t frames=0,clamped=0,notApplied=0,first=0,seenSession=0,targetFrames=0;static double removedCm=0,maxForwardCm=0;
+    static unsigned mask=0,lines=0;
+    const auto now=std::uint64_t(GetTickCount64());const auto b=WhBase();
+    cs::Frame f{};f.now=now;f.lease=g_counter_lease_tick160.load(std::memory_order_acquire);
+    f.enabled=b&&combatActor&&g_no_step55.load(std::memory_order_relaxed)&&
+        g_motion_contract112.load(std::memory_order_acquire)==b&&retail_build112::Ready(b);
+    void* entity=nullptr;Matrix34V6550 tm{};std::uintptr_t setter=0;
+    if(f.enabled){
+        ReadScope101R2 scope;void* player=nullptr;NativeOwner104 owner{};nc104::Observed obs{};
+        if(Read(static_cast<unsigned char*>(combatActor)+0x1F8,player)&&player&&NativeResolve104(player,owner)&&
+           owner.actor==combatActor&&NativeObserve104(owner,obs)){
+            f.phase=obs.phase;
+            if(cs::holdPhase(f.phase)&&(state.armed||(cs::leasePhase(f.phase)&&cs::leaseFresh(f.lease,now)))&&!faultWindow){
+                entity=owner.entity;std::uint32_t id=0;void* parent=nullptr;void* parentEntity=nullptr;
+                f.kick=animation_filter::NativeKickActive175();
+                f.ordinary=!f.kick&&CurrentOrdinaryMotion59c3(owner); // kind 0/1 only: kicks (8), punches, clinch rows fail
+                f.context=g_gameplay_allowed.load()&&!g_ctx_dialogue.load()&&!g_ctx_cutscene.load()&&!g_ctx_scripted.load()&&
+                    !g_ctx_menu.load()&&!animation_filter::nativeBodyOwned112.load()&&!diagnostics::lab::NativeReference()&&
+                    !kcd2vr::vr_combat111::ClinchInput55c1(now)&&!animation_filter::PlayerNativeBodyRequired112();
+                // exact CEntity + setter, not parented/mounted (entity+98 -> +18, getter 83A8F4), live world TM at +58
+                const bool placeable=entity&&PhysVft6698(entity,kCEntityVftRva)&&
+                    Read(reinterpret_cast<void*>(b+kCEntityVftRva+0x168),setter)&&setter==b+0x509810&&
+                    Read(static_cast<unsigned char*>(entity)+0x0C,id)&&id&&Read(static_cast<unsigned char*>(entity)+0x98,parent)&&
+                    (!parent||(Read(static_cast<unsigned char*>(parent)+0x18,parentEntity)&&!parentEntity))&&
+                    GetEntityWorldTmV6552(entity,id,tm);
+                if(!placeable)f.ordinary=false;
+                f.entity=reinterpret_cast<std::uintptr_t>(entity);f.x=tm.m[3];f.y=tm.m[7];f.fx=tm.m[1];f.fy=tm.m[5];
+                f.stick=MoveStickActive160(now);
+                {   // R164 stand-off: the opponent position Henry's own update published this frame (PublishNpcDefense153, game thread)
+                    namespace fbs=kcd2vr::npc_force_block153;const auto pub=fbs::publishedMs.load(std::memory_order_acquire);
+                    if(pub&&now>=pub&&now-pub<=200&&fbs::opponent.load(std::memory_order_relaxed)&&fbs::opponentPos.load(std::memory_order_relaxed)){
+                        f.target=true;f.tx=fbs::opponentX.load(std::memory_order_relaxed);f.ty=fbs::opponentY.load(std::memory_order_relaxed);}
+                }
+            }
+        }
+    }
+    if(!cs::holdPhase(f.phase))faultWindow=false; // a failed write ends only that sequence
+    const auto r=cs::step(state,f);
+    bool applied=false;
+    if(r.write&&entity){
+        // keep z, rotation and scale exactly as the game has them now; only the forward excess goes.
+        const V3 ax{tm.m[0],tm.m[4],tm.m[8]},ay{tm.m[1],tm.m[5],tm.m[9]},az{tm.m[2],tm.m[6],tm.m[10]};
+        const float scale[3]{Len(ax),Len(ay),Len(az)};const Q4 q=QFromBasis(ax,ay,az);
+        const float rot[4]{q.x,q.y,q.z,q.w},pos[3]{r.x,r.y,tm.m[11]};
+        bool sane=true;for(float v:scale)sane=sane&&std::isfinite(v)&&v>.5f&&v<2.f;
+        for(float v:rot)sane=sane&&std::isfinite(v);
+        if(!sane||!CallSetPosRotScale160(setter,entity,pos,rot,scale)){faultWindow=true;state={};}
+        else {
+            Matrix34V6550 after{};std::uint32_t id=0;
+            applied=Read(static_cast<unsigned char*>(entity)+0x0C,id)&&GetEntityWorldTmV6552(entity,id,after)&&
+                std::fabs(after.m[3]-r.x)<.01f&&std::fabs(after.m[7]-r.y)<.01f;
+        }
+    }
+    // F3 combat recorder only: one row per held sequence (proof for the next log, nothing on screen).
+    if(!diagnostics::capture168::active(diagnostics::capture168::Domain::Combat,now)){frames=0;return;}
+    const auto session=diagnostics::capture168::gate.session[unsigned(diagnostics::capture168::Domain::Combat)].load();
+    if(session!=seenSession){seenSession=session;lines=0;frames=0;}
+    if(state.armed){
+        if(!frames){first=now;clamped=0;notApplied=0;removedCm=0;maxForwardCm=0;mask=0;targetFrames=0;}
+        ++frames;if(f.target)++targetFrames;mask|=unsigned(f.phase);maxForwardCm=std::max(maxForwardCm,100.0*r.forward);
+        if(r.write){++clamped;removedCm+=100.0*r.removed;if(!applied)++notApplied;}
+        return;
+    }
+    if(frames&&lines<64){
+        ++lines;char m[360]{};std::snprintf(m,sizeof(m),
+            "R160 COMBAT_COUNTER_STEP frames=%llu clampedFrames=%llu notApplied=%llu removedCm=%.1f maxForwardCm=%.1f phases=0x%X ms=%llu end=%s owner=HENRY_ORDINARY_ATTACK opponentFrames=%llu standOffM=%.2f",
+            (unsigned long long)frames,(unsigned long long)clamped,(unsigned long long)notApplied,removedCm,maxForwardCm,mask,
+            (unsigned long long)(now-first),faultWindow?"WRITE_FAULT":"RELEASED",(unsigned long long)targetFrames,double(cs::kStandOffM));
+        diagnostic_trace::Write(m);
+    }
+    frames=0;
 }
 static bool NativeMotionContract112(std::uintptr_t b) noexcept {
     if(!SupportedWhBuild(b)||!retail_build112::Ready(b))return false;

@@ -6,6 +6,7 @@
 #include "npc_target47c1.h"
 #include "npc_look_policy63.h"
 #include "subsystems/dialogues/lively_npc_d73.h"
+#include "subsystems/direct/training_vanilla_r163.h" // R163: no NPC look / life writes in training fights (practice weapon)
 #include "native_script_t2.h"
 #include "core/snapshot_mailbox.h"
 #include "retail_build112.h"
@@ -158,6 +159,8 @@ bool __fastcall ResolveLookTargetWorldPosDetour(void* lookAtOwner,void* targetWr
     if(npc_look_policy63::modeD52.load(std::memory_order_acquire)!=mode||!g_enabled.load(std::memory_order_acquire)||
        !g_installed.load(std::memory_order_acquire)||g_retired63.load(std::memory_order_acquire)||!ownerCurrent||
        frik_pose_probe::LastPlayerEntity()!=playerEntity)return finish("FINAL_OWNER_OR_MODE_CHANGED");
+    {static std::atomic<std::uintptr_t> sceneR163{0}; // R163: training fight (practice weapon) = the native look point stays
+     if(kcd2vr::training_vanilla_r163::skipOnce(kcd2vr::training_vanilla_r163::DialogueLook,sceneR163,owner63.scene?owner63.scene:life.scene))return finish("TRAINING_VANILLA_R163");}
     __try {outWorldPos[0]=hx;outWorldPos[1]=hy;outWorldPos[2]=hz;}
     __except(EXCEPTION_EXECUTE_HANDLER){return finish("WRITE_FAILED");}
     written=true;g_overrides.fetch_add(1,std::memory_order_relaxed);

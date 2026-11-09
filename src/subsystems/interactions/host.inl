@@ -188,7 +188,7 @@ struct FocusZoomConsole58c2 {
     bool set(float value) noexcept {
         if(!retail_build112::Ready(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(L"WHGame.dll"))))return false;
         void* c=SafeGetCryConsole();void* v=c?SafeConsoleGetCVar(c,"wh_pl_FocusFOVMaxDecrease"):nullptr;
-        return v&&SafeCVarSetFloat(v,value);
+        return v&&CheatCVarSetFloat143(v,value); // R143: cheat cvar, Set() refused without -devmode
     }
 };
 // M2_SLOT_END 5013
@@ -208,14 +208,14 @@ struct ActivityFade123R1 {
             if(enable){
                 if(e.owned&&std::fabs(current)>.001f)e.owned=false; // respect external ownership
                 if(!e.owned){e.base=current;e.owned=true;}
-                if(current>.001f&&(!SafeCVarSetFloat(cv,0.f)||std::fabs(SafeCVarGetFloat(cv,-1.f))>.001f)){
-                    (void)SafeCVarSetFloat(cv,e.base);complete=false; // retain restoration ownership on failure
+                if(current>.001f&&(!CheatCVarSetFloat143(cv,0.f)||std::fabs(SafeCVarGetFloat(cv,-1.f))>.001f)){ // R143: 5 of 6 are cheat cvars
+                    (void)CheatCVarSetFloat143(cv,e.base);complete=false; // retain restoration ownership on failure
                 }
                 char line[192]{};std::snprintf(line,sizeof(line),"R47C1 ACTIVITY_TIMER name=%s base=%.4f readback=%.4f owned=%d",e.name,double(e.base),double(SafeCVarGetFloat(cv,-1.f)),int(e.owned));
                 diagnostic_trace::Write(line);
             }else if(e.owned){
                 if(std::fabs(current)>.001f&&std::fabs(current-e.base)>.001f){e.owned=false;continue;}
-                if(!SafeCVarSetFloat(cv,e.base)||std::fabs(SafeCVarGetFloat(cv,-1.f)-e.base)>.001f){complete=false;continue;}
+                if(!CheatCVarSetFloat143(cv,e.base)||std::fabs(SafeCVarGetFloat(cv,-1.f)-e.base)>.001f){complete=false;continue;}
                 e.owned=false;
             }
         }

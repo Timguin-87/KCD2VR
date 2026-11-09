@@ -26,19 +26,23 @@ struct Receipt {
     float energy=-1.f; // C44: our stroke energy ratio of this contact (Pending powerRatio59c8, 1 = the reference stroke; < 0 unknown)
     float thrustSpeed96=-1.f; // R96: fastest blade contact speed (m/s) of THIS thrust gesture on THIS target, < 0 unknown
     float thrustTipDepth96=std::numeric_limits<float>::quiet_NaN(); // R97: deepest tip-under-surface (m) of THIS thrust on THIS target, NaN unknown
+    float thrustAxialCos96=std::numeric_limits<float>::quiet_NaN(); // R155: along/total speed of the point at the FASTEST contact of this thrust (impale_corpse_r15::axialCos), NaN unknown
 };
 // R96: the queued hit carries the FIRST touch of a thrust (4 Nov 18:06:59 serial 11: 1.45 m/s queued, the 4.01 m/s push
 // 12 ms later was EXACT_CONTACT_ALREADY_QUEUED). Damage keeps using the first touch; only the impale threshold reads the
 // fastest contact of the same gesture+target, recorded here by the impact producer (frik_pose_probe GEOM_IMPACT).
 // R97: the same row also keeps the deepest tip position under the touched surface (strike_feature_d41::tipDepth96).
-struct ThrustPeak96 {std::uint64_t gesture=0,tick=0;std::uint32_t target=0;float speed=0;float depth=std::numeric_limits<float>::quiet_NaN();};
+// R155: the row also keeps the axial cosine (impale_corpse_r15::axialCos) of the FASTEST contact - the one whose speed admits the
+// impale must be a stab along the blade, not a chop with the point (8 Nov 12:57:30 serial 69: 13.66 m/s across the blade).
+struct ThrustPeak96 {std::uint64_t gesture=0,tick=0;std::uint32_t target=0;float speed=0;float depth=std::numeric_limits<float>::quiet_NaN();float axial=std::numeric_limits<float>::quiet_NaN();};
 inline std::array<ThrustPeak96,8> thrustPeaks96{};inline std::mutex thrustPeaksMutex96;
-inline void noteThrust96(std::uint64_t gesture,std::uint32_t target,double speed,std::uint64_t tick,double tipDepth=std::nan("")) noexcept {
+inline void noteThrust96(std::uint64_t gesture,std::uint32_t target,double speed,std::uint64_t tick,double tipDepth=std::nan(""),double axialCos=std::nan("")) noexcept {
     if(!gesture||!target||!std::isfinite(speed)||speed<=0)return;
     std::lock_guard<std::mutex> lock(thrustPeaksMutex96);ThrustPeak96* slot=nullptr;
     for(auto& p:thrustPeaks96)if(p.gesture==gesture&&p.target==target){slot=&p;break;}
     if(!slot){slot=&thrustPeaks96[0];for(auto& p:thrustPeaks96)if(p.tick<slot->tick)slot=&p;*slot={gesture,tick,target,0.f};}
-    if(float(speed)>slot->speed)slot->speed=float(speed);if(tick>slot->tick)slot->tick=tick;
+    if(float(speed)>slot->speed){slot->speed=float(speed);slot->axial=std::isfinite(axialCos)?float(axialCos):std::numeric_limits<float>::quiet_NaN();}
+    if(tick>slot->tick)slot->tick=tick;
     if(std::isfinite(tipDepth)&&(!std::isfinite(slot->depth)||float(tipDepth)>slot->depth))slot->depth=float(tipDepth);
 }
 inline float thrustPeakSpeed96(std::uint64_t gesture,std::uint32_t target,std::uint64_t now) noexcept {
@@ -51,7 +55,14 @@ inline float thrustTipDepth96(std::uint64_t gesture,std::uint32_t target,std::ui
     for(const auto& p:thrustPeaks96)if(p.gesture==gesture&&p.target==target&&now>=p.tick&&now-p.tick<=1000)return p.depth;
     return std::numeric_limits<float>::quiet_NaN();
 }
+inline float thrustAxialCos96(std::uint64_t gesture,std::uint32_t target,std::uint64_t now) noexcept {
+    if(!gesture||!target)return std::numeric_limits<float>::quiet_NaN();std::lock_guard<std::mutex> lock(thrustPeaksMutex96);
+    for(const auto& p:thrustPeaks96)if(p.gesture==gesture&&p.target==target&&now>=p.tick&&now-p.tick<=1000)return p.axial;
+    return std::numeric_limits<float>::quiet_NaN();
+}
 inline bool piercing97(const Receipt& r) noexcept {return strike_feature_d41::canPierce(r.feature,r.weaponClass,double(r.thrustTipDepth96));}
+// R155: a stab goes in along its own line. unknown (NaN) is not refused; a known cosine below .707 (45 degrees) is a cut with the point.
+inline bool axialThrust155(const Receipt& r) noexcept {return impale_corpse_r15::axialEnough(double(r.thrustAxialCos96));}
 inline core::SnapshotMailbox<Receipt> latest;
 inline std::atomic<bool> experiment{false};
 // C44 IMPALE ON EVERY KILLING STAB (Miki): a native LETHAL thrust impales when the stroke had at least this energy
@@ -73,12 +84,13 @@ inline bool strongEnough44(const Receipt& r) noexcept {return strongEnough44(r,i
 // C2 diagnostics only: first refusal reason for the EXISTING predicate below.
 // This never makes a non-eligible receipt eligible and authorizes no physics write.
 enum class LethalThrustRefusalC2 : unsigned { None,Identity,NativeResult,BodyContact,Continuation,
-    NotThrust,Defended,NotLethal,Damage,ItemOwner,ReceiptAge,ImpactAge,ContactPoint,NotPiercingFeature };
+    NotThrust,Defended,NotLethal,Damage,ItemOwner,ReceiptAge,ImpactAge,ContactPoint,NotPiercingFeature,NotAxial155 };
 inline const char* name(LethalThrustRefusalC2 r) noexcept {
     constexpr const char* n[]{"ELIGIBLE","IDENTITY_OR_PART","NATIVE_RESULT_UNACCEPTED","NOT_BODY_CONTACT","CONTINUATION_UNCONFIRMED",
         "NOT_THRUST","BLOCKED_OR_DEFENCE_UNKNOWN","NOT_LETHAL","NON_POSITIVE_OR_INVALID_DAMAGE","ITEM_OR_OWNER_CHANGED",
-        "RECEIPT_OLDER_THAN_80MS_OR_FUTURE","IMPACT_RESULT_JOIN_OLDER_THAN_600MS_OR_FUTURE","INVALID_CONTACT_POINT","NO_PROVEN_PIERCING_TIP"};
-    return n[unsigned(r)];
+        "RECEIPT_OLDER_THAN_80MS_OR_FUTURE","IMPACT_RESULT_JOIN_OLDER_THAN_600MS_OR_FUTURE","INVALID_CONTACT_POINT","NO_PROVEN_PIERCING_TIP",
+        "BLADE_ACROSS_THE_MOTION_NOT_A_STAB"};
+    return n[unsigned(r)<sizeof(n)/sizeof(n[0])?unsigned(r):0];
 }
 inline LethalThrustRefusalC2 lethalThrustReasonC2(const Receipt& r,std::uint64_t now,std::uint64_t key,
                          std::uint64_t generation,std::uint64_t epoch,std::uint64_t request) noexcept {
@@ -88,6 +100,7 @@ inline LethalThrustRefusalC2 lethalThrustReasonC2(const Receipt& r,std::uint64_t
     if(!r.bodyContact)return R::BodyContact;
     if(!r.continuation)return R::Continuation;
     if(r.kind!=1)return R::NotThrust;
+    if(!axialThrust155(r))return R::NotAxial155;
     if(!piercing97(r))return R::NotPiercingFeature;
     if(r.blocked!=0||r.perfect!=0||r.parry!=0)return R::Defended;
     if(r.death!=1)return R::NotLethal;
@@ -102,7 +115,7 @@ inline bool lethalThrust(const Receipt& r,std::uint64_t now,std::uint64_t key,
                          std::uint64_t generation,std::uint64_t epoch,std::uint64_t request) noexcept {
     return r.serial&&r.attempt&&r.target&&r.targetIdentity&&r.collider&&r.rawPart>=0&&r.continuation&&
         r.seen&&r.accepted&&r.applied&&r.fields&&r.bodyContact&&r.kind==1&&
-        piercing97(r)&&
+        axialThrust155(r)&&piercing97(r)&&
         r.blocked==0&&r.perfect==0&&r.parry==0&&r.death==1&&
         std::isfinite(r.damage)&&r.damage>0&&r.key==key&&r.generation==generation&&
         r.epoch==epoch&&r.request==request&&r.tick&&now>=r.tick&&now-r.tick<=80&&

@@ -2,7 +2,7 @@
 #include <windows.h>
 namespace kcd2vr::block_indicator_h24 {
 inline constexpr const char* iniKey="VrShowBlockIndicator";
-inline constexpr bool defaultEnabled=false;
+inline constexpr bool defaultEnabled=true; // R160 UI: shown by default = his INI and the shipped INI (was false)
 inline bool visible(bool selected,bool nativeBlock,bool menu,bool calibration) noexcept {
  return selected&&nativeBlock&&!menu&&!calibration;
 }

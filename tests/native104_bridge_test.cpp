@@ -90,7 +90,7 @@ static int checksR17=0,failuresR17=0;
 static bool FistReceiverCallableH12(){return callableR17;}
 static const void* LiveAttackAction178r35(const void*){return currentActionR17;}
 static void routeR17(Pending& p,const void* henryActor,const void* hs,std::uint64_t now){
- const bool vrDirect596=false;directR17=waitR17=false;
+ const bool vrDirect596=false;const bool directOkR159=true;directR17=waitR17=false; // R159: no tutorial in this fixture
  struct PendingLease {void wait(const Pending&){waitR17=true;}} pendingLease;
 #include KCD2VR_R17_ROUTE_EXTRACT
  }

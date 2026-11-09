@@ -28,15 +28,15 @@ int main(){
     {   // 1. GEAR 1 > 2 > 3, rows toggle (never refused), 3 < 2 < 1
         MenuState s{};unsigned selected=unsigned(live::Group::Gear);
         auto click=[&](live::Rect r){return live::dispatch(selected,r.l+2,r.t+2,s,[](const MenuState&){return true;},[]{return true;});};
-        ck(!s.live_d39.hudInfinityR125&&!s.live_d39.combatCrossR125,"defaults: HUD INF off (R126), cross hidden");
+        ck(!s.live_d39.hudInfinityR125&&s.live_d39.combatCrossR125,"defaults: HUD INF off (R126), cross shown (R160 UI = his INI)");
         ck(click(live::kMotionNextD69)==live::Click::Changed&&selected==live::kGearPage2R118,"GEAR 1 > 2");
         ck(click(live::kMotionNextD69)==live::Click::Changed&&selected==live::kGearPage3R125,"GEAR 2 > 3");
         ck(live::group(selected)==live::Group::Gear&&live::rows(selected)[0].id==live::Id::HudInfinityR125&&live::rows(selected)[1].id==live::Id::CombatCrossR125,"page 3 rows");
         ck(click(live::rowRect(0))==live::Click::Changed&&s.live_d39.hudInfinityR125,"INF on");
         ck(click(live::rowRect(0))==live::Click::Changed&&!s.live_d39.hudInfinityR125,"INF off again");
+        ck(click(live::rowRect(1))==live::Click::Changed&&!s.live_d39.combatCrossR125,"cross hidden");
         ck(click(live::rowRect(1))==live::Click::Changed&&s.live_d39.combatCrossR125,"cross shown");
         wchar_t text[160]{};live::label(s,live::rows(selected)[1],text,160);ck(std::wcsstr(text,L"SHOWN")!=nullptr,"label SHOWN");
-        ck(click(live::rowRect(1))==live::Click::Changed&&!s.live_d39.combatCrossR125,"cross hidden");
         ck(click(live::kMotionNextD69)==live::Click::Changed&&selected==live::kGearPage3R125,"GEAR 3 > stays 3");
         ck(click(live::kMotionPrevD69)==live::Click::Changed&&selected==live::kGearPage2R118,"GEAR 3 < 2");
         ck(click(live::kMotionPrevD69)==live::Click::Changed&&selected==unsigned(live::Group::Gear),"GEAR 2 < 1");
@@ -62,7 +62,7 @@ int main(){
             ck(base.find(key)!=std::string::npos,"hud_xml_base.inc has the cross art entry");
             ck(std::string(n).find("lock")==std::string::npos&&std::string(n).find("pbslot")==std::string::npos,"icons are never hidden");
         }
-        ck(!ui_hud_r112::combatCrossR125.load(),"cross art hidden by default");
+        ck(ui_hud_r112::combatCrossR125.load(),"cross art shown by default (R160 UI = his INI)");
     }
     std::printf("hud_infinity_r125_test %u/%u\n",total-fail,total);
     return fail?1:0;

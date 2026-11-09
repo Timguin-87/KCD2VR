@@ -132,7 +132,7 @@ static bool Inspect(Held& h,bool allowPickable,ph::Pose& object) noexcept {
     Matrix34V6550 tm{};void* render=nullptr;
     if(!GetEntityWorldTmV6552(entity,h.id,tm)||!SmallPickupBoundsR24(entity,render,h.bounds))return false;
     const auto size=G::measure(h.bounds,tm.m);h.diameter=size.diameter;h.mass=G::massKg(size.volume);
-    if(!size.ok||size.diameter>G::kMaxDiameter||!PoseOf(tm,object,h.scale))return false;
+    if(!size.ok||size.diameter>B::maxDiameter()||!PoseOf(tm,object,h.scale))return false; // R158: 65 cm, or 1 m with VrSceneryBigPropsR158
     std::uintptr_t rva=0;if(!Body(entity,h.body,h.proxy,rva))return false;
     h.wasRigid=rva==kRigidBodyRva;
     // PickableItem has one preparation owner, SmallContactAdmissionR24. This
@@ -452,7 +452,7 @@ static bool AcquireR100(int side,std::uint64_t now,const CommittedFrame6695& f,c
     const auto size=G::measure(h.bounds,tm.m);
     const pm::Vec3 centre{size.centre[0],size.centre[1],size.centre[2]};
     const double reach=pm::length(hand.p-centre);
-    if(!ph::finite(hand)||!size.ok||reach>G::kMaxReach){Row("REFUSED",side,h,"REACH",reach);return false;}
+    if(!ph::finite(hand)||!size.ok||reach>G::maxReachR158(size.diameter)){Row("REFUSED",side,h,"REACH",reach);return false;} // R158: 30 cm, more for a big prop
     h.claim=0x5294000000000000ull|(++g_serial&0xFFFFFFFFFFFFull);h.swapR100=swapped;
     if(!kcd2vr::mutual_admission_t25::RetainPickupD72(side,h.claim))return false;
     if(!g_entities.retain(side,h.id)){
@@ -606,10 +606,57 @@ static void WeaponContacts(std::uint64_t now,const CommittedFrame6695& f) noexce
         React(r.entityId,0,collider,side,r.point,r.normal,r.speed,now,f);
     }
 }
+// R158 (instant_drop_r158.h): an instant-held pickup item let go WITHOUT the chest stow falls like a scenery prop.
+// once per drop, on this native rhythm (game thread, where the scenery Lua calls run): detach it from the parent the
+// native pickup gave it (only when one is read), wake its body, give it the hand velocity again. one log line.
+namespace ID=kcd2vr::instant_drop_r158;
+static bool EntityParentR158(void* entity,std::uintptr_t& parent) noexcept {
+    // the audited GetParent 83A8F4 layout (Body() above, saved_corpse_drag_d72.inl SavedOwnerD72): +0x98 link, +0x18 parent
+    parent=0;std::uintptr_t link=0;
+    return entity&&Read(static_cast<unsigned char*>(entity)+0x98,link)&&(!link||Read(reinterpret_cast<void*>(link+0x18),parent));
+}
+static void InstantDropR158(std::uint64_t now) noexcept {
+    ID::Request r{};bool due=false;
+    {PropLock596 lock;if(!lock.owned)return; // busy: the next frame takes it (the request is age-bounded)
+     due=g_instant_drop_r158.take(now,r);
+     if(due&&g_prop596.id==r.id)due=false;} // squeezed again already: it is held, not dropped
+    if(!due||!r.id)return;
+    void* e=EntityById6694(r.id);const char* result="DONE";
+    bool parentSeen=false,detached=false,posePut=false,awake=false,velocity=false;
+    if(!e||reinterpret_cast<std::uintptr_t>(e)!=r.entity||!PhysVft6698(e,kCEntityVftRva)||G::ownsEntityR94(r.id))result="ENTITY_GONE_OR_HELD";
+    else{
+        std::uintptr_t parent=0;parentSeen=EntityParentR158(e,parent)&&parent;
+        Matrix34V6550 tm{};ph::Pose before{};float scale[3]{};
+        const bool poseBefore=GetEntityWorldTmV6552(e,r.id,tm)&&PoseOf(tm,before,scale);
+        if(parentSeen){
+            char lua[320]{};const int n=ID::detachChunk(lua,sizeof(lua),r.id);
+            if(n>0&&std::size_t(n)<sizeof(lua))(void)Lua(lua);
+            std::uintptr_t after=1;detached=EntityById6694(r.id)==e&&EntityParentR158(e,after)&&!after;
+            if(!detached)result="DETACH_REFUSED_WAKE_ONLY";
+            else if(poseBefore){ // keep it where he let go: no parent now, so the LOCAL setter is the world pose
+                Matrix34V6550 t2{};ph::Pose got{};float s2[3]{};
+                if(!(GetEntityWorldTmV6552(e,r.id,t2)&&PoseOf(t2,got,s2)&&kcd2vr::prop_parent_r153::Matches(got,before))){
+                    std::uintptr_t vf=0,fn=0;
+                    posePut=Read(e,vf)&&vf==WhBase()+kCEntityVftRva&&Read(reinterpret_cast<void*>(vf+0x168),fn)&&
+                        fn==WhBase()+0x509810&&PropSetLocal596(fn,e,before,scale);
+                }
+            }
+        }
+        char lua[320]{};const int n=ID::wakeChunk(lua,sizeof(lua),r.id);
+        awake=n>0&&std::size_t(n)<sizeof(lua)&&EntityById6694(r.id)==e&&Lua(lua);
+        if(!awake&&!std::strcmp(result,"DONE"))result="WAKE_REFUSED";
+        if(ID::rewriteVelocity(r)&&EntityById6694(r.id)==e)velocity=PropSetVelocity5916C1(PropBody596(e),{r.v[0],r.v[1],r.v[2]});
+    }
+    char row[300]{};std::snprintf(row,sizeof(row),
+        "R158 INSTANT_DROP id=%u parent=%d detached=%d posePut=%d awake=%d handSpeed=%.2f velocity=%d result=%s",
+        r.id,parentSeen?1:0,detached?1:0,posePut?1:0,awake?1:0,ID::speed(r),velocity?1:0,result);
+    diagnostic_trace::Write(row);
+}
 static void Tick(std::uint64_t now) noexcept {
     self_collision_r103n::Tick(now); // R103: give Henry's collision back to released props/corpses
     SwapLoadR100(); // R100: after a load the level's brushes are back; clear the swap table
     ImpactSoundsR124(now); // R124: released/knocked props of ours play their put-down sound when they hit something
+    InstantDropR158(now); // R158: a dropped (not stowed) instant pickup item falls (any switch state: the hold ran)
     const bool on=G::enabled.load(std::memory_order_acquire),swap=B::enabled.load(std::memory_order_acquire),any=on||swap;
     if(!any&&!g_held[0].id&&!g_held[1].id){g_note[0].pending=g_note[1].pending=false;g_contactMotionR94[0]={};g_contactMotionR94[1]={};return;}
     CommittedFrame6695 f{};const bool haveFrame=ReadCommittedPacket6695(f)&&FrameCurrent(f,now);

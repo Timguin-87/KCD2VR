@@ -16,7 +16,8 @@ inline bool requested(Request r,std::uint64_t now) noexcept {
     return r.wanted&&dialogue_state59c10r2::age(r.tick,now,80);
 }
 inline bool chooseFirstPerson(Request r,const dialogue_state59c10r2::State& current,std::uint64_t now) noexcept {
-    return requested(r,now)&&dialogue_state59c10r2::embodiedOwner(current,now);
+    return requested(r,now)&&(dialogue_state59c10r2::embodiedOwner(current,now)||
+        dialogue_state59c10r2::cameraOwnerR142(current,now)); // R142: whole membership, see dialogue_state59c10r2.h
 }
 // Native9E58CC calls dialog-camera manager vfn0 at9E598F. Its selector
 // owns pointer changes, activation/deactivation, visibility and event0x26.

@@ -24,6 +24,9 @@ inline std::atomic<int> state{0};
 inline std::atomic<bool> dismember{false};                      // VrDismemberment (needs the matching pak): qualified corpse elbow/knee layer cuts
 
 enum class Cut : int {None=0,Head,LeftHand,RightHand,LeftFoot,RightFoot};
+// R153 (Miki 8 Nov: "dismemberment for legs is wrong, disable for legs; for hands/arms quite ok"): only the arms are cut.
+// A killing cut on a shin/foot stays a normal native kill (never a head removal either). No switch: legs are simply off.
+inline constexpr bool severableR153(Cut c) noexcept {return c==Cut::Head||c==Cut::LeftHand||c==Cut::RightHand;}
 inline const char* luaName(Cut c) noexcept {
     switch(c){case Cut::Head:return "head";case Cut::LeftHand:return "lh";case Cut::RightHand:return "rh";
               case Cut::LeftFoot:return "lf";case Cut::RightFoot:return "rf";default:return "none";}}
@@ -137,9 +140,14 @@ inline int buildLua(const Event& e,char* out,std::size_t cap) noexcept {
         for(int i=0;i<e.nSw43;++i)if(!safeToken(e.swOrig[i])||!safeToken(e.swMade[i])||!safeToken(e.swSkin[i]))return 0;
     }
     int n=std::snprintf(out,cap,
-        "if KCD2VR_Gore and KCD2VR_Gore.protocol==%d and KCD2VR_Gore.Cut%s then local ok,err=pcall(KCD2VR_Gore.Cut,{target=%u,cut='%s',"
+        "if KCD2VR_Gore and KCD2VR_Gore.protocol==%d and KCD2VR_Gore.Cut%s then %slocal ok,err=pcall(KCD2VR_Gore.Cut,{target=%u,cut='%s',"
         "p={x=%.3f,y=%.3f,z=%.3f},d={x=%.3f,y=%.3f,z=%.3f},energy=%.2f,corpse=%s,female=%s,",
-        kProtocol,nativeLimbR93?" and KCD2VR_Gore.nativeLimbHandoverR93==1":"",e.target,luaName(e.cut),e.p[0],e.p[1],e.p[2],e.d[0],e.d[1],e.d[2],e.energy,e.corpse?"true":"false",e.female?"true":"false");
+        kProtocol,nativeLimbR93?" and KCD2VR_Gore.nativeLimbHandoverR93==1":"",
+        // R153 (Miki 8 Nov: "stumps without texture floating in the air"): the pak's v62.39 wound caps (kcd2vr_caps/*.cgf) are
+        // a CGF on a bone attachment of the corpse (the same thing that floated off a corpse neck in C59) and showed with no
+        // texture (most likely their material is not found next to the new kcd2vr_caps folder). Default them off for every installed pak; the native cut copy already closes the elbow at the joint with
+        // the victim's own materials. Console KCD2VR_Gore.limbCaps=true still brings them back (only nil is changed).
+        nativeLimbR93?"if KCD2VR_Gore.limbCaps==nil then KCD2VR_Gore.limbCaps=false end ":"",e.target,luaName(e.cut),e.p[0],e.p[1],e.p[2],e.d[0],e.d[1],e.d[2],e.energy,e.corpse?"true":"false",e.female?"true":"false");
     if(n<0||std::size_t(n)>=cap)return 0;
     auto put=[&](const char* s)->bool{const int k=std::snprintf(out+n,cap-std::size_t(n),"%s",s);if(k<0||std::size_t(n+k)>=cap)return false;n+=k;return true;};
     if(e.headSkin&&safeToken(e.headSkin)){if(!put("headSkin='")||!put(e.headSkin)||!put("',"))return 0;}

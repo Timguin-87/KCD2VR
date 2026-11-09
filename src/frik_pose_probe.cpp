@@ -44,6 +44,10 @@
 #include "subsystems/doors/module.h"
 #include "subsystems/physics/native_grab_input60.h" // DS-F88: grip-evidence resolver (file scope: namespace kcd2vr header)
 #include "vrik/impale_hold60.h" // DS-F91: impale constraint hold (file scope: namespace kcd2vr header)
+#include "lb_prompt_x_r153.h" // R155: the OnAction detour notes infinite_hold_interaction_* dispatches (hold to look prompt offered)
+#include "subsystems/direct/tutorial_native_r159.h" // R161: tutorial GAME TIMING (native hit time + native attack clock with the practice weapon)
+#include "subsystems/direct/training_vanilla_r163.h" // R163: training fights - flinch / NPC writes held off
+#include "subsystems/direct/npc_force_block153.h" // R156: the equipment snapshot publishes "practice / quest weapon in hand" (no NPC force-block roll)
 #include "subsystems/gore/impale_constraint_h21.h"
 #include "subsystems/physics/touch_react_service60.h" // DS-F97/F99: touch-reaction service + flesh seam (file scope: namespace kcd2vr header)
 #include "subsystems/physics/runtime/committed_hand_push_h21.h"
@@ -182,6 +186,7 @@
 #include "vrik/attack_xi178r8.h"
 #include "vrik/combat_rules178r10.h" // V66.178R17
 #include "vrik/vr_combat_ownership111.h" // V66.178R28: clip hiding scoped to the geometry rung
+#include "subsystems/base/counter_step_r160.h" // R160 VrCombatNoStep counter-step rules (used by native_motion112.inl)
 #include "vrik/workstation178r20c1.h"
 #include "vrik/reach_view38.h" // C38 F5 rung 1 reach/visibility receipt (pure)
 #include "vrik/alchemy_tool18.h"
@@ -237,6 +242,8 @@
 #include "diagnostics/reload_lifecycle178r36c2.h"
 #include "vrik/staged_hold596c2.h"
 #include "vrik/prop_drive5916c1.h"
+#include "vrik/prop_parent_r153.h" // R153: top level (staged_pickup596c2.inl is included inside a namespace)
+#include "vrik/instant_drop_r158.h" // R158: top level too (dropped instant item falls; staged_pickup596c2.inl + static_grab_r89.inl)
 #include "diagnostics/optional_groups175.h"
 #include "diagnostics/parry_trace176.h"
 #include "vrik/contact_authority176.h"
@@ -260,6 +267,7 @@
 #include "core/haptics.h"
 #include "diagnostics/combat_capture.h"
 #include "vrik/calibration_profile.h"
+#include "vrik/default_profile_r149.h" // R149: default arm profile when there is no saved F8 T-pose
 #include <DetourModKit/hook.hpp>
 #include <windows.h>
 #include "core/config_file_guard_d62.h"
@@ -3285,6 +3293,13 @@ static void CollisionStatus6692(std::uint64_t now,const char*) noexcept {
     char budget[320]{};std::snprintf(budget,sizeof(budget),"V66.97-CONTACT BUDGET raysPerPass=18 freshSharedTrackingSample=1 queryWorkTargetUs=1000 excludesOwnerAndBodyWork=1 maxQueryUs=%llu budgetSkips=%llu singleCallStopUs=8000 behavior=PALM_PLUS_FIVE_FINGERS_CACHED_PLANES approximation=SPARSE_POINTS_AND_PLANE_FIT_NOT_SOLID_VOLUME",
         (unsigned long long)g_contact_max_us6695.load(),(unsigned long long)g_contact_budget_skips6695.load());diagnostic_trace::Write(budget);
 }
+// R155: the instant-held pickup item (staged_pickup596c2.inl, included below inside the private namespace) uses the
+// same R103 "do not collide with Henry" lease as the scenery props. self_collision_native_r103.inl is included
+// after that namespace (it needs PropBody596 and the gore part helpers), so its two entry points are declared here.
+namespace self_collision_r103n {
+static void Exclude(unsigned owner,kcd2vr::self_collision_r103::Kind kind,std::uint32_t id,std::uintptr_t entity,std::uintptr_t body,int part,std::uint64_t now) noexcept;
+static void Release(unsigned owner,std::uint64_t now) noexcept;
+}
 
 namespace {
 using CombatInputFn101=void(__fastcall*)(void*,const std::uint64_t*,int,float);
@@ -4180,7 +4195,8 @@ static void NativeRhythmTick178() noexcept {
         // R59.13 (user): light pokes should still land, with small effect. The contact floor drops
         // 1.5 -> 0.8 m/s; below that a resting/sliding blade is not an attack.
         if((!body&&!weaponItem43)||r.speed<0.8)continue;
-        if(body&&r.kind==1&&r.gesture59c3)kcd2vr::contact58c1::noteThrust96(r.gesture59c3,r.entityId,r.speed,r.tick,ImpactTipDepthR97(gf,s,r.point,r.normal)); // R96: fastest touch of this thrust (impale threshold); R97: + tip depth (blade-contact pierce proof)
+        if(body&&r.kind==1&&r.gesture59c3)kcd2vr::contact58c1::noteThrust96(r.gesture59c3,r.entityId,r.speed,r.tick,ImpactTipDepthR97(gf,s,r.point,r.normal),
+            kcd2vr::impale_corpse_r15::axialCos(r.goreCutD56.totalSpeed,r.goreCutD56.transverseSpeed)); // R96: fastest touch of this thrust (impale threshold); R97: + tip depth (blade-contact pierce proof); R155: + along/total of the point at that touch
         const auto now=std::uint64_t(GetTickCount64());
         const bool fresh=now>=r.tick&&now-r.tick<=250&&r.key&&gf.profiles[s].key==r.key&&gf.profiles[s].generation==r.generation&&
             gf.input.bodyEpoch==r.epoch&&gf.request==r.request&&gf.output.active[s]&&gf.output.owned[s];
@@ -5141,6 +5157,9 @@ void __fastcall SkinningTransformCoreDetour(void* desc) {
 void SetWeaponControlMode(int mode) noexcept { SetWeaponControlModeImpl(mode); }
 #include "subsystems/interactions/hand_context_control.inl" // M2_OWNED_SOURCE
 #include "subsystems/base/combat_mode_controls.inl" // M2_OWNED_SOURCE
+// R160 VrCombatNoStep counter-step (native_motion_owner.inl, private namespace there).
+void PublishMoveStick160(float lx,float ly) noexcept {PublishMoveStickImpl160(lx,ly);}
+void CounterStepAfterUpdate160(void* combatActor) noexcept {CounterStepAfterUpdateImpl160(combatActor);}
 #include "subsystems/physics/handling_controls.inl" // M2_OWNED_SOURCE
 bool CombatFull178r10Enabled() noexcept {return PhysicalCombat177Enabled()&&g_combat_full178r10.load(std::memory_order_acquire);}
 int F4Rung178r10() noexcept {if(CombatExperiment175Enabled()&&g_combat_integrated178r22c2.load())return 1;const int r=kcd2vr::user175::f4Rung(CombatExperiment175Enabled(),PhysicalCombat177Enabled(),CombatFull178r10Enabled());return r>=3?(g_combat_rung178r15.load()==7?3:g_combat_rung178r15.load()==6?2:std::max(3,g_combat_rung178r15.load())):r;}

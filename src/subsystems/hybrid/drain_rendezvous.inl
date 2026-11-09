@@ -4,7 +4,7 @@
         if(!ticket.serial)(void)handoff59c3::releases.find(key,ticket);
         const auto result=handoff59c3::join(key,ticket,p.tick,now,kcd2vr::contact176::recoveryEpoch55c1.load());
         const auto rendezvous54=kcd2vr::hybrid54::rendezvous(result,
-            g_sync59c10r9.load(std::memory_order_acquire),g_sync_overdue_any59c12.load(std::memory_order_relaxed),
+            g_sync59c10r9.load(std::memory_order_acquire),g_sync_overdue_any59c12.load(std::memory_order_relaxed)&&directOkR159, // R159: no physical (release-less) direct contact in a tutorial
             p.tick,now,g_sync_grace_ms59c10r9.load(std::memory_order_relaxed));
         if(rendezvous54==kcd2vr::hybrid54::Rendezvous::Wait){pendingLease.wait(p);return;}
         noRelease54=rendezvous54==kcd2vr::hybrid54::Rendezvous::Physical;

@@ -1,6 +1,8 @@
 // xr_manager.h
 #pragma once
 #include "xr_layer_guard_r104.h"
+#include "xr_local_roll_r152.h" // R152: upside-down SteamVR LOCAL at start
+#include "xr_eye_hold_r141.h" // R141: re-show the last written eye images instead of a black frame
 #include "tracking_sample59c6.h"
 #include "vrik/hand_present_d61.h"
 #include "vrik/fresh_hand_target_r94.h"
@@ -354,6 +356,7 @@ private:
         int32_t width = 0;
         int32_t height = 0;
         std::vector<ID3D12Resource*> d3d12_images;
+        xr_eye_hold_r141::Images held_r141; // R141: pose/fov each image was last written with (XR thread only)
     };
 
     struct RtvEntry
@@ -365,7 +368,10 @@ private:
     XrInstance instance_ = XR_NULL_HANDLE;
     XrSystemId system_id_ = XR_NULL_SYSTEM_ID;
     XrSession session_ = XR_NULL_HANDLE;
-    XrSpace local_space_ = XR_NULL_HANDLE;
+    XrSpace local_space_ = XR_NULL_HANDLE; // R152: = plain or rolled below, swapped only at RunFrame start
+    XrSpace local_space_plain_r152_ = XR_NULL_HANDLE;  // R152: the runtime LOCAL as it is
+    XrSpace local_space_rolled_r152_ = XR_NULL_HANDLE; // R152: LOCAL turned 180 deg about forward (SteamVR start)
+    bool local_rolled_r152_ = false; bool roll_swap_due_r152_ = false; kcd2vr::local_roll_r152::Watch roll_watch_r152_{};
     XrSpace view_space_ = XR_NULL_HANDLE;
     XrSpace stage_space_ = XR_NULL_HANDLE; // V66.107: floor reference for head height (optional)
     std::atomic<float> eye_height_floor_{0.0f};std::atomic<bool> eye_height_floor_valid_{false};
@@ -429,6 +435,7 @@ private:
     std::uint64_t layer_sent_r104_[xr_layer_guard_r104::Count]{},layer_held_r104_[xr_layer_guard_r104::Count]{};
     std::uint64_t layer_drop_r104_[xr_layer_guard_r104::Count]{},layer_fix_r104_[xr_layer_guard_r104::Count]{};
     std::uint64_t end_ok_r104_=0,end_fail_r104_=0;
+    std::uint64_t eye_hold_r141_[4]{}; // R141: frames re-shown / no image (missing, too old, mismatch) - in the R106 30 s row
     std::uint64_t layer_fail_next_r104_=0,layer_fail_rows_r104_=0,layer_kind_next_r104_=0,layer_kind_rows_r104_=0;
     std::uint64_t layer_status_next_r104_=0,layer_status_sig_r104_=0;unsigned last_kinds_r104_=~0u;
     void NoteLayerDropR104(unsigned kind,unsigned drop) noexcept;
@@ -454,6 +461,7 @@ private:
     bool head_receipt_pending_r105_=true;
     void PollSessionEventsR105();
     void ResetUiAnchorsR105() noexcept;
+    bool SwapLocalRollR152(bool rolled,const char* why) noexcept; // R152 (R154: returns false when no space to switch to)
     std::atomic<bool> diagnostic_rendering_{false};
     std::atomic<bool> active_vr_bridge_{true};
     std::atomic<float> render_scale_{1.0f};
@@ -568,6 +576,10 @@ private:
     std::mutex flat_ui_mutex_;
     XrPosef flat_ui_anchor_pose_{};
     bool flat_ui_anchor_valid_ = false;
+    // R148 (start_facing_r148.h uiLookAway), all under flat_ui_mutex_: look-away timer, anchor taken after a runtime
+    // recenter (never moved), a runtime recenter is pending for the next capture, first capture row written.
+    std::uint64_t ui_away_since_r148_ = 0;
+    bool ui_anchor_user_r148_ = false, ui_reference_change_r148_ = false, ui_anchor_logged_r148_ = false;
     ID3D12Resource* afr_cache_[2] = { nullptr, nullptr };
     bool afr_cache_valid_[2] = { false, false };
     std::uint64_t afr_cache_camera_frame_[2] = { 0, 0 };

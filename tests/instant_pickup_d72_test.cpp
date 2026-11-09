@@ -67,6 +67,7 @@ struct StagedProp596 {
     std::uint32_t id=0,actor=0;std::uint64_t key=0,epoch=0,sample=0;
     int side=-1;void* body=nullptr;std::uintptr_t character=0;std::uint64_t bodyEpoch=0;
     bool physics=true,instantD72=false,noticeD72=false;std::uint64_t instantTokenD72=0;
+    bool kinematicR96=false; // R153: firm grip = carried by entity transform from the first frame
     void* managerD72=nullptr;void* playerD72=nullptr;void* containerD72=nullptr;void* ownerD72=nullptr;void* inventoryD72=nullptr;
     std::uint32_t countD72=0;alignas(8) unsigned char acceptedD72[0xC8]{};
     kcd2vr::instant_pickup_d72::Transfer transferD72=nullptr;
@@ -103,10 +104,23 @@ static bool PropPickupHandD81(const CommittedFrame6695& f,int side,bool physics,
     out=physics?f.requested[side]:f.visible[side];return ph::finite(out);
 }
 static bool BuildStagedPickup596(void*,std::uint32_t,bool,StagedProp596*);
+namespace kcd2vr::prop5916c1 {inline std::atomic<bool> firmHoldR116{true};} // R153: VrPropFirmHoldR116
+namespace prop5916=kcd2vr::prop5916c1;
 static bool PropVelocity596(void*){return true;}
 static void PropNote596(const char*,const StagedProp596&,bool,const char*){}
 static bool LifecycleHenry165(std::uint32_t);
 static void PropRetireInstantD72(const StagedProp596&) noexcept;
+// R155: the hold asks the R103 self-collision lease (no collision with Henry) at acceptance and releases it when it
+// retires. Here the two calls are recorded; the pure lease table (self_collision_r103.h) is checked at the end of main.
+#include "../src/vrik/self_collision_r103.h"
+namespace self_collision_r103n {
+static unsigned excludedOwners=0,releasedOwners=0,excludeCalls=0;
+static void Release(unsigned owner,std::uint64_t) noexcept {releasedOwners|=owner;}
+}
+static void PropSelfCollisionR155(const StagedProp596& p,std::uint64_t) noexcept { // same guard as staged_pickup596c2.inl
+    if(!p.instantD72||!p.id||!p.entity||!p.body||p.side<0||p.side>1)return;
+    self_collision_r103n::excludedOwners|=kcd2vr::self_collision_r103::instantOwner(p.side);++self_collision_r103n::excludeCalls;
+}
 struct StageLeafPin596 {std::uintptr_t rva;std::array<unsigned char,8> bytes;};
 template<std::size_t N>static bool StageLeafPins596(const StageLeafPin596(&)[N]){return true;}
 static std::uintptr_t HostInstantPickupLeafD72(std::uintptr_t);
@@ -130,6 +144,7 @@ struct Fixture {
     void* action(){return allocation.data()+0x10;}
     Fixture(){
         fixture=this;action_time_owner59c11::requestedSide=-1;g_prop596={};EndInstantPickupRequestD72();g_instant_pickup_lease_d72.publish({});
+        self_collision_r103n::excludedOwners=self_collision_r103n::releasedOwners=self_collision_r103n::excludeCalls=0;
         g_instant_pickup_live_d72=0;g_instant_pickup_consumed_d72=0;g_instant_pickup_hold_d72=0;g_instant_pickup_terminal_d72=0;
         g_instant_pickup_ready_d72=true;ipd72::stopping=false;ipd72::active=0;ipd72::noticeScope={};
         for(auto& claim:kcd2vr::mutual_admission_t25::pickupClaimsD72)claim=0;
@@ -247,9 +262,19 @@ int main(){
     {Fixture f;setup(f);admit(f);assert(f.chosenHand==1&&f.factories==1);++checks;
         InstantPickupChoiceD72(f.action(),false);assert(f.executions==1&&f.animations==0&&f.completions==1&&f.notices==1&&f.transfers==0&&g_prop596.instantD72);++checks;
         assert(f.worldAlive&&g_prop596.entity==f.entity.data()&&g_prop596.key==f.key);++checks;
+        assert(!g_prop596.physics&&g_prop596.kinematicR96);++checks; // R153: firm grip ON = in the hand from the first frame
         assert(InstantPickupExecuteD72(f.action())&&f.executions==1&&f.notices==1&&f.transfers==0);++checks;
+        // R155: the accepted hold (left hand here) asked the R103 lease once at acceptance, nothing released yet
+        {namespace sc=kcd2vr::self_collision_r103;
+         assert(self_collision_r103n::excludedOwners==sc::InstantL&&self_collision_r103n::excludeCalls==1&&self_collision_r103n::releasedOwners==0);++checks;}
         const auto held=g_prop596;g_prop596={};assert(PropCommitInstantD72(held));assert(f.transfers==1&&f.notices==1&&!f.worldAlive);++checks;
-        assert(!PropCommitInstantD72(held)&&f.transfers==1);PropRetireInstantD72(held);assert(ipd72::active==0);++checks;}
+        assert(!PropCommitInstantD72(held)&&f.transfers==1);PropRetireInstantD72(held);assert(ipd72::active==0);++checks;
+        // R155: retiring the hold releases exactly its own owner bit (the scenery-prop bits stay untouched)
+        assert(self_collision_r103n::releasedOwners==kcd2vr::self_collision_r103::InstantL);++checks;
+        PropRetireInstantD72(held);assert(self_collision_r103n::releasedOwners==kcd2vr::self_collision_r103::InstantL);++checks;}
+    {Fixture f;setup(f);prop5916::firmHoldR116=false;admit(f); // R153: firm grip OFF = the old servo start, unchanged
+        InstantPickupChoiceD72(f.action(),false);assert(g_prop596.instantD72&&g_prop596.physics&&!g_prop596.kinematicR96);++checks;
+        const auto held=g_prop596;g_prop596={};PropRetireInstantD72(held);prop5916::firmHoldR116=true;}
     {Fixture f;setup(f);admit(f);kcd2vr::instant_d72::interactions=false;
         InstantPickupChoiceD72(f.action(),false);assert(f.animations==0&&g_prop596.instantD72);++checks;
         const auto held=g_prop596;g_prop596={};PropRetireInstantD72(held);assert(f.worldAlive&&f.transfers==0&&f.notices==1);++checks;}
@@ -260,7 +285,12 @@ int main(){
         namespace mutual=kcd2vr::mutual_admission_t25;
         assert(!mutual::TryBegin(1,mutual::Kind::Throw).value&&!mutual::TryBegin(1,mutual::Kind::Reload).value&&!mutual::TryBegin(1,mutual::Kind::Door).value);
         assert(kcd2vr::hand_claim_t24::competing(1,{}));++checks;
-        const auto held=g_prop596;g_prop596={};PropRetireInstantD72(held);assert(!mutual::pickupClaimsD72[1]);++checks;}
+        // R155: what PropHoldOwnsHandR155 (staged_pickup596c2.inl) reads to let the fingers curl on Grip for THIS hold:
+        // the hand's pickup claim is the hold token while the hold is active; the other hand has no claim
+        assert(ipd72::active==1&&g_instant_pickup_hold_d72==g_prop596.instantTokenD72&&
+               mutual::pickupClaimsD72[1]==g_instant_pickup_hold_d72&&mutual::pickupClaimsD72[0]==0);++checks;
+        const auto held=g_prop596;g_prop596={};PropRetireInstantD72(held);assert(!mutual::pickupClaimsD72[1]);++checks;
+        assert(ipd72::active==0&&g_instant_pickup_hold_d72==0);++checks;} // retired: the predicate is false again, native fingers
     {Fixture f;setup(f);admit(f);f.now+=81;f.frame.stamp.tick=f.now;InstantPickupChoiceD72(f.action(),false);
         assert(f.animations==1&&f.executions==0&&f.notices==0&&f.transfers==0);++checks;}
     {Fixture f;setup(f);selectedFistsD80=true;f.frame.pickupTriggerD80[0]=1;admit(f);
@@ -282,7 +312,9 @@ int main(){
         assert(f.animations==1&&f.executions==0);++checks;}
     {Fixture f;setup(f);admit(f);f.special=true;InstantPickupChoiceD72(f.action(),false);assert(f.animations==1&&f.executions==0);++checks;}
     {Fixture f;setup(f);admit(f);f.noticeFault=true;InstantPickupChoiceD72(f.action(),false);
-        assert(f.notices==1&&f.transfers==0&&!g_prop596.id&&ipd72::active==0&&f.worldAlive&&f.completions==0);++checks;}
+        assert(f.notices==1&&f.transfers==0&&!g_prop596.id&&ipd72::active==0&&f.worldAlive&&f.completions==0);++checks;
+        // R155: a hold that failed right after the notice never asked the lease, and still released its owner bit (idempotent, harmless)
+        assert(self_collision_r103n::excludeCalls==0&&self_collision_r103n::releasedOwners==kcd2vr::self_collision_r103::InstantL);++checks;}
     {Fixture f;setup(f);admit(f);InstantPickupChoiceD72(f.action(),false);const auto held=g_prop596;g_prop596={};f.transferFault=true;
         assert(!PropCommitInstantD72(held));assert(!PropCommitInstantD72(held)&&f.transfers==1&&f.notices==1);PropRetireInstantD72(held);++checks;}
     {Fixture f;setup(f);admit(f);InstantPickupChoiceD72(f.action(),false);const auto held=g_prop596;g_prop596={};f.put(f.item.data(),0x50,std::uint32_t(2));
@@ -304,5 +336,21 @@ int main(){
         first.join();second.join();++checks;}
     {Fixture f;setup(f);f.frame.stamp.tick=f.now+1;f.readAdvanceR96=f.now+1;admit(f);InstantPickupChoiceD72(f.action(),false);
      assert(f.executions==1&&f.notices==1&&f.animations==0&&g_prop596.instantD72);++checks;}
+    {   // R155: the R103 lease table with the new instant owner bits - its own bits, independent of the scenery-prop bits
+        namespace sc=kcd2vr::self_collision_r103;sc::Table t{};
+        assert(sc::instantOwner(0)==sc::InstantR&&sc::instantOwner(1)==sc::InstantL&&!(sc::InstantR&sc::PropR)&&!(sc::InstantL&sc::PropL));
+        assert((sc::InstantR|sc::InstantL)&~(sc::PropR|sc::PropL|sc::CorpseLabR|sc::CorpseLabL|sc::CorpseSavedR|sc::CorpseSavedL));++checks;
+        auto* a=t.take(sc::Kind::Prop,3,0x1000,0x2000,-1,sc::instantOwner(1));assert(a&&a->owners==sc::InstantL);
+        auto* b=t.take(sc::Kind::Prop,7,0x3000,0x4000,-1,sc::propOwner(1));assert(b&&b!=a&&t.count()==2);++checks;
+        // both hands on one body: the lease waits until the last owner lets go
+        assert(t.take(sc::Kind::Prop,3,0x1000,0x2000,-1,sc::propOwner(0))==a&&a->owners==(sc::InstantL|sc::PropR));
+        assert(t.release(sc::instantOwner(1),5000)==a&&a->owners==sc::PropR&&a->released==0&&t.byOwner(sc::InstantL)==nullptr);++checks;
+        assert(t.release(sc::propOwner(0),6000)==a&&a->owners==0&&a->released==6000&&b->owners==sc::PropL);++checks;
+        // the added bits for a prop: ignore |= living and type |= living, only what the body does not have yet
+        const auto add=sc::missing(sc::Kind::Prop,0x8000,0);assert(add.type==sc::kLiving&&add.ignore==sc::kLiving);
+        assert(!sc::missing(sc::Kind::Prop,0x8004,0x4).any());++checks;
+        // restore timing: not before 400 ms, when clear of Henry (0.6 m), at the latest after 4 s
+        assert(sc::due(*a,6100,true,5.0)==sc::Due::Wait&&sc::due(*a,6500,true,5.0)==sc::Due::Restore&&
+               sc::due(*a,6500,true,.3)==sc::Due::Wait&&sc::due(*a,6500,false,0)==sc::Due::Wait&&sc::due(*a,10000,false,0)==sc::Due::Restore);++checks;}
     std::cout<<"D72 actual native pickup adapter PASS checks="<<checks<<"; native leaves mocked; no headset/game/SEH runtime claim\n";
 }

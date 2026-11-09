@@ -59,8 +59,12 @@ static void ImpalePartTick59c7g() noexcept {
   char line[420]{};
   std::snprintf(line,sizeof(line),"C47 IMPALE stage=%s serial=%llu target=%u part=%d %s",stage,(unsigned long long)serial,candidate.target,candidate.part,extra?extra:"");
   diagnostic_trace::Write(line);};
+ static const char* const kNotInR153="BLADE_NOT_IN_HIM_AT_PIN"; // R153: the last poll found the blade off his body
  const auto gaveUp47=[&](const char* reason){
-  if(!candidate.serial||anchor.active||gaveUp47done)return;gaveUp47done=true;char e[200]{};std::snprintf(e,sizeof(e),"reason=%s waitedMs=%llu polls=%u lastRoot=%s",reason,
+  if(!candidate.serial||anchor.active||gaveUp47done)return;gaveUp47done=true;
+  if(why47==kNotInR153&&reason&&(!std::strcmp(reason,"ORIGINAL_VICTIM_WAIT_EXPIRED")||!std::strcmp(reason,"RAGDOLL_DEADLINE_OR_CLOCK_REWIND")||
+     !std::strcmp(reason,"NO_EXACT_RAGDOLL_OR_NEW_CORPSE_CONTACT_IN_ORIGINAL_WAIT")))reason=kNotInR153; // R153: the window ran out while the blade was off him
+  char e[200]{};std::snprintf(e,sizeof(e),"reason=%s waitedMs=%llu polls=%u lastRoot=%s",reason,
    (unsigned long long)wait47.waitedMs(std::uint64_t(GetTickCount64())),wait47.polls,why47&&*why47?why47:"NONE");log47("GAVE_UP",e);
   char t128[96]{};SayImpale61(i47::gaveUpLine(reason,t128,sizeof(t128)));}; // I10: a lethal stab that started an impale and then gave up says why, once (R128: with the reason code; log only unless F2 records)
  const auto log40=[&](const char* by,double depth){
@@ -94,7 +98,10 @@ static void ImpalePartTick59c7g() noexcept {
    std::snprintf(line,sizeof(line),"C47 IMPALE stage=REFUSED_WEAPON_SIDE serial=%llu side=%d reason=%s%s%s tipToContact=%.2f hang=%d",
     (unsigned long long)frame.output.impaleRefusalSerial47,frame.output.impaleRefusalSide47,i47::refusalName(c),c<20?"/":"",
     c<20?kcd2vr::contact58c1::name(kcd2vr::contact58c1::LethalThrustRefusalC2(frame.output.impaleRefusalReason47)):"",frame.output.impaleRefusalTipM47,frame.input.impaleHang32?1:0);
-   diagnostic_trace::Write(line);}}
+   diagnostic_trace::Write(line);}
+  // R155: a killing 'stab' whose point came across the body (a chop) says why it did not impale, once (KCD2VR.log; headset only while F2 records)
+  if(frame.output.impaleRefusal47==1+int(kcd2vr::contact58c1::LethalThrustRefusalC2::NotAxial155))
+   SayImpale61("impale: the point came across him, not along the blade - a cut does not impale");}
  // Live context is checked again after native callbacks; a copied ON frame
  // cannot write after switching to native reference, a menu or another owner.
  const auto contextCurrentR93=[&]() noexcept {return
@@ -251,7 +258,7 @@ static void ImpalePartTick59c7g() noexcept {
    // Its longer victim wait never changes/re-applies damage or renews the hit.
    if(out.impaleSide32<0||out.impaleSide32>1||!hit.serial||!hit.tick||!hit.attempt||!hit.targetIdentity||!hit.collider||hit.rawPart<0||
       !hit.continuation||!hit.seen||!hit.accepted||!hit.applied||!hit.fields||!hit.bodyContact||(hit.death!=1&&!livingDisplay40)||hit.kind!=1||
-      !kcd2vr::contact58c1::piercing97(hit)||
+      !kcd2vr::contact58c1::axialThrust155(hit)||!kcd2vr::contact58c1::piercing97(hit)||
       hit.blocked!=0||hit.perfect!=0||hit.parry!=0||!std::isfinite(hit.damage)||!(hit.damage>0)||
       hit.key!=frame.profiles[out.impaleSide32].key||hit.generation!=frame.profiles[out.impaleSide32].generation||
       hit.epoch!=frame.input.bodyEpoch||hit.request!=frame.request)return;
@@ -297,6 +304,11 @@ static void ImpalePartTick59c7g() noexcept {
   if(side<0||side>1)return;const auto& pr=frame.profiles[side];
   const ph::Vec3 a{pr.tip.x-pr.grip[side].p.x,pr.tip.y-pr.grip[side].p.y,pr.tip.z-pr.grip[side].p.z};const double al=std::sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
   if(al>1e-6&&ws>1e-6){const double k=metres/ws/al;local=ph::Vec3{local.x-a.x*k,local.y-a.y*k,local.z-a.z*k};}};
+ // R153: depth (m) of the stuck point behind the tip, the same measure the hang start uses below
+ const auto depthOfR153=[&]() noexcept {
+  if(side<0||side>1)return 0.0;const auto& pr=frame.profiles[side];
+  const ph::Vec3 a{pr.tip.x-pr.grip[side].p.x,pr.tip.y-pr.grip[side].p.y,pr.tip.z-pr.grip[side].p.z};const double al=std::sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
+  return al>1e-6?((pr.tip.x-local.x)*a.x+(pr.tip.y-local.y)*a.y+(pr.tip.z-local.z)*a.z)/al*ws:0.0;};
  // C59: expiry is checked BEFORE a native query or Anchor::acquire. A Ready
  // result after its ORIGINAL deadline cannot turn an expired wait into a latch.
  if(!anchor.active&&wait47.active&&!wait47.within(now)){
@@ -324,6 +336,12 @@ static void ImpalePartTick59c7g() noexcept {
    // Reuse THIS completed frame's synchronous checked contact. It cannot be a
    // remembered impact, a repeated sample, or a query on the old dying skeleton.
    bool recontactH18=false;
+   // R153: the killing-hit body is pinned only where the blade touches him NOW (VrImpaleFullDepthR128 ON, contacts on)
+   const bool pinNowR153=g::impaleFullDepthR128.load(std::memory_order_relaxed)&&frame.input.contact&&hangNow&&!livingDisplay40;
+   const bool contactNowR153=pinNowR153&&side>=0&&side<2&&frame.publishWorldDeltaM122<=.005&&frame.publishWorldDeltaRad122<=.01&&scaleCurrentH18&&
+    successorH18::currentBladeContact(frame.input,out,frame.profiles[side],side)&&
+    i47::pinContactSameBodyR153(out.contact119[side].native172.owner,out.contact119[side].native172.entityId,out.contact119[side].native172.collider,
+     candidate.entity,candidate.target,candidate.body);
    if(victimWaitH18.active&&frame.input.sample!=lastWitnessSampleH18&&
       frame.publishWorldDeltaM122<=.005&&frame.publishWorldDeltaRad122<=.01&&
       scaleCurrentH18&&
@@ -361,10 +379,16 @@ static void ImpalePartTick59c7g() noexcept {
       (unsigned long long)candidate.entity,(unsigned long long)candidate.body,(unsigned long long)root,candidate.part);
      log47("ROOT_MAPPING_REFUSED",e);why="CORPSE_BODY_MAPPING_UNPROVEN";poll=i47::Poll::Fatal;
     }
+    else if(pinNowR153&&!contactNowR153){why=kNotInR153;poll=i47::Poll::NotYet;} // R153: blade not on him now - wait, no pin
     else if(ReadImpalePart59c7g(candidate,part,scale)){
      if(!wait47.within(std::uint64_t(GetTickCount64()))||(victimWaitH18.active&&!liveSourceH18())){
       gaveUp47("ORIGINAL_WAIT_OR_SOURCE_EXPIRED_DURING_PART_STATUS");reset();return;}
-     if(anchor.acquire(candidate,part,scale,out.impaleTipWorld))log47("ANCHORED","mapping=EXACT_HIT_BODY_AND_RAW_PART");
+     const auto woundR153=pinNowR153?ph::point(hw,out.contact119[side].point*ws):out.impaleTipWorld; // R153: the current contact, not the hit point
+     if(anchor.acquire(candidate,part,scale,woundR153)){
+      if(pinNowR153){const double oldDepthR153=depthOfR153();
+       local=ph::point(ph::inverse(out.weapons[side]),ph::point(ph::inverse(hw),woundR153)*(1./ws));
+       backAlong(i47::keepDepthR153(oldDepthR153,depthOfR153()));}
+      log47("ANCHORED",pinNowR153?"mapping=EXACT_HIT_BODY_AND_RAW_PART wound=CURRENT_BLADE_CONTACT_R153":"mapping=EXACT_HIT_BODY_AND_RAW_PART");}
      else{why="PART_TOO_FAR_FROM_CONTACT";poll=i47::Poll::NotYet;}
     }else{why="EXACT_STRUCK_PART_UNAVAILABLE";poll=i47::Poll::NotYet;}
    }

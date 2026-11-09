@@ -141,7 +141,7 @@
 #elif KCD2VR_M2_HOST_SLOT == 130
 // src/mod.cpp: loadconfig_01.inl
 // M2_SLOT_BEGIN 130
-    settings.bind("VrUiDialogueScale", vr_ui_dialogue_scale_, 0.71f);
+    settings.bind("VrUiDialogueScale", vr_ui_dialogue_scale_, 0.57f); // R160 UI: default 80% of the old size (0.71 = 100%)
     settings.bind("VrUiDialogueY", vr_ui_dialogue_y_, 420.0f);
     settings.bind("VrUiDialogueInsetPct", vr_ui_dialogue_inset_pct_, 52.0f);
 // M2_SLOT_END 130
@@ -166,7 +166,7 @@
 #elif KCD2VR_M2_HOST_SLOT == 168
 // src/mod.cpp: loadconfig_05.inl
 // M2_SLOT_BEGIN 168
-    vr_ui_dialogue_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiDialogueScale", 0.71f),0.30f,1.50f),std::memory_order_relaxed);
+    vr_ui_dialogue_scale_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiDialogueScale", 0.57f) /*R160 UI: 80% of the old size*/,0.30f,1.50f),std::memory_order_relaxed);
     vr_ui_dialogue_y_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiDialogueY", 420.0f),-720.0f,720.0f),std::memory_order_relaxed);
     vr_ui_dialogue_inset_pct_.store(std::clamp(ReadIniFloatExplicit(explicit_ini, "Settings", "VrUiDialogueInsetPct", 52.0f),0.0f,80.0f),std::memory_order_relaxed);
 // M2_SLOT_END 168
@@ -196,7 +196,7 @@
 #elif KCD2VR_M2_HOST_SLOT == 224
 // src/mod.h: mod_state_01.inl
 // M2_SLOT_BEGIN 224
-    std::atomic<float> vr_ui_dialogue_scale_{0.71f};
+    std::atomic<float> vr_ui_dialogue_scale_{0.57f}; // R160 UI default
 // M2_SLOT_END 224
 #elif KCD2VR_M2_HOST_SLOT == 226
 // src/mod.h: mod_state_02.inl
@@ -233,7 +233,7 @@
 #elif KCD2VR_M2_HOST_SLOT == 258
 // src/vr_menu.h: menu_state_02.inl
 // M2_SLOT_BEGIN 258
-    float vr_ui_dialogue_scale = 0.71f;
+    float vr_ui_dialogue_scale = 0.57f; // R160 UI default (0.71 = 100% = the size before)
     float vr_ui_dialogue_y = 420.0f;          // V62.7: design pixels relative to vanilla dialogue anchors
     float vr_ui_dialogue_inset_pct = 52.0f;
 // M2_SLOT_END 258
@@ -295,7 +295,7 @@ bool ApplyDialogueMode(const DialogueCVarSnapshot& original,int mode) noexcept
     int target_p=original.force_pov, target_n=original.no_cameras;
     if(mode==1){ target_p=1; target_n=0; }
     else if(mode==2){ target_p=1; target_n=1; } // V65.15: immersive 1P + remove authored dialogue cameras
-    bool ok=true; ok=SafeCVarSetInt(p,target_p)&&ok; ok=SafeCVarSetInt(n,target_n)&&ok;
+    bool ok=true; ok=SafeCVarSetInt(p,target_p)&&ok; ok=CheatCVarSetInt143(n,target_n)&&ok; // R143: NoCameras is a cheat cvar (ForcePOV is not)
     const int got_p=SafeCVarGetInt(p,-999), got_n=SafeCVarGetInt(n,-999);
     char m[256]{}; std::snprintf(m,sizeof(m),
         "V58-DIALOGUE mode=%d target={ForcePOV:%d NoCameras:%d} readback={%d,%d} ok=%s",

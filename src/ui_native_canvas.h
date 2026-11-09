@@ -34,7 +34,26 @@ inline auto Pack(Geometry g) noexcept {return ui_hud_geometry::Pack(g.x,g.y,g.xs
 struct Fit {float sx=1,sy=1,tx=0,ty=0;bool valid=false;
     // Placement-only multipliers: never stretch letters or full-field effects.
     float width49=1,height49=1,upper49=1,lower49=1,iconScale51c3=1;
+    // R160: dialogue parents cl/cr only (VrUiDialogueScale / VrUiDialogueY), see DialogueFactorR160.
+    float dialogue160=1,dialogueY160=0;
+    // R160 UI: tutorial box parents tl (tl.tutorial) + tutorialInDialog, stage px of the readable box, + = down (VrUiTutorialYR160)
+    float tutorialY160=0;
 };
+// R160: the readable-parent owner (always on since 44c2) never used the dialogue size / vertical sliders, so
+// they were hidden. now cl/cr (DialogLeft/DialogRight parents) get them again. the shipped INI defaults
+// (VrUiDialogueScale 0.71, VrUiDialogueY 420) are the neutral point = the dialogue stays exactly where and as
+// big as it was in every build since 44c2; the sliders size/move it relative to that.
+inline constexpr float kDialogueScaleNeutralR160=.71f,kDialogueYNeutralR160=420.f;
+inline constexpr float kDialogueYMinR160=-120.f,kDialogueYMaxR160=720.f; // = -540..+300 stage px around the neutral
+inline float DialogueFactorR160(float scale) noexcept {
+    if(!std::isfinite(scale))return 1.f;
+    return std::clamp(scale,.30f,1.50f)/kDialogueScaleNeutralR160;
+}
+// stage px of the readable box, + = down (Flash y)
+inline float DialogueOffsetR160(float y) noexcept {
+    if(!std::isfinite(y))return 0.f;
+    return std::clamp(y,kDialogueYMinR160,kDialogueYMaxR160)-kDialogueYNeutralR160;
+}
 
 // V66.98: anchor compression is independent from readable element scale.
 // The older native-canvas path multiplied BOTH position and parent scale by the
@@ -210,6 +229,14 @@ public:
             if(!anchored.valid&&!fit.valid){r.status=Status::InvalidGeometry;return r;}
             for(std::size_t i=0;i<Anchors.size();++i){
                 target[i]=anchored.valid?MapLiveAnchored(staged[i].native,anchored,frame):MapLive(staged[i].native,fit,frame);
+                // R160: readable owner, dialogue parents cl/cr: size + vertical (neutral = 1 / 0 = old placement)
+                if(!anchored.valid&&(i==3||i==4)){
+                    target[i].xs*=fit.dialogue160;target[i].ys*=fit.dialogue160;
+                    target[i].y+=fit.dialogueY160*fit.sy*frame.screenHeight/1080.f;
+                }
+                // R160 UI: tutorial position (dev slider). 0 = native place = byte-identical to before.
+                if(!anchored.valid&&(i==0||i==10)&&fit.tutorialY160!=0.f)
+                    target[i].y+=fit.tutorialY160*fit.sy*frame.screenHeight/1080.f;
                 // cc holds central content. Keep its native center offset invariant
                 // when either border changes; the world crosshair family is excluded.
                 if(anchored.valid&&anchored.fixedCenter&&(i==3||i==4)){

@@ -11,6 +11,8 @@
 #include "ui_hud_r112.h" // R112 VrHudQuickSlotFadeR112
 #include "vrik/swing_whoosh_r116.h" // R116 VrSwingWhooshR116
 #include "controller_layout_r118.h" // R118 VrControllerLayoutR118
+#include "subsystems/direct/tutorial_native_r159.h" // R159 VrTutorialNativeHitsR159
+#include "subsystems/direct/training_vanilla_r163.h" // R163 VrTrainingVanillaNpcR163
 #include "subsystems/experimental/free_targeting_d42.h"
 #include "subsystems/ranged_reload/arrow_hold_d48.h"
 #include "vrik/fist_stroke_d49.h"

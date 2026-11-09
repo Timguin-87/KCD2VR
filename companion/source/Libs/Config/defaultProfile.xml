@@ -592,14 +592,40 @@
 	</actionmap>
 
 	<actionmap name="infinite_hold_interaction_init" priority="gameplay" exclusivity="0">
-		<action name="infinite_hold_interaction_init_press" onPress="1" keyboard="_keybinds_ref_" xboxpad="xi_shoulderl" pspad="pad_l1" />
+		<!-- KCD2VR R153: the hold to look / watch prompt (infinite hold interaction) on X (PS Square) as well as LB / L1.
+		     the VR grip never sends LB in normal play, so LB alone was unreachable (quest stuck, Miki 8 Nov). the mod holds
+		     X down for the whole press while this prompt is offered (lb_prompt_x_r153.h).
+		     R155 tried LB first / X second (hoping the HUD draws the last input = X). R156 (Miki, R155 build): with that order
+		     the prompt was NOT SHOWN AT ALL ("before it showed 'look' - now not any more"); with X first / LB second (R153) it
+		     was shown (as LB). so: X first, LB second again - the HUD draws LB for it, and the VR button for it is X (held).
+		     the mod now sees the prompt before the first tap (activity_lens59c10r1.cpp reads this action map's enabled byte). -->
+		<action name="infinite_hold_interaction_init_press" onPress="1" keyboard="_keybinds_ref_">
+			<xboxpad>
+				<inputdata input="xi_x" />
+				<inputdata input="xi_shoulderl" />
+			</xboxpad>
+			<pspad>
+				<inputdata input="pad_square" />
+				<inputdata input="pad_l1" />
+			</pspad>
+		</action>
 	</actionmap>
 
 	<actionmap name="infinite_hold_interaction_inprogress" priority="minigames" exclusivity="1">
 		<include actionmap="movement_x" />
 		<include actionmap="movement_y" />
 		<include actionmap="camera" />
-		<action name="infinite_hold_interaction_inprogress_release" onPress="1" onRelease="1" keyboard="_keybinds_ref_" xboxpad="xi_shoulderl" pspad="pad_l1" />
+		<!-- KCD2VR R153: same buttons as the start above (R156: X first, LB second again), so releasing X ends it like releasing LB. -->
+		<action name="infinite_hold_interaction_inprogress_release" onPress="1" onRelease="1" keyboard="_keybinds_ref_">
+			<xboxpad>
+				<inputdata input="xi_x" />
+				<inputdata input="xi_shoulderl" />
+			</xboxpad>
+			<pspad>
+				<inputdata input="pad_square" />
+				<inputdata input="pad_l1" />
+			</pspad>
+		</action>
 	</actionmap>
 
 	<actionmap name="open_codex" priority="gameplay" exclusivity="0">
@@ -654,6 +680,11 @@
 	</actionmap>
 
 	<actionmap name="focus_follow_init_interactor" priority="gameplay" exclusivity="0">
+		<!-- KCD2VR R157: retail row again (LB / L1 only). R151 had Follow on X here too and BasicAIActions.lua hid the X Quick talk
+		     prompt while Follow was offered; both were in every build since R153 (the quest-stuck runs) and X never followed anyway
+		     (R155 log: the X tap dispatched Follow + Quick Speak together, nothing followed). Follow on X is now mod-side only:
+		     ride_follow_r147.h turns a short X tap into one LB tap while the game lists this Follow row (hint rows, R147/R155).
+		     the Lua is the pre-R151 file again (one less thing the prologue scenes could trip over). -->
 		<action name="focus_follow_init_interactor_press" onPress="1" keyboard="_keybinds_ref_" xboxpad="xi_shoulderl" pspad="pad_l1" />
 	</actionmap>
 

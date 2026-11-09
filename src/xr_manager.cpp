@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <chrono>
 #include "xr_layer_guard_r104.h"
+#include "vrik/start_facing_r148.h" // R148: head tracked flag + runtime name for the start/load facing recenter
 #include <cmath>
 #include <d3dcompiler.h>
 
@@ -312,6 +313,7 @@ bool XrManager::GetSystem()
             XR_SUCCEEDED(ipr)?XR_VERSION_PATCH(instance_props.runtimeVersion):0u,XR_SUCCEEDED(spr)?system_props.systemName:"<unknown>",
             XR_SUCCEEDED(spr)?system_props.vendorId:0u,XR_SUCCEEDED(spr)?system_props.graphicsProperties.maxLayerCount:0u,
             XR_SUCCEEDED(spr)?system_props.graphicsProperties.maxSwapchainImageWidth:0u,XR_SUCCEEDED(spr)?system_props.graphicsProperties.maxSwapchainImageHeight:0u);
+        kcd2vr::start_facing_r148::setRuntime(XR_SUCCEEDED(ipr)?instance_props.runtimeName:"<unknown>"); // R148: named in the AUTO_RECENTER row
         diagnostic_trace::WriteStatus(rt);
         max_layer_count_r104_=XR_SUCCEEDED(spr)&&system_props.graphicsProperties.maxLayerCount?system_props.graphicsProperties.maxLayerCount:16u;
     }
@@ -486,6 +488,11 @@ bool XrManager::CreateReferenceSpace()
     local_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
     local_info.poseInReferenceSpace.orientation.w = 1.0f;
     if (XR_FAILED(xrCreateReferenceSpace(session_, &local_info, &local_space_))) return false;
+    // R152: the same LOCAL turned 180 deg about its forward (z) axis, used only while the runtime's LOCAL is upside down
+    local_space_plain_r152_=local_space_;local_space_rolled_r152_=XR_NULL_HANDLE;local_rolled_r152_=false;roll_swap_due_r152_=false;roll_watch_r152_={};
+    {XrReferenceSpaceCreateInfo rolled{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};rolled.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;
+     rolled.poseInReferenceSpace.orientation={0.0f,0.0f,1.0f,0.0f};
+     if(XR_FAILED(xrCreateReferenceSpace(session_,&rolled,&local_space_rolled_r152_)))local_space_rolled_r152_=XR_NULL_HANDLE;}
 
     XrReferenceSpaceCreateInfo view_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
     view_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
@@ -554,6 +561,9 @@ void XrManager::NoteEndFrameR105(unsigned kinds,int result,std::uint32_t sitOutM
                 at+=std::snprintf(m+at,sizeof(m)-at," %s{submitted:%llu held:%llu dropped:%llu repaired:%llu}",xr_layer_guard_r104::name(k),
                     (unsigned long long)layer_sent_r104_[k],(unsigned long long)layer_held_r104_[k],(unsigned long long)layer_drop_r104_[k],(unsigned long long)layer_fix_r104_[k]);
             }
+            if(at<int(sizeof(m))-380&&(eye_hold_r141_[0]|eye_hold_r141_[1]|eye_hold_r141_[2]|eye_hold_r141_[3]))
+                at+=std::snprintf(m+at,sizeof(m)-at," EYE_HOLD_R141{reshown:%llu noImage:%llu tooOld:%llu mismatch:%llu}",
+                    (unsigned long long)eye_hold_r141_[0],(unsigned long long)eye_hold_r141_[1],(unsigned long long)eye_hold_r141_[2],(unsigned long long)eye_hold_r141_[3]);
             if(at<int(sizeof(m))-300){m[at++]=' ';hud_layer_v6664::StatusR104(m+at,sizeof(m)-at);}
             diagnostic_trace::WriteStatus(m);
         }
@@ -918,6 +928,8 @@ void XrManager::SetFlatUiMode(bool enabled)
             need_capture = need_capture || !flat_ui_anchor_valid_;
         }
         bool captured = false;
+        char r148[320]{};
+        namespace sf=kcd2vr::start_facing_r148;
         if (need_capture) {
             RenderFrameState f{};
             if (CopyActiveRenderFrameState(f) && f.head_pose_valid) {
@@ -925,8 +937,37 @@ void XrManager::SetFlatUiMode(bool enabled)
                 flat_ui_anchor_pose_ = f.head_pose;
                 flat_ui_anchor_valid_ = true;
                 captured = true;
+                // R148: a re-capture of an open screen right after YOUR runtime recenter is yours: never moved by the look-away rule
+                ui_anchor_user_r148_=previous&&ui_reference_change_r148_;ui_reference_change_r148_=false;ui_away_since_r148_=0;
+                if(!ui_anchor_logged_r148_){
+                    ui_anchor_logged_r148_=true;const auto& q=f.head_pose.orientation;const auto fw=sf::forwardOf(q.x,q.y,q.z,q.w);
+                    std::snprintf(r148,sizeof(r148),"R148 UI_ANCHOR first runtime='%s' yawDeg=%.1f pitchDeg=%.1f tracked=%d user=%d (screen placed in front of this head pose)",
+                        sf::runtime(),double(kcd2vr::start_r111::yawDeg(q.x,q.y,q.z,q.w)),double(sf::pitchDeg(fw)),sf::headTracked.load(std::memory_order_acquire)?1:0,ui_anchor_user_r148_?1:0);
+                }
             }
         }
+        // R148: the automatic Theater screen (intro / main menu / pause) placed from an early SteamVR pose can sit
+        // where the headset pointed before you looked in. a tracked, level head looking > 60 deg away from it for
+        // 1.5 s re-places it in front of you (start_facing_r148.h uiLookAway). only while the automatic Theater is on.
+        if (!captured && native_menu_plane_mode_.load(std::memory_order_acquire)) {
+            RenderFrameState f{};
+            if (CopyActiveRenderFrameState(f) && f.head_pose_valid) {
+                std::lock_guard<std::mutex> lock(flat_ui_mutex_);
+                if (flat_ui_anchor_valid_) {
+                    const auto& h=f.head_pose.orientation;const auto& a=flat_ui_anchor_pose_.orientation;
+                    const auto hf=sf::forwardOf(h.x,h.y,h.z,h.w),af=sf::forwardOf(a.x,a.y,a.z,a.w);
+                    const float angle=sf::angleDeg(hf,af),pitch=sf::pitchDeg(hf);
+                    if(sf::uiLookAway(ui_away_since_r148_,kcd2vr::start_r111::henryEyes.load(std::memory_order_acquire),ui_anchor_user_r148_,
+                                      sf::headTracked.load(std::memory_order_acquire),angle,pitch,std::uint64_t(GetTickCount64()))){
+                        const float before=kcd2vr::start_r111::yawDeg(a.x,a.y,a.z,a.w);
+                        flat_ui_anchor_pose_=f.head_pose;ui_away_since_r148_=0;
+                        std::snprintf(r148,sizeof(r148),"R148 UI_ANCHOR replaced runtime='%s' screenYawDeg before=%.1f after=%.1f awayDeg=%.1f headPitchDeg=%.1f (you looked away from the start/menu screen 1.5 s)",
+                            sf::runtime(),double(before),double(kcd2vr::start_r111::yawDeg(h.x,h.y,h.z,h.w)),double(angle),double(pitch));
+                    }
+                }
+            }
+        }
+        if(r148[0])diagnostic_trace::WriteStatus(r148); // KCD2VR.log only, few rows
         if (!previous || captured) {
             char m[192]{};
             std::snprintf(m, sizeof(m), "V66.20-FLAT-PLANE ON anchor=%s space=LOCAL orientation=YAW-ONLY", captured ? "captured" : "pending");
@@ -1102,7 +1143,7 @@ Texture2D hudTex : register(t2);
 // (+16 = debug tint). A null descriptor (0x0) means no warp for this draw.
 Texture2D<float4> warpOffsets : register(t3);
 SamplerState srcSampler : register(s0);
-cbuffer PresentParams : register(b0) { float2 uvScale; float2 uvOffset; float4 xrTan; float2 sourceTan; float2 fovFlags; float2 texelSize; float sharpenStrength; float presentPad; float4 poseDeltaQ; float4 reprojParams; float4 colorAdjust; float2 depthTexelSize; float hudEnable; float comfortVignette; };
+cbuffer PresentParams : register(b0) { float2 uvScale; float2 uvOffset; float4 xrTan; float2 sourceTan; float2 fovFlags; float2 texelSize; float sharpenStrength; float presentPad; float4 poseDeltaQ; float4 reprojParams; float4 colorAdjust; float2 depthTexelSize; float hudEnable; float comfortVignette; float srgbDecodeR156; float3 padR156; };
 struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
 VSOut VSMain(uint id : SV_VertexID) {
     VSOut o;
@@ -1422,9 +1463,6 @@ float4 PSMainInner51(VSOut i) {
                           float3(1.0, 0.2, 1.0);
         if (t >= 2) c.rgb = lerp(c.rgb, tc, 0.35);
     }
-    // R152: display-encoded UNORM source into an sRGB RTV - decode so the RTV's encode restores the original bytes.
-    if (colorAdjust.x < 0.0)
-        c.rgb = c.rgb <= 0.04045 ? c.rgb / 12.92 : pow((c.rgb + 0.055) / 1.055, 2.4);
     return c;
 }
 
@@ -1447,6 +1485,13 @@ float4 PSMain(VSOut i) : SV_TARGET {
         float inner = lerp(0.95, 0.40, s);
         c.rgb *= 1.0 - s * smoothstep(inner, inner + 0.45, r);
       }
+    }
+    // R156 (xr_eye_srgb_r114.h blitDecodeR156): c.rgb holds the game's display-encoded (sRGB) bytes, sampled raw
+    // through a UNORM view. an *_SRGB render target encodes once more on write (= the overblown VDXR picture, the
+    // R114 swapchain format alone did not change that). decode to linear here so the RTV encode gives the bytes back.
+    if (srgbDecodeR156 > 0.5) {
+      float3 g = saturate(c.rgb);
+      c.rgb = g <= 0.04045 ? g / 12.92 : pow((g + 0.055) / 1.055, 2.4);
     }
     return c;
 }
@@ -1483,7 +1528,7 @@ float4 PSMain(VSOut i) : SV_TARGET {
     params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     params[1].Constants.ShaderRegister = 0;
     params[1].Constants.RegisterSpace = 0;
-    params[1].Constants.Num32BitValues = 32; // V66.78: +hudEnable,+pad
+    params[1].Constants.Num32BitValues = 36; // V66.78: +hudEnable,+pad; R156: +srgbDecodeR156 (+3 pad)
     params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_STATIC_SAMPLER_DESC sampler{};
@@ -1586,7 +1631,7 @@ static bool Kcd2VrDisplayEncodedUnorm(DXGI_FORMAT f) noexcept {
     return f==DXGI_FORMAT_R8G8B8A8_UNORM||f==DXGI_FORMAT_B8G8R8A8_UNORM||f==DXGI_FORMAT_B8G8R8X8_UNORM||f==DXGI_FORMAT_R10G10B10A2_UNORM;
 }
 static float Kcd2VrGammaWithDecodeR152(float gamma, DXGI_FORMAT swapchain, DXGI_FORMAT srv, const char* path) noexcept {
-    const bool decode=Kcd2VrIsSrgbFormat(swapchain)&&Kcd2VrDisplayEncodedUnorm(srv);
+    const bool decode=kcd2vr::xr_eye_srgb_r114::blitDecodeR156(int(srv),int(swapchain)); // R156 owns the decode (flag present[32]); this only logs it
     static std::atomic<unsigned> logged{0};
     const unsigned key=(unsigned(srv)<<9)|(unsigned(swapchain)<<1)|(decode?1u:0u);
     if(logged.exchange(key,std::memory_order_acq_rel)!=key){
@@ -1594,7 +1639,7 @@ static float Kcd2VrGammaWithDecodeR152(float gamma, DXGI_FORMAT swapchain, DXGI_
         diagnostic_trace::WriteStatus(m);
     }
     const float g=std::max(std::fabs(gamma),0.05f);
-    return decode?-g:g;
+    return g;
 }
 
 
@@ -2056,7 +2101,7 @@ bool XrManager::BlitBridgePairStableToEyes(ID3D12Resource* left_source, ID3D12Re
         const float sharp = std::clamp(sharpening_strength_.load(std::memory_order_acquire), 0.0f, 0.75f);
         const float common_center_x = presentation_center_x_.load(std::memory_order_acquire);
         const float common_center_y = presentation_center_y_.load(std::memory_order_acquire);
-        float present[32] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker ? static_cast<float>(eye + 1) : 0.0f,
+        float present[36] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker ? static_cast<float>(eye + 1) : 0.0f,
                               1.0f / static_cast<float>(std::max<UINT64>(1, cache_desc.Width)), 1.0f / static_cast<float>(std::max<UINT>(1, cache_desc.Height)), sharp, 0.0f };
         present[15] = depth_weight; // V61.35: presentPad now carries depthPushWeight (see WriteColorAndDepthDescriptors)
         present[24] = Kcd2VrGammaWithDecodeR152(output_gamma_.load(std::memory_order_acquire), static_cast<DXGI_FORMAT>(swapchain_format_), Kcd2VrSrvFormat(cache_desc.Format), "bridge"); // R152
@@ -2152,7 +2197,8 @@ bool XrManager::BlitBridgePairStableToEyes(ID3D12Resource* left_source, ID3D12Re
             present[1] = safe_scale;
         }
         present[30] = g_v6678_hud_active_for_blit ? 1.0f : 0.0f; present[31] = render_presentation59c2_.comfort_vignette51; // one captured value for both eyes
-        active_list->SetGraphicsRoot32BitConstants(1, 32, present, 0);
+        present[32] = kcd2vr::xr_eye_srgb_r114::blitDecodeR156(int(Kcd2VrSrvFormat(cache_desc.Format)), int(swapchain_format_)) ? 1.0f : 0.0f; // R156
+        active_list->SetGraphicsRoot32BitConstants(1, 36, present, 0);
         active_list->DrawInstanced(3, 1, 0, 0);
     }
 
@@ -2431,7 +2477,7 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
         const float sharp = std::clamp(sharpening_strength_.load(std::memory_order_acquire), 0.0f, 0.75f);
         const float common_center_x = presentation_center_x_.load(std::memory_order_acquire);
         const float common_center_y = presentation_center_y_.load(std::memory_order_acquire);
-        float present[32] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker ? static_cast<float>(eye + 1) : 0.0f,
+        float present[36] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker ? static_cast<float>(eye + 1) : 0.0f,
                               1.0f / static_cast<float>(std::max<UINT64>(1, cache_desc.Width)), 1.0f / static_cast<float>(std::max<UINT>(1, cache_desc.Height)), sharp, 0.0f };
         present[15] = depth_weight; // V61.35: presentPad now carries depthPushWeight (see WriteColorAndDepthDescriptors)
         present[24] = Kcd2VrGammaWithDecodeR152(output_gamma_.load(std::memory_order_acquire), static_cast<DXGI_FORMAT>(swapchain_format_), Kcd2VrSrvFormat(cache_desc.Format), "afr"); // R152
@@ -2598,6 +2644,7 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
             present[1] = safe_scale;
         }
         present[30] = g_v6678_hud_active_for_blit ? 1.0f : 0.0f; present[31] = render_presentation59c2_.comfort_vignette51; // one captured value for both eyes
+        present[32] = kcd2vr::xr_eye_srgb_r114::blitDecodeR156(int(Kcd2VrSrvFormat(cache_desc.Format)), int(swapchain_format_)) ? 1.0f : 0.0f; // R156
         if (aerDumpWanted) {
             auto& de = aerDumpEye[eye];
             std::memcpy(de.present, present, sizeof(de.present));
@@ -2607,7 +2654,7 @@ bool XrManager::BlitAfrStereoToEyes(ID3D12Resource* source, int source_eye, std:
             de.stereoViews = frame_snapshot.stereo_views_valid; de.warp = present[20] > 5.5f;
             de.cachedPoseFrame = afr_cache_camera_frame_[eye];
         }
-        active_list->SetGraphicsRoot32BitConstants(1, 32, present, 0);
+        active_list->SetGraphicsRoot32BitConstants(1, 36, present, 0);
         active_list->DrawInstanced(3, 1, 0, 0);
     }
 
@@ -2955,7 +3002,7 @@ bool XrManager::BlitGameImageToEyes(ID3D12Resource* source, ID3D12Resource* left
             // Do NOT impose an SBS crop. Each XR eye samples the full source frame.
             sx = 1.0f; sy = 1.0f;
         }
-        float present[32] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker_enabled_this_blit ? static_cast<float>(eye + 1) : 0.0f,
+        float present[36] = { (sx / zoom), (sy / zoom), eye_offset_x[eye] + common_center_x, eye_offset_y[eye] + common_center_y, 0,0,0,0, source_tan_x, source_tan_y, have_fov ? 1.0f : 0.0f, marker_enabled_this_blit ? static_cast<float>(eye + 1) : 0.0f,
                               1.0f / static_cast<float>(std::max<UINT64>(1, src_desc.Width)), 1.0f / static_cast<float>(std::max<UINT>(1, src_desc.Height)), sharp, 0.0f,
                               0,0,0,1, 0,(eye == 0 ? -uv_binocular : uv_binocular), static_cast<float>(bottom_edge_mode),0 };
         if (count2_half_reference) {
@@ -3149,7 +3196,8 @@ bool XrManager::BlitGameImageToEyes(ID3D12Resource* source, ID3D12Resource* left
             safe_uv_scale_eye[eye] = safe_scale;
         }
         present[30] = g_v6678_hud_active_for_blit ? 1.0f : 0.0f; present[31] = render_presentation59c2_.comfort_vignette51; // one captured value for both eyes
-        command_list_->SetGraphicsRoot32BitConstants(1, 32, present, 0);
+        present[32] = kcd2vr::xr_eye_srgb_r114::blitDecodeR156(int(srv_format), int(swapchain_format_)) ? 1.0f : 0.0f; // R156
+        command_list_->SetGraphicsRoot32BitConstants(1, 36, present, 0);
         command_list_->DrawInstanced(3, 1, 0, 0);
     }
 
@@ -4027,9 +4075,21 @@ static std::array<ui_surface_geometry::Eye,2> UiEyes(const XrManager::RenderFram
 // XR-worker-only lifecycle work. Continue polling while stopped so READY can
 // resume the existing session and its already attached action set.
 void XrManager::ResetUiAnchorsR105() noexcept {
-    {std::lock_guard<std::mutex> lock(flat_ui_mutex_);flat_ui_anchor_valid_=false;}
+    {std::lock_guard<std::mutex> lock(flat_ui_mutex_);flat_ui_anchor_valid_=false;ui_anchor_logged_r148_=false;ui_away_since_r148_=0;}
     ui_layer_test_anchor_valid_=false;hud_lag_valid_=false;
     head_receipt_pending_r105_=true;
+}
+bool XrManager::SwapLocalRollR152(bool rolled,const char* why) noexcept { // R154: false = no space to switch to (recenter not requested)
+    // R152: XR worker only, at the start of RunFrame (before this frame's locates and layers)
+    const XrSpace next=rolled?local_space_rolled_r152_:local_space_plain_r152_;
+    static std::atomic<unsigned> rows{0};
+    if(next==XR_NULL_HANDLE){if(rows.fetch_add(1)<4)diagnostic_trace::WriteStatus("R152 XR_LOCAL_ROLL turned space unavailable (runtime refused it); upside-down poses stay rejected (R108)");return false;}
+    if(next==local_space_){local_rolled_r152_=rolled;return true;}
+    {std::lock_guard<std::mutex> pose_lock(pose_locate_mutex_);local_space_=next;}
+    input_.SetReferenceSpaceR152(next);
+    local_rolled_r152_=rolled;
+    if(rows.fetch_add(1)<12){char m[200]{};std::snprintf(m,sizeof(m),"R152 XR_LOCAL_ROLL space=%s reason=%s (runtime LOCAL was upside down; recenter + screen re-placed)",rolled?"TURNED_180":"PLAIN",why);diagnostic_trace::WriteStatus(m);}
+    return true;
 }
 void XrManager::PollSessionEventsR105() {
     if(instance_==XR_NULL_HANDLE||session_==XR_NULL_HANDLE)return;
@@ -4077,7 +4137,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
     diagnostics::xr165::Timer timing165(diagnostics::xr165::Frame);
     PollSessionEventsR105();
     aer_warp_r154::Tick(); // R154: status line, and frees the warp's GPU memory once it stops running
-    if (!session_running_.load(std::memory_order_relaxed)) { input_.InvalidateFrameR105();comfort_envelope51_.Reset();Sleep(8);return false; } // R106: no xrWaitFrame pacing while stopped - don't spin the worker
+    if (!session_running_.load(std::memory_order_relaxed)) { kcd2vr::start_facing_r148::headTracked.store(false,std::memory_order_release);input_.InvalidateFrameR105();comfort_envelope51_.Reset();Sleep(8);return false; } // R106: no xrWaitFrame pacing while stopped - don't spin the worker
 
     // V58 live XR-resolution apply. Execute only on the XR worker before
     // xrWaitFrame/acquire, when no image from the new frame is owned. Finish
@@ -4122,7 +4182,18 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
         pending_reference_changes125_.erase(due,pending_reference_changes125_.end());
         CameraHook::RequestRecenter();
         ResetUiAnchorsR105();
+        {std::lock_guard<std::mutex> lock(flat_ui_mutex_);ui_reference_change_r148_=true;} // R148: the next screen anchor is yours (runtime recenter)
+        if(local_rolled_r152_)SwapLocalRollR152(false,"runtime_recenter"); // R152: a runtime recenter gives an upright LOCAL again
+        roll_watch_r152_={};roll_swap_due_r152_=false;
         diagnostic_trace::WriteStatus("R105 XR_REFERENCE runtimeLocalChange=APPLIED_AT_DISPLAY_TIME uiAnchors=RECAPTURE bodyReanchor=ON_VALID_POSE");
+    }
+
+    if(roll_swap_due_r152_){ // R152: the head read upside down 0.5 s: switch plain <-> turned LOCAL, then recenter like a start
+        roll_swap_due_r152_=false;
+        if(SwapLocalRollR152(!local_rolled_r152_,"head_upside_down_0.5s")){ // R154: only a real switch recenters (a refused turned space does not reset the screen every 0.5 s)
+        CameraHook::RequestRecenter();ResetUiAnchorsR105();comfort_envelope51_.Reset();
+        {std::lock_guard<std::mutex> lock(flat_ui_mutex_);ui_reference_change_r148_=false;} // not your recenter: the R148 look-away rule stays on
+        }
     }
 
     // V49: derive the active headset cadence from OpenXR predicted display times.
@@ -4172,10 +4243,13 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
         XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
         diagnostics::xr165::Timer timing165(diagnostics::xr165::PredictedPose);
         std::lock_guard<std::mutex> pose_lock(pose_locate_mutex_);
-        if (XR_SUCCEEDED(xrLocateSpace(view_space_, local_space_, frame_state.predictedDisplayTime, &location)) &&
+        const bool locatedR152=XR_SUCCEEDED(xrLocateSpace(view_space_, local_space_, frame_state.predictedDisplayTime, &location)) &&
             (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
-            (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) &&
-            HeadUprightR108(location.pose.orientation))
+            (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+        if(locatedR152){const auto& q=location.pose.orientation; // R152: an upside-down head held 0.5 s = the runtime's LOCAL is turned
+            if(kcd2vr::local_roll_r152::watch(roll_watch_r152_,(location.locationFlags&XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT)!=0,
+                   kcd2vr::local_roll_r152::upY(q.x,q.y,q.z,q.w),std::uint64_t(GetTickCount64())))roll_swap_due_r152_=true;}
+        if (locatedR152 && HeadUprightR108(location.pose.orientation))
         {
             out_head_pose.pos_x = location.pose.position.x;
             out_head_pose.pos_y = location.pose.position.y;
@@ -4201,6 +4275,8 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
                 debug_trace::WriteCounter("valid_hmd_poses", pose_no);
         }
     }
+    // R148: the start/load facing recenter (start_facing_r148.h) only trusts a head the runtime really tracks
+    kcd2vr::start_facing_r148::headTracked.store(got_pose&&(headFlags59c6&XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT)!=0,std::memory_order_release);
 
     bool inputFresh51=false;
     { diagnostics::xr165::Timer timing165(diagnostics::xr165::Input);inputFresh51=input_.Sync(frame_state.predictedDisplayTime); }
@@ -4620,6 +4696,8 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
     {
         bool acquired[2] = { false, false };
         bool images_ready = true;
+        bool eyes_written_r141 = false;                // R141: this frame's copy wrote the acquired eye images
+        bool released_r141[2] = { false, false };      // R141: released = the image the runtime shows for that swapchain
 
         for (int eye = 0; eye < 2; ++eye)
         {
@@ -4675,6 +4753,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
             const bool copy_ui = ui_ready && (menu_visible || diagnostic_h24 || ui_needs_init);
             bool ui_copy_ok = false;
             images_ready = QueueRenderThreadDiagnosticWork(left, right, ui_ready ? ui_image : nullptr, copy_ui, &ui_copy_ok, presentation59c2);
+            eyes_written_r141 = images_ready;
             if (ui_copy_ok && ui_image_index < menu_ui_image_initialized_.size()) menu_ui_image_initialized_[ui_image_index] = true;
             const bool ui_initialized = ui_ready && ui_image_index < menu_ui_image_initialized_.size() && menu_ui_image_initialized_[ui_image_index];
             have_ui_texture = images_ready && ui_ready && ui_image != nullptr && ui_initialized;
@@ -4724,6 +4803,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
             if (!acquired[eye]) continue;
             XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
             if (XR_FAILED(xrReleaseSwapchainImage(eyes_[eye].swapchain, &release_info))) images_ready = false;
+            else released_r141[eye] = true;
         }
         if (ui_acquired) {
             XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
@@ -4846,6 +4926,69 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
                         layer_frame.eye_pose[0].position.x, layer_frame.eye_pose[1].position.x);
                     debug_trace::Write(m);
                 }
+            }
+            // R141: remember what each released eye image now holds. only a projection picture can be re-shown;
+            // a theater/map frame overwrote the image with something else.
+            const bool projection_r141 = !presentation59c2.policy.flat && !presentation59c2.policy.physical_map;
+            const std::uint64_t now_r141 = GetTickCount64();
+            for (int eye = 0; eye < 2; ++eye) {
+                const int source_eye = swap_eyes ? (eye ^ 1) : eye;
+                if (projection_r141)
+                    xr_eye_hold_r141::Record(eyes_[source_eye].held_r141, image_indices[source_eye],
+                        eye, proj_views[eye].pose, proj_views[eye].fov, active_frame.frame_index, now_r141);
+                else xr_eye_hold_r141::Forget(eyes_[source_eye].held_r141, image_indices[source_eye]);
+            }
+            // R153: a Theater frame (not the physical map) shows the left image on the theater quad: remember it
+            // holds a theater picture of this scene, so a stalled Theater frame can show it again (below).
+            if (presentation59c2.policy.flat && !presentation59c2.policy.physical_map)
+                xr_eye_hold_r141::RecordTheater(eyes_[0].held_r141, image_indices[0], presentation59c2.ticket, now_r141);
+        }
+        else {
+            // R141: this frame wrote no eye image (handoff timed out after 500 ms while the game stalled, no
+            // presentable stereo pair, copy refused). before R141 the frame went out with NO projection and no HUD =
+            // black, and the runtime kept that black until the next good frame (up to ~0.5 s in a stall). the
+            // images just released still hold their last picture: send it again with the pose/fov it was drawn
+            // with (runtime reprojects it world-locked). both eyes or nothing, younger than 2 s, decided every frame.
+            if (eyes_written_r141) {
+                for (int eye = 0; eye < 2; ++eye) xr_eye_hold_r141::Forget(eyes_[eye].held_r141, image_indices[eye]);
+            } else if (xr_eye_hold_r141::enabled.load(std::memory_order_acquire) &&
+                       !presentation59c2.policy.flat && !presentation59c2.policy.physical_map &&
+                       acquired[0] && acquired[1] && released_r141[0] && released_r141[1] &&
+                       production_presentation59c2_.Current(presentation59c2.ticket)) {
+                const bool swap_r141 = swap_eyes_.load(std::memory_order_acquire);
+                for (int eye = 0; eye < 2; ++eye) {
+                    EyeSwapchain& e = eyes_[swap_r141 ? (eye ^ 1) : eye];
+                    proj_views[eye].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
+                    proj_views[eye].subImage.swapchain = e.swapchain;
+                    proj_views[eye].subImage.imageRect.offset = { 0, 0 };
+                    proj_views[eye].subImage.imageRect.extent = { e.width, e.height };
+                }
+                const auto held = xr_eye_hold_r141::Pick(eyes_[0].held_r141, image_indices[0], eyes_[1].held_r141, image_indices[1],
+                    swap_r141, GetTickCount64(), proj_views);
+                ++eye_hold_r141_[static_cast<unsigned>(held)];
+                if (held == xr_eye_hold_r141::Result::Held) { have_layer = true; layer_frame_paired = false; } // old picture: no D61 lead sample
+            } else if (xr_eye_hold_r141::enabled.load(std::memory_order_acquire) &&
+                       presentation59c2.policy.flat && !presentation59c2.policy.physical_map &&
+                       acquired[0] && released_r141[0] &&
+                       production_presentation59c2_.Current(presentation59c2.ticket)) {
+                // R153: the same stall in Theater (main menu, loading screen theater). before R153 this frame went
+                // out with no layer at all = black. the left image just released still holds the last theater
+                // picture of this same scene: the theater quad below shows it again (its pose is this frame's
+                // anchor, like every theater frame). same switch VrEyeHoldR141, same 2 s bound, decided every frame.
+                const auto held = xr_eye_hold_r141::PickTheater(eyes_[0].held_r141, image_indices[0],
+                    presentation59c2.ticket, GetTickCount64());
+                ++eye_hold_r141_[static_cast<unsigned>(held)];
+                if (held == xr_eye_hold_r141::Result::Held) { have_layer = true; layer_frame_paired = false; }
+            }
+            // R153: a held picture (projection or theater) keeps the menu too. the R111 re-show above needs a
+            // written eye frame, so during the hold the menu / VR menu vanished for the stalled frames (log 8 Nov
+            // 11:21:48-53: eyesNotReady 6, menu notSent 6, EYE_HOLD reshown 17->23). same rule as R111: the last
+            // released menu image, only if it was ever filled.
+            if (have_layer && !have_ui_texture && ui_wanted_r111 && menu_ui_has_released_r111_ &&
+                menu_ui_.swapchain != XR_NULL_HANDLE && ui_miss_r111 != MissRelease) {
+                have_ui_texture = true;
+                have_ui_layer = menu_visible || diagnostic_h24;
+                ui_reused_r111 = true;
             }
         }
     }
@@ -5370,7 +5513,7 @@ bool XrManager::RunFrame(XrPose& out_head_pose, float head_pose_scale)
         hud_quad=normalHudQuadR93;diceHudReceiptR93={};
     }
 
-    // R125 HUD at infinity (VrHudInfinityR125, default ON). Miki 6 Nov: "the HUD is still slightly double, i need to
+    // R125 HUD at infinity (VrHudInfinityR125, default OFF since R126: INF gave him more eye strain). Miki 6 Nov: "the HUD is still slightly double, i need to
     // look closer to see it". the one HUD quad at VrHudDistanceR110 (5 m in his ini) is seen by both eyes like a real
     // board 5 m away: disparity IPD/D = 0.069/5 = 0.8 deg. while the eyes converge on the world further away that is
     // outside fusion = double; to read it he has to converge on it. here the one HUD quad becomes two, LEFT eye only and
@@ -5777,10 +5920,19 @@ void XrManager::Shutdown()
     v6589_packed_desc_ = {}; v6589_packed_capture_enabled_.store(false,std::memory_order_release); v6590_ghost_ready_.store(false,std::memory_order_release);
     DestroySwapchains();
 
+    {   // R154: the game/camera thread samplers (SampleHeadPoseAtTime, SampleLateHeadPose, ...) locate view_space_ against
+        // local_space_ under pose_locate_mutex_; destroy the spaces under the same lock so a sampler that passed its
+        // session_running_ check does not use a handle that was just destroyed
+    std::lock_guard<std::mutex> pose_lock(pose_locate_mutex_);
     if (stage_space_ != XR_NULL_HANDLE) { xrDestroySpace(stage_space_); stage_space_ = XR_NULL_HANDLE; }
     eye_height_floor_valid_.store(false);
     if (view_space_ != XR_NULL_HANDLE) { xrDestroySpace(view_space_); view_space_ = XR_NULL_HANDLE; }
-    if (local_space_ != XR_NULL_HANDLE) { xrDestroySpace(local_space_); local_space_ = XR_NULL_HANDLE; }
+    // R152: local_space_ is one of the two below
+    if (local_space_rolled_r152_ != XR_NULL_HANDLE) { xrDestroySpace(local_space_rolled_r152_); local_space_rolled_r152_ = XR_NULL_HANDLE; }
+    if (local_space_plain_r152_ != XR_NULL_HANDLE) { xrDestroySpace(local_space_plain_r152_); local_space_plain_r152_ = XR_NULL_HANDLE; }
+    else if (local_space_ != XR_NULL_HANDLE) xrDestroySpace(local_space_);
+    local_space_ = XR_NULL_HANDLE; local_rolled_r152_ = false;
+    }
     if (session_ != XR_NULL_HANDLE)
     {
         // R105: xrEndSession belongs to STOPPING (handled by the event pump).
@@ -5816,6 +5968,7 @@ void XrManager::DestroySwapchains()
     for (int eye = 0; eye < 2; ++eye)
     {
         EyeSwapchain& e = eyes_[eye]; e.d3d12_images.clear();
+        e.held_r141.clear(); // R154: the new swapchain's images hold nothing yet - a hold record from the old images must not re-show them (V58 live resolution rebuild)
         if (e.swapchain != XR_NULL_HANDLE) { xrDestroySwapchain(e.swapchain); e.swapchain = XR_NULL_HANDLE; }
     }
     menu_ui_.d3d12_images.clear();

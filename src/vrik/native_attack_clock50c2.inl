@@ -176,6 +176,8 @@ static void MotionClockMid50(DetourModKit::hook::MidContext& ctx) noexcept {
     std::uint64_t key=0;
     if(!NativeHandKey6697(f.manager,0,key)||key!=t.key){no(4);return;}
     if(!ac50::inspect(b,WhBase(),ClockRead50,v)){no(40+v.check);return;}
+    // R161 tutorial GAME TIMING: this swing's start decided "game's own speed" (practice weapon) -> no catch-up, native rate.
+    if(kcd2vr::tutorial_native_r159::swingTiming.decided(b.intent.tick,kcd2vr::tutorial_native_r159::nativeTimingOnlyNow(now))){no(7);return;}
     ac50::Contact contact{};const bool touched=ac50::contact.read(contact)&&contact.actor==actor&&ac50::touches(contact,t)&& // R59.16C10R17: gesture match too
         kcd2vr::contact176::fresh(contact.tick,now,kcd2vr::contact59c3::maximumContactAge);
     const float dt=xmm(ctx,0).lane<float>(0);

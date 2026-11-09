@@ -77,6 +77,7 @@ struct PhysGrip6698 {
     // normal six-sample capture; a different settled grip replaces it (no latch, new body epoch = fresh learn).
     bool recheckR121[2]{};unsigned recheckSamplesR121[2]{};
     unsigned restSkipsR123[2]{}; // R123: crossbow learn samples skipped because they sat on the bind/rest relation
+    unsigned restWindowR140[2]{}; // R140: bow/crossbow grip learned ON the rest relation: samples left in which a real hold replaces it
 };
 #include "../subsystems/physics/support_slot_state.inl" // M2_OWNED_SOURCE
 static double m34angle(pm::Quat q) noexcept {const double w=std::clamp(std::abs(q.w),0.0,1.0);return 2*std::acos(w);}
@@ -656,13 +657,16 @@ static void PhysCaptureGrip6698(const PhysEquipmentItem6698& item,const float* n
         if(pm::length(weapon.p)<2.0){g.mount=weapon;g.mountReady=true;g.mountStamp126=body.stamp;}
         // HS3 (Miki 25 Oct: second bow draw seated rotated to the left): the bow grip was learned once on the first draw and
         // reused forever. a stowed bow forgets it, so every draw learns the grip again from its own completed native pose.
-        if(item.profile.bow()||kcd2vr::ranged_kind_xr32::crossbow(item.profile.classId)){for(int s=0;s<2;++s){g.ready[s]=false;g.stable[s]=0;g.recheckR121[s]=false;g.restSkipsR123[s]=0;}}
+        if(item.profile.bow()||kcd2vr::ranged_kind_xr32::crossbow(item.profile.classId)){for(int s=0;s<2;++s){g.ready[s]=false;g.stable[s]=0;g.recheckR121[s]=false;g.restSkipsR123[s]=0;g.restWindowR140[s]=0;}}
     }else for(int side=0;side<2;++side){
-        if((g.ready[side]&&!g.recheckR121[side])||!body.valid[side])continue; // R121: a reused crossbow grip keeps being checked
+        if((g.ready[side]&&!g.recheckR121[side]&&!g.restWindowR140[side])||!body.valid[side])continue; // R121: a reused crossbow grip keeps being checked; R140: a rest-relation learn too
         // R121: the check only covers the draw itself (~0.33 s at 90 Hz). A later hand motion relative to the crossbow
         // (reload, aim) must never move the grip, so an unsettled check simply keeps the reused grip.
         if(g.ready[side]&&g.recheckR121[side]&&++g.recheckSamplesR121[side]>30){
             g.recheckR121[side]=false;char m[200]{};std::snprintf(m,sizeof(m),"R121 XBOW_GRIP_CHECK key=%016llX side=%d result=KEPT_REUSED_NOT_SETTLED",(unsigned long long)g.key,side);diagnostic_trace::Write(m);continue;}
+        // R140: the provisional rest-relation grip found no other settled hold in its window: it IS the hold, keep it.
+        if(g.ready[side]&&g.restWindowR140[side]&&!--g.restWindowR140[side]){
+            char m[200]{};std::snprintf(m,sizeof(m),"R140 RANGED_GRIP_REST key=%016llX class=%d side=%d result=KEPT_NO_OTHER_HOLD",(unsigned long long)g.key,item.profile.classId,side);diagnostic_trace::Write(m);continue;}
         // Shields must not learn an animated blocking/idle offset as their permanent grip.
         // Other weapons retain the existing same-pose primary/support capture.
         const bool referenceShieldB4=item.profile.shield176()&&side==item.profile.side;
@@ -693,6 +697,18 @@ static void PhysCaptureGrip6698(const PhysEquipmentItem6698& item,const float* n
                 }
             }
         }
+        // R123: a crossbow primary sample that sits on the authored rest relation is the bind frame before the draw clip
+        // moved the crossbow (R122 log: 13:56:56 and 13:58:02 learned (-0.065,0.024,0.018) q~identity, 13:56:58 and 13:58:04
+        // the real hold (-0.081,0.142,-0.000), 12 cm apart, D72). Skip it (bounded, kRestSkipCap) so the learn settles on the hold.
+        // R140: the bow too (melee_grip_r123.h rangedRest), checked BEFORE the D70 bow reuse so a bind frame is never
+        // reused either, and while a rest-relation learn is provisional (restWindowR140) every rest sample is skipped.
+        const bool rangedRestR140=isPrimary&&primaryReferenceB4&&kcd2vr::melee_grip_r123::rangedRest(item.profile.classId);
+        const double restMR140=rangedRestR140?pm::length(candidate.p-primaryReferenceB4->p):1.,restRadR140=rangedRestR140?pm::angle(candidate.q,primaryReferenceB4->q):1.;
+        const bool onRestR140=rangedRestR140&&kcd2vr::melee_grip_r123::restRelation(restMR140,restRadR140);
+        if(rangedRestR140&&kcd2vr::melee_grip_r123::skipRest(restMR140,restRadR140,g.restSkipsR123[side],g.restWindowR140[side]!=0)){
+            if(!g.restWindowR140[side]&&!g.restSkipsR123[side]++){char m[200]{};std::snprintf(m,sizeof(m),"R123 RANGED_GRIP_REST_FRAME key=%016llX class=%d side=%d result=SKIPPED_BIND_FRAME",(unsigned long long)g.key,item.profile.classId,side);diagnostic_trace::Write(m);}
+            g.stable[side]=0;continue;
+        }
         // D70: a redraw may reuse a settled bow grip only after THIS completed
         // native pose proves the same local grip, binding, scale and actor epoch.
         // Never reuse the old rotated bow simply because its inventory key stayed.
@@ -701,14 +717,6 @@ static void PhysCaptureGrip6698(const PhysEquipmentItem6698& item,const float* n
            pm::length(candidate.p-g.heldHandR27[side].p),pm::angle(candidate.q,g.heldHandR27[side].q))){
             g.hand[side]=g.candidate[side]=candidate;g.ready[side]=true;g.stable[side]=6;
             continue;
-        }
-        // R123: a crossbow primary sample that sits on the authored rest relation is the bind frame before the draw clip
-        // moved the crossbow (R122 log: 13:56:56 and 13:58:02 learned (-0.065,0.024,0.018) q~identity, 13:56:58 and 13:58:04
-        // the real hold (-0.081,0.142,-0.000), 12 cm apart, D72). Skip it (bounded, kRestSkipCap) so the learn settles on the hold.
-        if(isPrimary&&kcd2vr::ranged_kind_xr32::crossbow(item.profile.classId)&&primaryReferenceB4&&
-           kcd2vr::melee_grip_r123::restFrame(pm::length(candidate.p-primaryReferenceB4->p),pm::angle(candidate.q,primaryReferenceB4->q),g.restSkipsR123[side])){
-            if(!g.restSkipsR123[side]++){char m[200]{};std::snprintf(m,sizeof(m),"R123 XBOW_GRIP_REST_FRAME key=%016llX side=%d result=SKIPPED_BIND_FRAME",(unsigned long long)g.key,side);diagnostic_trace::Write(m);}
-            g.stable[side]=0;continue;
         }
         if(g.stable[side]&&pm::length(candidate.p-g.candidate[side].p)<.018&&pm::angle(candidate.q,g.candidate[side].q)<.10)++g.stable[side];else {g.candidate[side]=candidate;g.stable[side]=1;}
         // The current native wrist socket can prove the primary relation on
@@ -731,6 +739,10 @@ static void PhysCaptureGrip6698(const PhysEquipmentItem6698& item,const float* n
             const bool replaceR121=!g.recheckR121[side]||!g.ready[side]||pm::length(candidate.p-g.hand[side].p)>=.018||pm::angle(candidate.q,g.hand[side].q)>=.10;
             if(g.recheckR121[side]){char m[200]{};std::snprintf(m,sizeof(m),"R121 XBOW_GRIP_CHECK key=%016llX side=%d result=%s",(unsigned long long)g.key,side,replaceR121?"REPLACED_BY_SETTLED_GRIP":"CONFIRMED");diagnostic_trace::Write(m);}
             g.recheckR121[side]=false;
+            // R140: a provisional rest-relation grip is replaced by this settled hold (rest samples were skipped, so it is off
+            // the rest relation); a learn that settles ON the rest relation (skip cap ran out) opens the provisional window.
+            if(g.restWindowR140[side]){g.restWindowR140[side]=0;char m[256]{};std::snprintf(m,sizeof(m),"R140 RANGED_GRIP_REST key=%016llX class=%d side=%d result=REPLACED_BY_SETTLED_HOLD local=(%.3f,%.3f,%.3f)",(unsigned long long)g.key,item.profile.classId,side,candidate.p.x,candidate.p.y,candidate.p.z);diagnostic_trace::Write(m);}
+            else if(onRestR140){g.restWindowR140[side]=kcd2vr::melee_grip_r123::kRestWindow;char m[200]{};std::snprintf(m,sizeof(m),"R140 RANGED_GRIP_REST key=%016llX class=%d side=%d result=PROVISIONAL_REST_LEARN",(unsigned long long)g.key,item.profile.classId,side);diagnostic_trace::Write(m);}
             if(replaceR121)g.hand[side]=candidate;g.ready[side]=true;if(PhysHolsterCaptureD48(body.stamp.tick)){char m[384]{};std::snprintf(m,sizeof(m),"V66.166 GRIP key=%016llX native=%c role=%s samples=%u local=(%.3f,%.3f,%.3f) localQ=(%.4f,%.4f,%.4f,%.4f) source=%s calibration=AUTOMATIC",(unsigned long long)g.key,side?'L':'R',isPrimary?"PRIMARY":"SUPPORT_CANDIDATE",g.stable[side],candidate.p.x,candidate.p.y,candidate.p.z,candidate.q.x,candidate.q.y,candidate.q.z,candidate.q.w,referenceShieldB4?"AUTHORED_WRIST_SOCKET_B4":authoredPrimaryB4?"SAME_POSE_AUTHORED_WRIST_MATCH":"SAME_ANIMATED_POSE");diagnostic_trace::Write(m);}}
     }
     if(item.held&&(item.profile.bow()||kcd2vr::ranged_kind_xr32::crossbow(item.profile.classId)||(item.profile.melee()&&primaryReferenceB4))&&g.ready[item.profile.side]){ // R121: + crossbow
@@ -1297,6 +1309,13 @@ static PhysCommandDecisionH8 PhysCommandAuthorityH8(const PhysFrame6698& frame,p
     }
     return PhysCommandDecisionH8::Continue;
 }
+// R163: the practice / quest weapon detector (R156 npc_force_block153::practiceWeapon, read by the R156 / R159 / R163 gates)
+// was published only by the active physical path below, so with native controls / native body / a dialogue it went stale and
+// the gates saw "no training fight" (REVIEW162_tut: practiceWeapon=0 from 22:15:54 while he held the wooden sword). the same
+// read-only equipment snapshot is refreshed here every 250 ms while the physical path is inactive. no write, no command.
+static void PhysPracticeRefreshR163(std::uint64_t now) noexcept {
+    static std::uint64_t due=0;if(due&&now<due&&due-now<=250)return;due=now+250;
+    PhysEquipment6698 e{};(void)PhysRefreshEquipment103(e,now);}
 static void PhysNativeTickImpl6698() noexcept {
     // Copied F3/F7 payloads are formatted by the sole mod-worker consumer.
     // Native input, equipment and combat processing retain this callback.
@@ -1329,7 +1348,7 @@ static void PhysNativeTickImpl6698() noexcept {
         for(auto& key:g_weapon_release_pending_t1)key.store(0,std::memory_order_release);}
     PhysRung1Summary30c1(frame,now,active,have,abortRequested30c1);
     kcd2vr::vr_combat111::nativeEngageClipVisible178r33.store(combat_diag_probe::NativeOwned178r33(now),std::memory_order_relaxed); // V66.178R33: clip ownership follows the engagement latch
-    if(!active){NativeHeldInvalidateT4();g_native_held_reason_t4.store(heldT4::Enabled()?HeldPhysicsSourceT4::Context:HeldPhysicsSourceT4::Disabled,std::memory_order_release);PhysPublishSupplyDispatchT25(frame,PhysEquipment6698{},false,now);g_phys_collision_owner110.store(nullptr,std::memory_order_release);return;}
+    if(!active){PhysPracticeRefreshR163(now);NativeHeldInvalidateT4();g_native_held_reason_t4.store(heldT4::Enabled()?HeldPhysicsSourceT4::Context:HeldPhysicsSourceT4::Disabled,std::memory_order_release);PhysPublishSupplyDispatchT25(frame,PhysEquipment6698{},false,now);g_phys_collision_owner110.store(nullptr,std::memory_order_release);return;}
     PhysEquipment6698 e{};const auto leftMembershipSnapshotH36=g_left_native_membership_h36.load(std::memory_order_acquire);
     static std::uint64_t equipmentGapSince135=0;
     {PerfScope101R2 equipmentTiming(4);

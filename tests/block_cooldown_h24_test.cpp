@@ -10,6 +10,7 @@ static void* SafeGetCryConsole(){return present?&cvar:nullptr;}
 static void* SafeConsoleGetCVar(void*,const char* name){return std::strcmp(name,"wh_cs_BlockCooldown")==0?&cvar:nullptr;}
 static float SafeCVarGetFloat(void* p,float fallback){return p?*static_cast<float*>(p):fallback;}
 static bool SafeCVarSetFloat(void* p,float v){++writes;if(!setOkay)return false;*static_cast<float*>(p)=v;return true;}
+static bool CheatCVarSetFloat143(void* p,float v){return SafeCVarSetFloat(p,v);} // R143: the dev-mode fallback is host-tested in tests/cheat_cvar_write_r143_test.cpp
 namespace frik_pose_probe {static void SetBlockCooldownLease59c17(bool active){notified=active;}}
 namespace diagnostic_trace {static void Write(const char*){}}
 #include "subsystems/masterstrike_combos/block_cooldown_lease_h24.inl"

@@ -1,158 +1,118 @@
 # Diagnostics
 
-Recording is optional. Working gameplay preferences must not depend on a
-diagnostic key being held or a capture lease remaining active.
+recording is optional. gameplay never depends on a recorder key, and nothing you set for playing needs a recorder to
+be running.
 
-| Shortcut | Evidence |
+the recorder keys work only with **Developer mode** ticked in the KCD2VR Setup window (`VrDeveloperMode`, read once
+at game start). it is the mod's own setting, the game's -devmode start option is not needed. without it the recorder
+keys do nothing, F7, F6, F1, F10 and Shift+F8 always work.
+
+## keys
+
+| key | what |
 | --- | --- |
-| F2 | Off → bugs → bugs + timing comparison → bugs + elbow/shoulder comparison → off. Includes sword, bow and crossbow draw lifecycle and placement. |
-| Shift+F2 | Performance capture without turning on unrelated heavy interaction recording. |
-| F3 | Combat recording on/off: requests, native admission, reaction/paired-action identity and results. The shortcut does not select a gameplay combat mode. |
-| F5 | Off → interaction recording → physical Grip/spatial-door comparison → guided-crafting/legacy-door comparison → off. Records target, action, attachment, return, transfer, storage haptic, smith fall/LT, applied alchemy rate, native dice state and physical reload ownership. |
-| Shift+F7 | Off → baseline recording → fresh-publication comparison → elbow-preference comparison → off. Includes raw goal, final wrist, contact identity/normal, freshness, release correction and physical reload ownership. Plain F7 (R124) opens/closes the VR menu. |
-| F6 | not a recorder: switches Theater (flat screen) <-> Immersive. ends on the next F6 or the next native menu/scene change. an L3+R3 click only switches back to Immersive. |
-| F9 | Independent finite Physics recording: corpse service, contact/raw-ray and native-held stage evidence. It does not select a gameplay physics mode. |
-| Shift+F9 | Read-only upstream detail ladder under the same Physics lease. |
-| F11 | Off → reload recording → staged-reload comparison → off. Includes string/tool/bolt identity, grasp and native cock/load state. |
+| F2 | rendering / bugs recorder: off -> bugs -> bugs + timing comparison -> bugs + elbow/shoulder comparison -> off. includes sword, bow and crossbow draw lifecycle and placement. |
+| Shift+F2 | performance + motion trace, without the heavy interaction recording. |
+| F3 | combat recorder on/off: requests, native admission, reaction/paired action identity and results. it does not change the combat mode. |
+| F5 | interactions and minigames: off -> interaction recording -> physical Grip/spatial door comparison -> guided crafting/legacy door comparison -> off. target, action, attachment, return, transfer, storage haptic, smith fall/LT, alchemy rate, dice state, physical reload ownership. |
+| Shift+F5 | quest progression recorder (R158): Henry's combat danger, the dialogue instance, tutorial screen, and every NPC within 25 m (dead, in combat, can talk, chat request...). read only, see below. plain F5 is not changed. |
+| Shift+F7 | VRIK recorder: off -> baseline -> fresh publication comparison -> elbow preference comparison -> off. raw goal, final wrist, contact identity/normal, freshness, release correction, hand references. |
+| F7 | opens/closes the VR menu (not a recorder). |
+| F6 | switches Theater (flat screen) <-> Immersive. stays until the next F6 or the next native menu/scene change. an L3+R3 click only switches back to Immersive. |
+| F9 | physics recorder: corpse service, contact/raw ray and native-held stage. it does not change the physics mode. |
+| Shift+F9 | read-only upstream detail ladder under the same physics recording. |
+| F11 | reload recorder: off -> reload recording -> staged reload comparison -> off. string/tool/bolt identity, grasp, native cock/load state. |
+| F1 | body follow on/off (BODY only). |
+| F10 | hand mode. Shift+F10 / Ctrl+F10 are developer keys. |
+| Shift+F8 | calibration (T-pose). |
 
-D84 map profiling requires F2 or Shift+F2; opening the map alone does not start it.
+each recorder runs 180 s and then stops by itself. keys can run together. stopping a key stops new rows, rows already
+captured can still drain for up to 5 s under the same session. map profiling needs F2 or Shift+F2, opening the map
+alone doesn't start it.
 
-R90: short mod status lines in the headset (the `KCD2VR ...` info text, e.g. a kick, crossbow
-or door refusal) show only while F2 records. F3, F5, Shift+F7, F9 and F11 still write them to
-KCD2VR.log ("VR status: ...") but never on screen. with F2 off nothing is shown.
+## screen messages
 
-D85 F3 combat zones: every `H29 STRIKE_RESULT` is followed by one `D85 F3 ZONE` row with
-`origin` (where the swing started), `sent` (the zone our native release carried), `requested`
-(+0xF0), `committed` (+0x180), `executed` (the zone the native attack row really ran, Henry
-frame = symmetric(+0x150)), `rowZone` (+0x150 as stored), `inputClass` (+0x270) and a verdict.
-`executedZone` in STRIKE_RESULT now means the same executed zone. Before D85 it printed +0x270,
-which is the running attack's input class (1 = heavy), not a zone. COMBAT_STATE rows show
-`inputClass=` and `executed=` with the same meaning. The native combo matcher compares the
-executed zone with the recipe GuardZone, so this row tells you directly why a combo step did
-or did not count.
-The optional worker snapshot and scope clocks also stop when recording is off.
-CPU scopes can be nested; do not add inclusive timings together or call them GPU
-measurements.
+short mod status lines in the headset (a kick, crossbow or door refusal and the like) show ONLY while F2 records.
+the other recorders write the same reason to KCD2VR.log ("VR status: ...") but never on screen. with F2 off nothing is
+shown. the gore pak's own messages are separate.
 
-The draw observer only reads during a short qualifying draw window. Queue overflow
-and exhausted budgets are reported. No row can mean a dropped or out-of-window
-observation, not necessarily that the native callback never ran. A hide call or
-placement readback is not proof of the first visible pixel.
+## one log
 
-F7 records existing contact results. It does not add a second physics solver.
-Recording has a cost, especially while contacts change continuously. Use it to
-find a specific transition, not as a permanent performance setting.
+everything the mod writes goes into KCD2VR.log: startup, companion loading, map performance, finger references, all the
+F-key recordings. no extra files: no finger caches, no DetourModKit_Log, no perf/startup/diagnostics side logs, no .bak
+of the ini. the last-good INI is kept in memory. capture toggles never open, truncate or close another file. game logs
+and other loaders' logs are not the mod's.
 
-Keep the DLL hash, active INI and companion identity with a recording. The folder
-name of a later review is not the build that produced the log. Existing recordings
-already cover many pickups, reloads, kicks and crafting actions; search those
-before asking for the same activity again.
+with recording off a few lifecycle lines still go to the log (startup, build marker, OpenXR session state, the first
+head pose after start or recenter, stereo/upscaler faults). they are short and never on screen.
 
-F3 `R3_NATIVE` (D85) also writes `opponent`, `combatObj`, `combatObjVt`,
-`combatObjVf18`, `route` and `cooldownLeftMs`. combatObj is actor+450, the thing
-the game asks (1315CF8) before it picks combat or free kick rows without an
-opponent. One F3 session with a no-target R3 (fists up, then a sword out) tells
-which object that is and if FREE_GUARD route was right.
+separate game starts can append to the same KCD2VR.log, the `C32 PROCESS pid=` line marks each start.
 
-## Finite sessions and combined recordings
+## what a good recording looks like
 
-The normal finite lease is 180 seconds. Stopping a key stops new observations;
-previously captured records and terminal summaries may drain for up to five
-seconds under their original session. A replacement session rejects older rows.
-Keys can run together. Shared reload and passive-contact observations carry one
-originating recorder plus the active mask, avoiding repeated native queries.
+- one key for one action: F3 + Shift+F7 for a dodge, F5 + Shift+F7 or F11 for a reload, F9 for a corpse. 180 s is
+  plenty. say the time when it went wrong.
+- keep the DLL build marker (first lines of the log), the INI and the companion with the recording. the folder name is
+  not the build that made the log.
+- the INI is saved on exit. it does not tell which options were active during an earlier action.
+- recording costs something, especially while contacts change all the time. use it to find one transition, not as a
+  permanent setting.
 
-F5 samples the dice action map/cursor only; it does not move the cup. F9 provider
-READY is installation evidence, not a successful grab or measured body movement.
-F3 pair identity is not authority for native damage to follow the VR blade.
-Read CHANGES_D84.md for the added fields and REGRESSION_LEDGER_D84.md for the
-remaining owner joins. Gameplay retirement and failure-status publication remain
-active with diagnostic keys off.
+## reading some of the rows
 
-## One mod log
+F3 combat zones: every `H29 STRIKE_RESULT` is followed by one `D85 F3 ZONE` row with `origin` (where the swing
+started), `sent` (the zone our native release carried), `requested` (+0xF0), `committed` (+0x180), `executed` (the zone
+the native attack row really ran, Henry frame = symmetric(+0x150)), `rowZone` (+0x150 as stored), `inputClass`
+(+0x270) and a verdict. the native combo matcher compares the executed zone with the recipe GuardZone, so this row
+tells you directly why a combo step did or did not count. COMBAT_STATE rows show `inputClass=` and `executed=` with
+the same meaning.
 
-All mod-owned runtime records use KCD2VR.log: ordinary startup, companion loading,
-map performance, finger-reference audits and F-key captures. The logger is
-configured on the mod worker before hook startup. Capture toggles never open,
-truncate or close another file. Explicit capture/map batches are admitted even
-when ordinary verbosity is WARNING or ERROR; the worker restores that verbosity
-after emitting the batch.
+F3 `R3_NATIVE` (kicks) also writes `opponent`, `combatObj`, `combatObjVt`, `combatObjVf18`, `route` and
+`cooldownLeftMs`. combatObj is actor+450, the thing the game asks (1315CF8) before it picks combat or free kick rows
+without an opponent.
 
-Native companion callbacks enqueue records within the logger's 512-byte inline
-limit and never wait for a disk flush. Capture batches are formatted/drained on
-the existing worker. Health receipts distinguish producer drops, forwarded
-records, rejected batches and shared logger losses. Forwarded means admitted to
-the logger, not proof of durable disk delivery after a crash.
+Shift+F7 `FRESH_POSE_UNCAPPED` (Fresh Pose Uncapped mode): native frame, camera source, result/reason, publication
+status, locate duration, sample sequence and source clocks, target and valid/tracked masks. `waitNs=0` means there is
+no token wait, not that the OpenXR lookup is free. a successful publication can still have partial tracking, look at
+the masks.
 
-No new KCD2VR-fingers BIN/JSON, DetourModKit_Log, map-performance or
-companion-startup sidecars are created. Finger references are rebuilt from their
-authored curves and cached in memory; player calibration remains in the INI.
-Obsolete pre-stowed-bow and migration backups are removed from active producers.
-The single last-good INI checkpoint remains a configuration recovery file. Game
-or external-loader logs are outside this mod's logging policy. This source update
-does not delete old files that already exist on an installation.
+F5 / Shift+F7 / F11 `RELOAD_NATIVE_DECISION`: clock refusal, native layer/scope, interval/event from/to/permitted
+values before restoration. 32 edges per domain per session.
 
+## Shift+F5 quest progression (R158)
 
-## D85R5R1 additions
+for a quest that does not go on (an NPC should talk and does not). press Shift+F5 BEFORE the moment (before you hit
+Hans in the sparring, before you kill the last ruffian in the courtyard), do the scene, wait at the place where it
+should continue, then send the log. 180 s like the other keys, Shift+F5 again stops it. one short high beep = on, one long low tone = off. nothing on
+screen, nothing written to the game, only rows in KCD2VR.log. needs the R158 companion pak for the Lua rows.
 
-| Capture | New evidence |
-| --- | --- |
-| F2 | Completed temporal pair publication, exact attempt/recording identity, per-eye reset and input metadata. DLSS allocation size is explicitly not claimed to be its active render subrectangle. |
-| F3 | Per-session combo rearm evidence and explicit accepted/unknown/zero throwing-stock status. Kicks retain actual route and observed attack type. |
-| F5 | Fixed-code Lua preparation result and bounded native small-pickup admission phase; Henry transfer/turn timing; crossbow mechanism observer reasons. |
-| F7 | ANATOMY_D86 calibrated hand cue, head/chest axes, bow influence and destination versus filtered proxy intrusion; crossbow observer reasons. |
-| F9 | Existing current-owner corpse/provider and physical contact evidence. Installation/READY alone is not a successful grab. |
+- `R158 QUEST_BEGIN` / `R158 QUEST_END`: start and end. `luaBridge=UNAVAILABLE` = only the QUEST_STATE rows will come.
+- `R158 QUEST_STATE` (C++, checked 4x a second, written when something changed, else every 2 s with `repeat=1`):
+  `henryInCombat` (the game's own combat flag of Henry, -1 = not seen, the combat hook is idle out of F4 combat),
+  `dialogue{...}` (the native dialogue instance: active = a real conversation with the dialog input map on, instance 0
+  = no dialogue exists), `tutorialScreen` (a full screen tutorial is open), `holdLookPrompt` (hold to look prompt
+  offered), `wh_ui_TutorialsEnabled` / `wh_cs_ForceBlock` (cvar values), `opponent{...}` (Henry's combat opponent, both
+  sides point at each other = reciprocal, with his skill), `practiceWeapon` (wooden / quest weapon in hand).
+- `R158 QUEST_HENRY` (Lua, every 2 s): `combatDanger` and `tenseCircumstance` - the same two the game asks before ANY
+  dialogue or chat can start (BasicAIActions.lua). 1 here after the fight is over = the game still thinks Henry is in
+  danger and no NPC will start talking. `npcs25m` = how many NPCs are near.
+- `R158 QUEST_NPC` (Lua, one row per NPC when it changes, `new=1` the first time): name, distance, `dead`,
+  `unconscious`, `hp`, `combatMode`, `combatDanger`, `arrangedFight` (scripted fight / sparring context),
+  `canTalk` / `canChat` (would the game let him talk to Henry), `chatRequest` (he wants to talk = Rosa in the window
+  should get 1 here), `acceptedChat`, `waitingReply` (he waits for Henry to answer), `dialogRestricted`, `following`.
+  a ruffian still `dead=0` within 25 m = the courtyard is not "all dead" for the quest yet.
+- `R158 QUEST_NPC_GONE`: that NPC left the 25 m or despawned.
+- `R158 QUEST_LUA state=NO_REPLY`: the companion pak has no zzkcd2vr_quest_diag_r158.lua (old pak) - the C++ rows still come.
 
-Reload reasons are shared with the retained F11 capture without extra native
-queries. New receipts have finite session budgets and are inactive with their
-relevant capture keys off. They use KCD2VR.log; no extra runtime file is created.
-Source host-test reports are development artifacts, not game runtime log files.
+what it can NOT show: the quest's own phase (combat tutorial phase, objective state) - the game keeps that in the
+native quest system and the mod has no verified read for it; the tutorial text/id in the tutorial box (it goes
+straight into the Flash movie, no hook sees it); Henry's stamina (no reader); hostility/faction. so the phase is read
+from the pattern: hits landed (F3 strike rows) + Henry still in combat danger + Hans arrangedFight=1/combatMode=1.
 
-## D85R5R2 corrections
-
-| Capture | Additional evidence |
-| --- | --- |
-| F2 or F5 | Changed presentation zoom/mode: requested, stored and XR-effective framing; separate source FOV; produced/consumed stereo identities and DLSS fault. The snapshot is non-atomic and queue submission is not headset scanout. |
-| F7 | BASIS_D86 reference bones, rest/desired rotations, hand conversion, chest/hinge basis and an exact observation join to the final ARM row. These copy the existing pose transaction without new native queries. |
-| F9 | Existing corpse-query receipt gains sphere-call/reuse and bounds counters plus sampled nativeQueryUs. Ordinary queries perform no added duration-clock reads. Background search receipts do not imply a deliberate grab. |
-| F5, F7 or F11 | D87 RELOAD_NATIVE_DECISION joins exact clock refusal, native layer/scope, duplicate qualification fields with known-read masks, and interval/event from/to/permitted values before restoration. It uses the existing queue and native reads. |
-
-Reload decision records have a 32-edge budget per domain/session/thread inside
-the existing finite lease. Priority changes between active captures cannot
-renew a previous session's quota. OFF or expired sessions do not enqueue these
-records; the worker checks the lease again before formatting and writing.
-
-The final INI is an exit snapshot. It must not be used to reconstruct the live
-options during an earlier action. No capture being active, no installed hook,
-and no passing host fixture by itself proves an in-game interaction completed.
-
-## D85R5R3 Fresh Pose Uncapped
-
-The new saved mode remains uncapped during F2/F7 comparisons. A finite capture
-does not change `VrMotionTrialD67=4` back into paced mode 2. Gameplay refreshes
-continue when the recording is off; the added receipts stop.
-
-F7 adds a rate-limited `FRESH_POSE_UNCAPPED` row containing the native frame,
-camera source, result/reason, publication status, locate duration, completed
-sample sequence and original source clocks, actual/requested target and
-valid/tracked masks. `waitNs=0` refers to the absent token wait; it is not a
-claim that OpenXR lookup itself is free. `meshSubmission=UNOBSERVED` is explicit.
-F2 uses the existing ownership queue with `UNCAPPED_POSE_LOCATE_NO_TOKEN_WAIT`.
-
-Reasons distinguish a completed publication, pose/grip contention, disabled or
-changed tracking, unavailable clock/session, stale prediction, rejected
-publication and preserved cached/offset camera policy. A successful publication
-can describe partial/invalid tracking; use the masks rather than assuming both
-hands were measured. Retained snapshots keep their actual timestamps. The
-existing mode-4 synchronous-camera failure receipt is also gated by F2/F7.
-
-The new mode does not create a log file, enable capture on selection or extend
-the existing finite capture leases. The launcher reports write/verification
-failure in its existing dialog; it creates no diagnostic sidecar.
-
-## R91R1 lifecycle receipts
-
-The completed-output path, terminal DLSS refusal, one-eye reset cut and unconfirmed
-native resize preserve bounded scalar status in KCD2VR.log even without F2. These
-are lifecycle/fault receipts only, never screen messages or continuous profiling.
-The ordinary capture writers remain gated. No extra runtime file is opened.
+things to keep in mind:
+- a row missing can mean a dropped or out-of-window observation, not that the native callback never ran. queue
+  overflow and exhausted budgets are reported.
+- CPU scopes can be nested. don't add inclusive timings together and don't call them GPU time.
+- "READY", "hook installed", "script returned", "SetVelocity returned" are narrower than a moved body, a grabbed item,
+  a landed hit or a felt haptic pulse.
+- F5 samples the dice action map/cursor only, it does not move the cup. F9 provider READY is not a successful grab.

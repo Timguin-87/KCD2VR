@@ -7,6 +7,7 @@
 #include "vrik/gore32.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <string>
 #include <algorithm>
@@ -139,6 +140,12 @@ int main(){
     {Replay r(true);auto hit=r.receipt(92,r.tip());hit.tick=r.in.tick+15;
      r.in.receipt58c1=hit;r.move({},.005);r.move({},.100);
      ck(!r.out.impaleLatchRequest&&r.out.impaleRefusal47==1+int(kcd2vr::contact58c1::LethalThrustRefusalC2::ReceiptAge),"C63 deferred receipt retains original 80ms completion freshness cap");}
+    // R153: the first pin of the killing-hit body needs the blade on THAT body now; depth never gets shallower
+    ck(i47::pinContactSameBodyR153(0x420,42,0x440,0x420,42,0x440),"R153 same entity/id/body = blade on him");
+    ck(!i47::pinContactSameBodyR153(0x777,42,0x440,0x420,42,0x440)&&!i47::pinContactSameBodyR153(0x420,43,0x440,0x420,42,0x440)&&
+       !i47::pinContactSameBodyR153(0x420,42,0x990,0x420,42,0x440)&&!i47::pinContactSameBodyR153(0,0,0,0,0,0),"R153 other man / other body / empty = no pin");
+    ck(std::abs(i47::keepDepthR153(.25,.02)-.23)<1e-9&&i47::keepDepthR153(.10,.30)==0&&i47::keepDepthR153(NAN,.1)==0&&i47::keepDepthR153(5,0)==1,"R153 keep the old depth (bounded)");
+    {char buf[96]{};const char* t=i47::gaveUpLine("BLADE_NOT_IN_HIM_AT_PIN",buf,sizeof(buf));ck(t&&std::strstr(t,"not in him"),"R153 one short reason line");}
     std::printf("impale47: %u checks passed\n",checks);
     return 0;
 }

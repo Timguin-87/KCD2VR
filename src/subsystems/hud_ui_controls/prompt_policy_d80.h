@@ -85,13 +85,23 @@ struct Presentation {
     }
     bool operator!=(const Presentation& b) const noexcept {return !(*this==b);}
 };
+// R145 (Miki 8 Nov: "the alchemy and smithing prompts and icons over the things are again bigger"): the station size
+// was sent only on station entry / new step / palm look (4 tries in 0.4 s). the C++ scaler gives the station children
+// back to their native size before that, so a child the game re-shows or re-scales later (world icons, the control
+// panel that comes up after the camera move) or a try that came too early stayed at full native size until the next
+// step. while a station is active the same request is sent again every kReassertMs: the movie owner re-applies the
+// size only to a child whose size is not ours any more (same base, no double scaling), nothing else changes.
+inline constexpr std::uint64_t kReassertMs=1000;
 struct Publication {
-    Presentation previous{};std::uint64_t hudGeneration=0,revision=0;bool have=false;
+    Presentation previous{};std::uint64_t hudGeneration=0,revision=0,at=0;bool have=false;
     bool Needed(Presentation next,std::uint64_t generation,std::uint64_t refresh)const noexcept {
         return (next.active||have)&&(!have||next!=previous||generation!=hudGeneration||refresh!=revision);
     }
-    void Published(Presentation next,std::uint64_t generation,std::uint64_t refresh) noexcept {
-        previous=next;hudGeneration=generation;revision=refresh;have=true;
+    bool Reassert(Presentation next,std::uint64_t now)const noexcept {
+        return have&&next.active&&previous.active&&now&&(now<at||now-at>=kReassertMs);
+    }
+    void Published(Presentation next,std::uint64_t generation,std::uint64_t refresh,std::uint64_t now=0) noexcept {
+        previous=next;hudGeneration=generation;revision=refresh;at=now;have=true;
     }
 };
 // One worker owns this timer. A held-open hand does not indefinitely extend it;

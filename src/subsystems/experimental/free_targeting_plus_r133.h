@@ -8,6 +8,8 @@
 //  2 FREE PLUS   1 + the view and the tracked body stay where they are in the world when the game turns
 //                Henry toward the target (the yaw is absorbed into a view offset, the stick is turned by
 //                the same offset so walking does not become a circle), widest target cone.
+//  R153          1 and 2: in a locked fight the right stick turn (smooth or snap) is ours - the game ignores it there -
+//                it turns the view + body offset below ("own turn"); mode 1 holds only those own turns.
 //
 // Why mode 2 is needed (R125 F3 log, 17:59:48-18:02:48): in 3 minutes of fighting the queued turn command
 // ran only 45 times for Henry, 42 were vetoed (henryVetoed=42, ORDINARY_MOTION:3). the rest of the turning
@@ -76,9 +78,13 @@ struct Hold {
     std::uint64_t bleedSince=0,lastEngaged=0;
     double bleedStartAbs=0;int bleedSign=-1;bool flipped=false;
     std::uint32_t fights=0,clears=0,bleeds=0;
+    double ownTurnDeg=0;           // R153: own stick turns held (cumulative), for the receipt
 };
 struct Input {
-    bool modePlus=false;      // mode == 2
+    bool modePlus=false;      // the hold runs: mode 2, and (R153) mode 1 with turnOnly
+    bool turnOnly=false;      // R153 mode 1: only the player's own locked-fight turns are held, the game's turns stay visible
+    bool ownTurn=false;       // R153: the pad owns the right stick turn right now (locked fight), native rx is withheld
+    double userYaw=0;         // R153: own stick/snap turn since the last call (rad, Cry yaw, + = left)
     bool context=false;       // plain tracked gameplay (no menu/dialogue/cutscene/native body), tracked camera base
     bool engaged=false;       // Henry has a combat opponent (recent)
     bool userTurn=false;      // the player is turning with the stick (or a snap pulse) right now
@@ -104,6 +110,10 @@ inline Step step(Hold& h,const Input& in) noexcept {
     const double dr=(h.haveRoot&&in.haveRoot)?wrap(in.rootYaw-h.lastRoot):0;
     h.lastCamera=in.cameraYaw;h.haveCamera=true;
     if(in.haveRoot){h.lastRoot=in.rootYaw;h.haveRoot=true;} // a frame without a root read keeps the last one: the next delta covers the gap
+    // R153: the player's own turn in a locked fight. the game does not turn Henry for the stick while he is locked,
+    // so the turn goes into the same view+body offset the game's turns are absorbed into (the lock stays underneath)
+    if(in.userYaw!=0&&std::isfinite(in.userYaw)&&std::fabs(in.userYaw)<kJumpRad*2){
+        h.view=wrap(h.view+in.userYaw);h.body=wrap(h.body+in.userYaw);h.ownTurnDeg+=std::fabs(in.userYaw)*57.29577951308232;}
     if(in.engaged)h.lastEngaged=in.now;
     const bool offset=std::fabs(h.view)>kDoneRad||std::fabs(h.body)>kDoneRad;
     if(!in.context){ // keep the offset through a menu/clinch in the fight, never absorb outside plain play
@@ -114,7 +124,8 @@ inline Step step(Hold& h,const Input& in) noexcept {
     const bool jump=std::fabs(dc)>kJumpRad||std::fabs(dr)>kJumpRad;
     if(in.engaged){
         h.bleedSince=0;
-        if(in.userTurn||jump)return Step::Pass;
+        if(in.turnOnly)return Step::Pass; // mode 1: the game's turns stay in the view as before
+        if((in.userTurn&&!in.ownTurn)||jump)return Step::Pass; // an own turn is in userYaw, the camera delta is the game's
         h.view=wrap(h.view-dc);h.body=wrap(h.body-dr);
         h.absorbedDeg+=std::fabs(dc)*57.29577951308232;
         h.maxOffsetDeg=std::max(h.maxOffsetDeg,std::fabs(h.view)*57.29577951308232);
@@ -155,6 +166,29 @@ inline void yawFrame(float q[4],double phi) noexcept {
     q[0]=float(c*x-s*y);q[1]=float(c*y+s*x);q[2]=float(c*z+s*w);q[3]=float(c*w-s*z);
 }
 
+// ---- R153 own turn in a locked fight (modes 1 and 2) ----
+// Miki 8 Nov (R152 run): "free targeting ... locks my joystick turn too - i could not change anything without looking".
+// while Henry has a combat opponent the game does not turn him for the right stick (FREE PLUS passed every stick turn
+// through the hold and he still saw nothing turn). so in modes 1/2, in that state, the pad keeps rx from the game and
+// turns the VR view + body by itself (the same offset the hold uses); the walking stick is turned by the same offset
+// and after the fight the existing bleed turns Henry back under the view. the lock / target choice stay the game's.
+constexpr double kOwnTurnRadPerS=2.0943951023931953; // 120 deg/s at full stick (smooth turn)
+constexpr double kOwnSnapRad=.5235987755982988;      // 30 deg per snap
+constexpr std::uint64_t kOwnTurnMs=250;
+// the pad gives rx to turning (not to the right grip aim) - same rule as native_vr_pad_premap
+inline bool stickTurns(bool active,float grip,bool gripAimOff) noexcept {return active&&(grip<=.55f||gripAimOff);}
+// holdReadyNow: the camera hold took a plain-play frame in the last 250 ms (no recenter/dialogue/horse/activity view),
+// so a turn given to it is really shown. otherwise the stick stays the game's (never a dead stick).
+inline bool ownsStickTurn(int mode,bool padGameplay,bool context,bool engagedNow,bool stickTurnsNow,bool holdReadyNow) noexcept {
+    return clampMode(mode)!=Native&&padGameplay&&context&&engagedNow&&stickTurnsNow&&holdReadyNow;
+}
+// smooth: rx (already curved by the pad, + = right) -> yaw for dt seconds (Cry yaw + = left). dt capped 50 ms.
+inline double stickYaw(float rx,double dtSec) noexcept {
+    if(!std::isfinite(rx)||!std::isfinite(dtSec)||dtSec<=0)return 0;
+    return -double(std::clamp(rx,-1.f,1.f))*kOwnTurnRadPerS*std::min(dtSec,.05);
+}
+inline double snapYaw(float ax) noexcept {return ax>0?-kOwnSnapRad:kOwnSnapRad;}
+
 // ---- cross-thread publication ----
 inline std::atomic<int> mode{kDefaultMode};
 inline std::atomic<std::uint64_t> modeGeneration{1};
@@ -165,6 +199,21 @@ inline std::atomic<std::uint64_t> rootYawTick{0};inline std::atomic<float> rootY
 inline std::atomic<std::uint64_t> absorbFrames{0},stickFrames{0},bleedFrames{0};
 inline std::atomic<float> absorbedDeg{0.f},maxOffsetDeg{0.f};
 inline std::atomic<std::uint32_t> fights{0},clears{0};
+// R153: pad thread / touch snap -> camera thread
+inline std::atomic<std::uint64_t> ownTurnMs{0},holdReadyMs{0};
+inline std::atomic<float> pendingYaw{0.f},ownTurnDeg{0.f};
+inline void addYaw(double d) noexcept {
+    if(!std::isfinite(d)||d==0)return;
+    float cur=pendingYaw.load(std::memory_order_relaxed);
+    while(!pendingYaw.compare_exchange_weak(cur,float(std::clamp(double(cur)+d,-1.,1.)),std::memory_order_acq_rel,std::memory_order_relaxed)){}
+}
+inline double takeYaw() noexcept {return double(pendingYaw.exchange(0.f,std::memory_order_acq_rel));}
+inline bool ownsTurn(std::uint64_t now) noexcept {
+    const auto t=ownTurnMs.load(std::memory_order_acquire);return t&&now>=t&&now-t<=kOwnTurnMs;
+}
+inline bool holdReady(std::uint64_t now) noexcept {
+    const auto t=holdReadyMs.load(std::memory_order_acquire);return t&&now>=t&&now-t<=kOwnTurnMs;
+}
 inline bool engaged(std::uint64_t now) noexcept {
     const auto t=opponentMs.load(std::memory_order_acquire);return t&&now>=t&&now-t<=1500;
 }

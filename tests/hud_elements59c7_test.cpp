@@ -37,6 +37,9 @@ struct Canvas {ui_native_canvas::Report Run(NativeCanvasBackend&,std::uint64_t,b
  ++parentRuns;ui_native_canvas::Report r{};r.complete=true;r.resolved=0x7ff;r.written=0x7ff;return r;
 }}g_canvas;
 ui_native_canvas::Report g_canvas_report{};
+bool HudCaptureActive175(){return false;} // R160: stubs for the later D63/R12 notification calls in the parent function
+void SetNotificationsRequestedD80(bool){}
+bool ApplyNotificationScaleR12(){return true;}
 #include "generated_hud_elements59c7.inc"
 #include "generated_hud_parent59c7.inc"
 int main(){
@@ -53,9 +56,15 @@ int main(){
  values[1]={3,4,120,120,0};g_children59c7.Observe(1,{2,13,23,1,generation});
  assert(apply(.6f)&&values[1].xs==72&&values[1].x==23);
  ui_surface_geometry::Hud h{};h.surface.valid=true;h.surface.width=1.6f;h.surface.height=.9f;h.safe={0,0,1920,1080};
- assert(ApplyWholeReadableHud44c2(true,h,1,1,1,1,1,1)&&parentRuns==1);
- assert(apply(.7f));assert(ApplyWholeReadableHud44c2(true,h,1,1,1,1,1,1)&&parentRuns==1);
- ++generation;assert(ApplyWholeReadableHud44c2(true,h,1,1,1,1,1,1)&&parentRuns==2);
- assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1)&&parentRuns==3);
+ assert(ApplyWholeReadableHud44c2(true,h,1,1,1,1,1,1,.71f,420.f,0.f)&&parentRuns==1);
+ assert(apply(.7f));assert(ApplyWholeReadableHud44c2(true,h,1,1,1,1,1,1,.71f,420.f,0.f)&&parentRuns==1);
+ ++generation;assert(ApplyWholeReadableHud44c2(true,h,1,1,1,1,1,1,.71f,420.f,0.f)&&parentRuns==2);
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1,.71f,420.f,0.f)&&parentRuns==3);
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1,.90f,420.f,0.f)&&parentRuns==4); // R160: dialogue size is part of the parent key
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1,.90f,520.f,0.f)&&parentRuns==5); // R160: dialogue vertical too
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1,.90f,520.f,0.f)&&parentRuns==5); // unchanged = no native call
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1,.90f,520.f,60.f)&&parentRuns==6); // R160 UI: tutorial position is part of the parent key
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1.2f,.90f,520.f,60.f)&&parentRuns==7); // R160 UI: one icon size (parent icon scale) too
+ assert(ApplyWholeReadableHud44c2(true,h,.8f,1,1,1,1,1.2f,.90f,520.f,60.f)&&parentRuns==7); // unchanged = no native call
  puts("PASS actual wrappers: missing Stats pending, three retries, late binding, zero steady calls, one-child change, same-wrapper replacement, parent/child isolation");
 }

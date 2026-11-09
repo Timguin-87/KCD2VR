@@ -57,6 +57,9 @@ int main(){
  check(l::advance(s,l::Id::ElbowSolverD48)&&s.live_d39.frikElbowsD48&&!s.live_d39.elbowSolverR89&&s.live_d39.motionTrialD67==4);
  check(l::advance(s,l::Id::ElbowSolverD48)&&s.live_d39.elbowPreferenceR92&&!s.live_d39.frikElbowsD48&&s.live_d39.motionTrialD67==4);
  check(l::advance(s,l::Id::ElbowSolverD48)&&!s.live_d39.elbowPreferenceR92&&s.live_d39.motionTrialD67==4);
+ // R154: INI-only state with FRIK and the reach preference both on = the solver runs the reach preference; one click leaves it (DEFAULT)
+ s.live_d39.frikElbowsD48=true;s.live_d39.elbowPreferenceR92=true;
+ check(l::advance(s,l::Id::ElbowSolverD48)&&!s.live_d39.elbowPreferenceR92&&!s.live_d39.frikElbowsD48&&!s.live_d39.elbowSolverR89);
  for(int expected:{0,2,4,0})check(l::advance(s,l::Id::MotionTrialD67)&&s.live_d39.motionTrialD67==expected);
  unsigned timingRows=0,elbowRows=0;
  for(unsigned page=0;page<=l::kBodyPage2D76;++page)for(const auto& row:l::rows(page)){

@@ -1,70 +1,58 @@
-# Current limits — R105
+# Known issues
 
-The current repair is based on the supplied R104 source. The supplied recordings
-identify R94R1, R97 and R101; none records the supplied R104 or this R105 build.
-Source defects and host regressions are documented in
-[R105_REPAIR_REVIEW.md](R105_REPAIR_REVIEW.md) and
-[R105_VALIDATION.json](R105_VALIDATION.json).
+what i know is not right yet, or not proven in the headset. the longer story for each is in
+KCD2VR_HISTORY_AND_RESEARCH.md (section 10 and the area sections).
 
-The Windows SDK/MSVC, game and headset are unavailable in the repair environment.
-No new DLL link, SteamVR/Meta/VDXR game run, native spanner mesh inspection or GPU
-measurement is claimed. The intermittent upside-down startup remains a runtime
-check: R105 repairs session/reference recovery and adds first-pose diagnostics;
-it does not apply a guessed headset-axis flip or alter the accepted head-follow
-math. Runtime input/layer defects are independently reproduced in host tests.
+## runtime / view
 
-The 3 m ordinary HUD plane and inward semantic safe area need a headset comfort
-check. Palm gestures reveal the existing HUD on that plane; icons are not
-physically attached to the wrists. Optional existing HUD rotation lag can still
-move full-field effect edges. Native dialogue response choices and essential
-menu/minigame controls remain outside ordinary interaction-hint suppression.
+- SteamVR as the OpenXR runtime is newer than VDXR and less tested. SteamVR refuses the whole frame when one overlay
+  layer is bad, the mod repairs the layers and lets overlays sit out for a moment instead of losing the frame. the
+  `R106 XR_LAYERS` rows in KCD2VR.log say what SteamVR refused. VDXR (Virtual Desktop) is the tested runtime.
+- sometimes the view starts upside down or facing backwards (seen with SteamVR). a start/load that faces more than
+  90 deg away gets recentered, the first head pose is in the log (`R105 XR_HEAD`). no root cause yet.
+- black frames now and then: no cause found in any log. if it happens, F2 at game start and note the time. when the
+  game stalls the last picture is shown again instead of black (`VrEyeHoldR141`, R153 also in Theater / loading
+  screens). a long loading stall can still go dark in SteamVR: the game gives no frame at all then.
+- DLSS/FSR/XeSS per eye work, but image quality and frame rate depend on the GPU and driver. Native (no upscaling) is
+  the safe choice. some render size changes need a game restart.
+- the HUD reading plane and the palm glance HUD need a comfort check per person (distance, size). full-field effects
+  (fades, blood, cinematic masks) stay full-field on purpose.
 
-Physics/combat and the working reload state machine are preserved from R104.
-The spanner change repairs only medium-tool native grip capture; actual mesh
-placement and complete class 10/14/15 reloads require the game.
+## body / hands
 
-The older review below is retained as historical context. Its statements about
-previous compilers, supplied logs or tested revisions do not describe R105.
+- elbows have never been perfect. there are three elbow choices in Experiments > VRIK (last row), none is "the natural one" yet.
+- weapon flicker while walking was worked on in R98 (shared frame delta), not confirmed in the headset since.
+- without a saved T-pose VRIK starts on a default arm profile from your eye height. do the calibration once
+  (Shift+F8 or the VR menu) for your real arm length.
 
-## Historical R94R1 limits
+## combat
 
+- kicks: the route and cooldown are fixed in source, kicks in every context are not confirmed in the headset.
+- impale: the hang works, the body still plays its death animation first before it ragdolls. a nearly instant ragdoll is
+  not possible without the game's own hand-over.
+- masterstrike / finisher damage stays the game's own 1x. the tracked blade does not own the authored finisher event.
+- free targeting (native auto-turn vetoed during the fight) is not confirmed in the headset.
 
-This status refers to the supplied R93R4 source and the Repair R1 changes dated
-4 November 2026. The latest substantive recordings supplied with the review are
-R92R1; they are historical evidence, not a headset test of R93R4 or this patch.
-The ten log files include paired main/diagnostic files, not ten independent
-gameplay sessions. Settings saved at process exit do not establish live options.
+## interactions
 
-See [the integration review](R94R1_REVIEW.md) and its delivery manifest for the
-final source, focused MSVC checks and Windows link. There is no game run, GPU
-measurement or headset validation of this successor. The original repair handoff
-is retained separately as proposal provenance.
+- held props or a dragged corpse could push Henry away. there is a self-collision fix (collision class bits), not
+  confirmed in the headset.
+- scenery props without a native selection/ownership (level brushes) work through the brush swap only where the mesh has
+  a usable path. fixed world brushes and physics-less meshes are not covered.
+- the physical dice cup (take, shake, place) is not done. pointing at a die to choose it works (`VrDiceHandsD85`), the
+  throw is still Henry's animation.
+- alchemy: the mortar "release as drop in" over the kettle and the plate held in the hand had problems in my R101 run,
+  fixes are in source, not confirmed.
 
-| Area | Current source status and remaining evidence |
-| --- | --- |
-| Accepted view | Camera-head sampling functions, stereo rendering/composition, projection and calibration are preserved. Independent hand acquisition uses a head reference in its own pose family and never publishes the camera head. Added XR lookups still require an actual performance and comfort check. |
-| Fresh hands | Uncapped mode can acquire fresh hands under head-source modes 0, 1 and 2. Its bounded coherent prediction anchor, nonblocking locks, generation/epoch checks and separate publication lane have host tests. Source mode 3 remains unsupported. Final body-to-palette-to-eye smoothness and long-session behavior are unmeasured. |
-| Elbows | F7 identifies the actual selected solver and records the R89 calibrated hand cues, body cue, native seed, target, prior state, confidence and clamps. Synthetic production-serializer replay is exact. This is diagnostic repair; it does not establish natural-looking elbows or replace the numerical solver. No earlier elbow configuration is declared a known-good baseline. |
-| Crossbows | Auxiliary gaps and missing placement receipts have a bounded pause on the exact owned reload clock, without new gesture/event/ammunition credit. Source, target and wrist publication are joined in the committed packet. Hand ownership is side-specific; native torso/reload progression and native event accounting remain. Actual tool/bolt/string appearance, all crossbow classes and paid native reload completion need runtime confirmation. |
-| Ordinary pickups | An adopted pickup retains its exact resource presentation during the native-policy transition; the exact finishing/adopted witness remains reachable when ordinary binding succeeds while the independent gameplay-policy cache still says false. The following tracking producer/body foundation now carries that same typed adopted receipt; ordinary releases do not invalidate a normally allowed body. Host checks cover source/owner replacement and timeout. Acquisition, both-hand display, real haptics, stow and throw behavior still need the game. |
-| Alchemy | Snapshot acquisition precedes the validation clock, and validation uses those same snapshots. Native resource, station and ownership checks remain. All resource variants and delayed native attachment/readback still need runtime evidence. |
-| Dice exit | A missing/stale policy sample is a temporary nonauthorizing gap, distinct from an explicit option OFF or a confirmed context change. Retained visit identity allows exact cleanup and cannot authorize a new edit. Actual displayed restoration requires a current game run. |
-| Physical dice cup | Take, shake and place are still incomplete. The supplied bridge supports right-hand pointing plus native A input. No verified native cup occurrence, complete hand attachment/placement owner or once-only throw accounting exists in the supplied source. Those existing features must not be described as physical cup handling. |
-| Small objects | Repair R1 replaces scenery teleport carry with a finite-mass native velocity drive, leaving native physics enabled for collision response and retaining achieved release motion. RigidBodyLight classification is corrected. Admission verifies original contact/body identity, one valid slot, unchanged render bounds/scale/pose and rigid-body/mass readback; it does not verify the new collision mesh. Limits are 3 kg, 65 cm bounds diameter and 30 cm grab reach; the motor releases beyond 35 cm target/body separation. Promoted scenery remains rigid after release. Physics-less meshes and fixed world brushes are not covered; collisions, material breakage and performance are runtime checks. The experiment and missing-key default stay OFF; explicit saved values remain respected. |
-| Doors | Native key/manual-side unlocking and its existing hand clip remain available. Truly unusable locked or unknown-state doors cannot acquire the gesture; relocking revokes seeking. Retail Lua control flow is exercised in both load orders under a host Lua VM; retail Lua 5.1/game integration and visible swinging are not executed here. |
-| Stealth overlays | Existing lockpicking/pickpocketing fitting uses a native UI parent so artwork and cursor scale together. Current adapter tests check fit, readback, bounded retry, restoration and destruction. No speculative scale change was made. Headset sizing and cursor alignment remain visual checks. |
-| Combos / paired damage | Native candidate callback observation is now distinguished from an unavailable hook, including when the extra VR filter is OFF. Native recipe progression and final-input contact permission remain separate from paired damage. Masterstrike/finisher damage is still native 1x: tracked-blade authority for the exact authored event is incomplete. No 64x timing or automatic hit is enabled on pair identity alone. |
-| Haptics | A producer accepting a haptic request is distinct from OpenXR submission and from a physically felt pulse. Gated receipts can establish submission/rejection, not actuator delivery. The latest-value mailbox can overwrite an accepted cue before consumption, leaving no terminal receipt; missing completion evidence does not prove delivery. |
+## reloads
 
-## Retained work outside this repair
+- crossbow: the tool in the hand for the goat's foot / cranequin and the light crossbow string pull by hand are not
+  fully confirmed in a log. the F11 row `XBOW_TOOL_GRIP` shows what happened. the bow works.
+- rifle: never tested in VR.
 
-Existing DLSS/FSR/XeSS implementation, native graphics switching, map rendering,
-smithing, kicks, knives, corpse dragging, roomscale/dodge, riding and dialogue
-behavior are not certified by this patch. Their earlier evidence and unresolved
-runtime questions remain; this update does not convert historical claims into
-new test results. Optional gore remains a separate component.
+## other
 
-All diagnostic additions use existing finite capture gates and the central log.
-Hook installation, script submission, SDK success, accepted body publication and
-an input handler returning are each narrower observations than a displayed eye,
-acquired item, moved body, completed paid reload, delivered pulse or landed hit.
+- the optional gore pak is separate. reliable limb removal is still unfinished.
+- the INI is saved on exit. it does not tell what was active during an earlier action.
+- the mod is pinned to the current retail WHGame.dll. after a game update features with a failed byte pin do not run,
+  the log says which.
